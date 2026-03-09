@@ -7,9 +7,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   Send,
-  Shield,
-  Rocket,
-  Fingerprint,
+  Sparkles,
 } from "lucide-react"
 
 import { NavMain } from "#/components/nav-main"
@@ -51,20 +49,6 @@ const data = {
       ],
     },
     {
-      title: "Audit",
-      url: "/settings",
-      icon: Shield,
-      items: [
-        { title: "Security Scan", url: "/settings" },
-        { title: "Reports", url: "/settings" },
-      ],
-    },
-    {
-      title: "Deploy",
-      url: "/settings",
-      icon: Rocket,
-    },
-    {
       title: "Settings",
       url: "/settings",
       icon: Settings2,
@@ -97,13 +81,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link to="/">
-                <div className="flex aspect-square size-9 items-center justify-center rounded-lg bg-primary/15 ring-1 ring-primary/20">
-                  <Fingerprint className="size-5 text-primary" />
+                <div className="flex aspect-square size-8 items-center justify-center rounded-xl bg-sidebar-primary text-sidebar-primary-foreground">
+                  <Sparkles className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold font-heading tracking-tight text-[15px]">Brilion AI</span>
-                  <span className="truncate text-[11px] text-muted-foreground font-medium">
-                    OpenClaw Platform
+                  <span className="truncate font-semibold">MyAI</span>
+                  <span className="truncate text-xs text-muted-foreground">
+                    Personal Agent
                   </span>
                 </div>
               </Link>
@@ -122,13 +106,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link to="/settings">
-                <div className="relative flex aspect-square size-9 items-center justify-center rounded-lg bg-muted">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-xl bg-muted">
                   <Bot className="size-4" />
-                  <span className="absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full bg-emerald-500 ring-2 ring-sidebar" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-medium text-[13px]">Agent</span>
-                  <span className="truncate text-[11px] text-emerald-500 font-medium">Online</span>
+                  <span className="truncate font-medium">Agent</span>
+                  <span className="truncate text-xs text-emerald-500">Online</span>
                 </div>
               </Link>
             </SidebarMenuButton>

@@ -75,29 +75,22 @@ function ChannelsPage() {
 
   return (
     <div className="@container/main flex flex-1 flex-col gap-2">
-      <div className="flex flex-col gap-6 py-6 md:gap-8 md:py-8">
-        {/* Page Title */}
-        <div className="px-4 lg:px-6">
-          <h1 className="text-lg font-heading font-semibold tracking-tight">Messaging Channels</h1>
-          <p className="text-sm text-muted-foreground/70 mt-1">Connect your AI agent to messaging platforms</p>
-        </div>
-
-        {/* Channel Status Cards */}
+      <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
         <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2">
           {/* WhatsApp */}
-          <Card className="@container/card overflow-hidden animate-slide-up">
+          <Card className="@container/card overflow-hidden">
             <CardHeader className="relative">
-              <div className="flex items-center gap-3">
-                <div className="flex size-11 items-center justify-center rounded-xl bg-emerald-500/10 ring-1 ring-emerald-500/15">
-                  <MessageCircle className="size-5 text-emerald-500" />
+              <div className="flex items-center gap-4">
+                <div className="flex size-12 items-center justify-center rounded-2xl bg-emerald-500/10">
+                  <MessageCircle className="size-6 text-emerald-500" />
                 </div>
                 <div className="flex-1">
-                  <CardTitle className="font-heading text-base">WhatsApp</CardTitle>
-                  <CardDescription className="text-xs">Baileys Web Client</CardDescription>
+                  <CardTitle className="text-lg">WhatsApp</CardTitle>
+                  <CardDescription>Baileys Web Client</CardDescription>
                 </div>
                 <Badge
                   variant={waStatus?.connected ? 'default' : 'secondary'}
-                  className="gap-1.5 text-[10px] font-mono"
+                  className="gap-1.5"
                 >
                   {waStatus?.connected ? (
                     <>
@@ -117,42 +110,42 @@ function ChannelsPage() {
             <CardContent>
               {waStatus?.connected ? (
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={fetchStatus} className="rounded-lg text-xs press-effect">
-                    <RefreshCw className="mr-1.5 size-3" />
+                  <Button variant="outline" size="sm" onClick={fetchStatus} className="rounded-xl">
+                    <RefreshCw className="mr-2 size-4" />
                     Refresh
                   </Button>
-                  <Button variant="destructive" size="sm" onClick={disconnect} className="rounded-lg text-xs press-effect">
-                    <PowerOff className="mr-1.5 size-3" />
+                  <Button variant="destructive" size="sm" onClick={disconnect} className="rounded-xl">
+                    <PowerOff className="mr-2 size-4" />
                     Disconnect
                   </Button>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <Button onClick={startLogin} disabled={loading} className="rounded-lg text-xs press-effect">
-                    <QrCode className="mr-1.5 size-3.5" />
+                  <Button onClick={startLogin} disabled={loading} className="rounded-xl">
+                    <QrCode className="mr-2 size-4" />
                     {loading ? 'Connecting...' : 'Connect via QR Code'}
                   </Button>
 
                   {qrSession?.qrDataUrl && (
-                    <div className="flex flex-col items-center gap-4 rounded-xl border border-border/50 bg-muted/20 p-6">
-                      <p className="text-xs text-muted-foreground font-medium">
+                    <div className="flex flex-col items-center gap-4 rounded-xl border p-6">
+                      <p className="text-sm text-muted-foreground">
                         Scan with WhatsApp on your phone
                       </p>
                       <div className="rounded-xl bg-white p-3">
                         <img
                           src={qrSession.qrDataUrl}
                           alt="WhatsApp QR Code"
-                          className="size-48"
+                          className="size-56"
                         />
                       </div>
-                      <p className="text-[10px] text-muted-foreground/60">
+                      <p className="text-xs text-muted-foreground">
                         {qrSession.message}
                       </p>
                     </div>
                   )}
 
                   {qrSession && !qrSession.qrDataUrl && (
-                    <p className="text-xs text-muted-foreground rounded-lg bg-muted/30 px-3 py-2.5">
+                    <p className="text-sm text-muted-foreground rounded-lg bg-muted p-3">
                       {qrSession.message}
                     </p>
                   )}
@@ -160,23 +153,23 @@ function ChannelsPage() {
               )}
             </CardContent>
 
-            <CardFooter className="text-[11px] text-muted-foreground/50">
+            <CardFooter className="text-sm text-muted-foreground">
               End-to-end encrypted messaging via Baileys
             </CardFooter>
           </Card>
 
           {/* Telegram */}
-          <Card className="@container/card animate-slide-up" style={{ animationDelay: '50ms' }}>
+          <Card className="@container/card">
             <CardHeader>
-              <div className="flex items-center gap-3">
-                <div className="flex size-11 items-center justify-center rounded-xl bg-blue-500/10 ring-1 ring-blue-500/15">
-                  <SendIcon className="size-5 text-blue-500" />
+              <div className="flex items-center gap-4">
+                <div className="flex size-12 items-center justify-center rounded-2xl bg-blue-500/10">
+                  <SendIcon className="size-6 text-blue-500" />
                 </div>
                 <div className="flex-1">
-                  <CardTitle className="font-heading text-base">Telegram</CardTitle>
-                  <CardDescription className="text-xs">Grammy Bot API</CardDescription>
+                  <CardTitle className="text-lg">Telegram</CardTitle>
+                  <CardDescription>Grammy Bot API</CardDescription>
                 </div>
-                <Badge variant="secondary" className="gap-1.5 text-[10px] font-mono">
+                <Badge variant="secondary" className="gap-1.5">
                   <WifiOff className="size-3" />
                   Not Set
                 </Badge>
@@ -184,8 +177,8 @@ function ChannelsPage() {
             </CardHeader>
 
             <CardContent>
-              <div className="rounded-xl border border-border/40 bg-muted/15 p-4">
-                <p className="text-xs text-muted-foreground leading-relaxed">
+              <div className="rounded-xl border p-4">
+                <p className="text-sm text-muted-foreground">
                   Add your Telegram Bot Token in{' '}
                   <span className="font-medium text-foreground">Settings → API Keys</span>
                   {' '}to enable your agent on Telegram.
@@ -193,7 +186,7 @@ function ChannelsPage() {
               </div>
             </CardContent>
 
-            <CardFooter className="text-[11px] text-muted-foreground/50">
+            <CardFooter className="text-sm text-muted-foreground">
               Powered by grammy framework
             </CardFooter>
           </Card>
