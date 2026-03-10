@@ -9,18 +9,37 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as McpRouteImport } from './routes/mcp'
-import { Route as ChatRouteImport } from './routes/chat'
-import { Route as ChannelsRouteImport } from './routes/channels'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as LandingRouteImport } from './routes/landing'
+import { Route as AuthRouteImport } from './routes/_auth'
+import { Route as AppRouteImport } from './routes/_app'
+import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as ApiWorkspaceRouteImport } from './routes/api/workspace'
+import { Route as ApiWhatsappRouteImport } from './routes/api/whatsapp'
+import { Route as ApiTelegramRouteImport } from './routes/api/telegram'
+import { Route as ApiSkillsRouteImport } from './routes/api/skills'
+import { Route as ApiOnboardingRouteImport } from './routes/api/onboarding'
+import { Route as ApiModelsRouteImport } from './routes/api/models'
+import { Route as ApiKeysRouteImport } from './routes/api/keys'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiConfigRouteImport } from './routes/api/config'
+import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiSplatRouteImport } from './routes/api.$'
+import { Route as AuthSignupRouteImport } from './routes/_auth.signup'
+import { Route as AuthLoginRouteImport } from './routes/_auth.login'
+import { Route as AppSkillsRouteImport } from './routes/_app.skills'
+import { Route as AppSettingsRouteImport } from './routes/_app.settings'
+import { Route as AppChatRouteImport } from './routes/_app.chat'
+import { Route as AppChannelsRouteImport } from './routes/_app.channels'
 import { Route as ApiTrpcSplatRouteImport } from './routes/api.trpc.$'
 import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
+import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const McpRoute = McpRouteImport.update({
@@ -28,25 +47,108 @@ const McpRoute = McpRouteImport.update({
   path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ChatRoute = ChatRouteImport.update({
-  id: '/chat',
-  path: '/chat',
+const LandingRoute = LandingRouteImport.update({
+  id: '/landing',
+  path: '/landing',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ChannelsRoute = ChannelsRouteImport.update({
-  id: '/channels',
-  path: '/channels',
+const AuthRoute = AuthRouteImport.update({
+  id: '/_auth',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
+const AppRoute = AppRouteImport.update({
+  id: '/_app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const ApiWorkspaceRoute = ApiWorkspaceRouteImport.update({
+  id: '/api/workspace',
+  path: '/api/workspace',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWhatsappRoute = ApiWhatsappRouteImport.update({
+  id: '/api/whatsapp',
+  path: '/api/whatsapp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTelegramRoute = ApiTelegramRouteImport.update({
+  id: '/api/telegram',
+  path: '/api/telegram',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSkillsRoute = ApiSkillsRouteImport.update({
+  id: '/api/skills',
+  path: '/api/skills',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOnboardingRoute = ApiOnboardingRouteImport.update({
+  id: '/api/onboarding',
+  path: '/api/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiModelsRoute = ApiModelsRouteImport.update({
+  id: '/api/models',
+  path: '/api/models',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiKeysRoute = ApiKeysRouteImport.update({
+  id: '/api/keys',
+  path: '/api/keys',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiConfigRoute = ApiConfigRouteImport.update({
+  id: '/api/config',
+  path: '/api/config',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiChatRoute = ApiChatRouteImport.update({
+  id: '/api/chat',
+  path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSplatRoute = ApiSplatRouteImport.update({
   id: '/api/$',
   path: '/api/$',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthSignupRoute = AuthSignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AuthLoginRoute = AuthLoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => AuthRoute,
+} as any)
+const AppSkillsRoute = AppSkillsRouteImport.update({
+  id: '/skills',
+  path: '/skills',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSettingsRoute = AppSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppChatRoute = AppChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppChannelsRoute = AppChannelsRouteImport.update({
+  id: '/channels',
+  path: '/channels',
+  getParentRoute: () => AppRoute,
 } as any)
 const ApiTrpcSplatRoute = ApiTrpcSplatRouteImport.update({
   id: '/api/trpc/$',
@@ -58,35 +160,98 @@ const ApiRpcSplatRoute = ApiRpcSplatRouteImport.update({
   path: '/api/rpc/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAuthRegisterRoute = ApiAuthRegisterRouteImport.update({
+  id: '/api/auth/register',
+  path: '/api/auth/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/channels': typeof ChannelsRoute
-  '/chat': typeof ChatRoute
+  '/': typeof AppIndexRoute
+  '/landing': typeof LandingRoute
   '/mcp': typeof McpRoute
-  '/settings': typeof SettingsRoute
+  '/onboarding': typeof OnboardingRoute
+  '/channels': typeof AppChannelsRoute
+  '/chat': typeof AppChatRoute
+  '/settings': typeof AppSettingsRoute
+  '/skills': typeof AppSkillsRoute
+  '/login': typeof AuthLoginRoute
+  '/signup': typeof AuthSignupRoute
   '/api/$': typeof ApiSplatRoute
+  '/api/chat': typeof ApiChatRoute
+  '/api/config': typeof ApiConfigRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/keys': typeof ApiKeysRoute
+  '/api/models': typeof ApiModelsRoute
+  '/api/onboarding': typeof ApiOnboardingRoute
+  '/api/skills': typeof ApiSkillsRoute
+  '/api/telegram': typeof ApiTelegramRoute
+  '/api/whatsapp': typeof ApiWhatsappRoute
+  '/api/workspace': typeof ApiWorkspaceRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/channels': typeof ChannelsRoute
-  '/chat': typeof ChatRoute
+  '/': typeof AppIndexRoute
+  '/landing': typeof LandingRoute
   '/mcp': typeof McpRoute
-  '/settings': typeof SettingsRoute
+  '/onboarding': typeof OnboardingRoute
+  '/channels': typeof AppChannelsRoute
+  '/chat': typeof AppChatRoute
+  '/settings': typeof AppSettingsRoute
+  '/skills': typeof AppSkillsRoute
+  '/login': typeof AuthLoginRoute
+  '/signup': typeof AuthSignupRoute
   '/api/$': typeof ApiSplatRoute
+  '/api/chat': typeof ApiChatRoute
+  '/api/config': typeof ApiConfigRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/keys': typeof ApiKeysRoute
+  '/api/models': typeof ApiModelsRoute
+  '/api/onboarding': typeof ApiOnboardingRoute
+  '/api/skills': typeof ApiSkillsRoute
+  '/api/telegram': typeof ApiTelegramRoute
+  '/api/whatsapp': typeof ApiWhatsappRoute
+  '/api/workspace': typeof ApiWorkspaceRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/channels': typeof ChannelsRoute
-  '/chat': typeof ChatRoute
+  '/_app': typeof AppRouteWithChildren
+  '/_auth': typeof AuthRouteWithChildren
+  '/landing': typeof LandingRoute
   '/mcp': typeof McpRoute
-  '/settings': typeof SettingsRoute
+  '/onboarding': typeof OnboardingRoute
+  '/_app/channels': typeof AppChannelsRoute
+  '/_app/chat': typeof AppChatRoute
+  '/_app/settings': typeof AppSettingsRoute
+  '/_app/skills': typeof AppSkillsRoute
+  '/_auth/login': typeof AuthLoginRoute
+  '/_auth/signup': typeof AuthSignupRoute
   '/api/$': typeof ApiSplatRoute
+  '/api/chat': typeof ApiChatRoute
+  '/api/config': typeof ApiConfigRoute
+  '/api/health': typeof ApiHealthRoute
+  '/api/keys': typeof ApiKeysRoute
+  '/api/models': typeof ApiModelsRoute
+  '/api/onboarding': typeof ApiOnboardingRoute
+  '/api/skills': typeof ApiSkillsRoute
+  '/api/telegram': typeof ApiTelegramRoute
+  '/api/whatsapp': typeof ApiWhatsappRoute
+  '/api/workspace': typeof ApiWorkspaceRoute
+  '/_app/': typeof AppIndexRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
@@ -94,53 +259,118 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/landing'
+    | '/mcp'
+    | '/onboarding'
     | '/channels'
     | '/chat'
-    | '/mcp'
     | '/settings'
+    | '/skills'
+    | '/login'
+    | '/signup'
     | '/api/$'
+    | '/api/chat'
+    | '/api/config'
+    | '/api/health'
+    | '/api/keys'
+    | '/api/models'
+    | '/api/onboarding'
+    | '/api/skills'
+    | '/api/telegram'
+    | '/api/whatsapp'
+    | '/api/workspace'
+    | '/api/auth/$'
+    | '/api/auth/register'
     | '/api/rpc/$'
     | '/api/trpc/$'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/landing'
+    | '/mcp'
+    | '/onboarding'
     | '/channels'
     | '/chat'
-    | '/mcp'
     | '/settings'
+    | '/skills'
+    | '/login'
+    | '/signup'
     | '/api/$'
+    | '/api/chat'
+    | '/api/config'
+    | '/api/health'
+    | '/api/keys'
+    | '/api/models'
+    | '/api/onboarding'
+    | '/api/skills'
+    | '/api/telegram'
+    | '/api/whatsapp'
+    | '/api/workspace'
+    | '/api/auth/$'
+    | '/api/auth/register'
     | '/api/rpc/$'
     | '/api/trpc/$'
   id:
     | '__root__'
-    | '/'
-    | '/channels'
-    | '/chat'
+    | '/_app'
+    | '/_auth'
+    | '/landing'
     | '/mcp'
-    | '/settings'
+    | '/onboarding'
+    | '/_app/channels'
+    | '/_app/chat'
+    | '/_app/settings'
+    | '/_app/skills'
+    | '/_auth/login'
+    | '/_auth/signup'
     | '/api/$'
+    | '/api/chat'
+    | '/api/config'
+    | '/api/health'
+    | '/api/keys'
+    | '/api/models'
+    | '/api/onboarding'
+    | '/api/skills'
+    | '/api/telegram'
+    | '/api/whatsapp'
+    | '/api/workspace'
+    | '/_app/'
+    | '/api/auth/$'
+    | '/api/auth/register'
     | '/api/rpc/$'
     | '/api/trpc/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  ChannelsRoute: typeof ChannelsRoute
-  ChatRoute: typeof ChatRoute
+  AppRoute: typeof AppRouteWithChildren
+  AuthRoute: typeof AuthRouteWithChildren
+  LandingRoute: typeof LandingRoute
   McpRoute: typeof McpRoute
-  SettingsRoute: typeof SettingsRoute
+  OnboardingRoute: typeof OnboardingRoute
   ApiSplatRoute: typeof ApiSplatRoute
+  ApiChatRoute: typeof ApiChatRoute
+  ApiConfigRoute: typeof ApiConfigRoute
+  ApiHealthRoute: typeof ApiHealthRoute
+  ApiKeysRoute: typeof ApiKeysRoute
+  ApiModelsRoute: typeof ApiModelsRoute
+  ApiOnboardingRoute: typeof ApiOnboardingRoute
+  ApiSkillsRoute: typeof ApiSkillsRoute
+  ApiTelegramRoute: typeof ApiTelegramRoute
+  ApiWhatsappRoute: typeof ApiWhatsappRoute
+  ApiWorkspaceRoute: typeof ApiWorkspaceRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
   ApiRpcSplatRoute: typeof ApiRpcSplatRoute
   ApiTrpcSplatRoute: typeof ApiTrpcSplatRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/mcp': {
@@ -150,25 +380,102 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/chat': {
-      id: '/chat'
-      path: '/chat'
-      fullPath: '/chat'
-      preLoaderRoute: typeof ChatRouteImport
+    '/landing': {
+      id: '/landing'
+      path: '/landing'
+      fullPath: '/landing'
+      preLoaderRoute: typeof LandingRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/channels': {
-      id: '/channels'
-      path: '/channels'
-      fullPath: '/channels'
-      preLoaderRoute: typeof ChannelsRouteImport
+    '/_auth': {
+      id: '/_auth'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
+    '/_app': {
+      id: '/_app'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_app/': {
+      id: '/_app/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/api/workspace': {
+      id: '/api/workspace'
+      path: '/api/workspace'
+      fullPath: '/api/workspace'
+      preLoaderRoute: typeof ApiWorkspaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/whatsapp': {
+      id: '/api/whatsapp'
+      path: '/api/whatsapp'
+      fullPath: '/api/whatsapp'
+      preLoaderRoute: typeof ApiWhatsappRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/telegram': {
+      id: '/api/telegram'
+      path: '/api/telegram'
+      fullPath: '/api/telegram'
+      preLoaderRoute: typeof ApiTelegramRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/skills': {
+      id: '/api/skills'
+      path: '/api/skills'
+      fullPath: '/api/skills'
+      preLoaderRoute: typeof ApiSkillsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/onboarding': {
+      id: '/api/onboarding'
+      path: '/api/onboarding'
+      fullPath: '/api/onboarding'
+      preLoaderRoute: typeof ApiOnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/models': {
+      id: '/api/models'
+      path: '/api/models'
+      fullPath: '/api/models'
+      preLoaderRoute: typeof ApiModelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/keys': {
+      id: '/api/keys'
+      path: '/api/keys'
+      fullPath: '/api/keys'
+      preLoaderRoute: typeof ApiKeysRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/config': {
+      id: '/api/config'
+      path: '/api/config'
+      fullPath: '/api/config'
+      preLoaderRoute: typeof ApiConfigRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/chat': {
+      id: '/api/chat'
+      path: '/api/chat'
+      fullPath: '/api/chat'
+      preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/$': {
@@ -177,6 +484,48 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/$'
       preLoaderRoute: typeof ApiSplatRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_auth/signup': {
+      id: '/_auth/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof AuthSignupRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/login': {
+      id: '/_auth/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof AuthLoginRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_app/skills': {
+      id: '/_app/skills'
+      path: '/skills'
+      fullPath: '/skills'
+      preLoaderRoute: typeof AppSkillsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/settings': {
+      id: '/_app/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/chat': {
+      id: '/_app/chat'
+      path: '/chat'
+      fullPath: '/chat'
+      preLoaderRoute: typeof AppChatRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/channels': {
+      id: '/_app/channels'
+      path: '/channels'
+      fullPath: '/channels'
+      preLoaderRoute: typeof AppChannelsRouteImport
+      parentRoute: typeof AppRoute
     }
     '/api/trpc/$': {
       id: '/api/trpc/$'
@@ -192,16 +541,72 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRpcSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/auth/register': {
+      id: '/api/auth/register'
+      path: '/api/auth/register'
+      fullPath: '/api/auth/register'
+      preLoaderRoute: typeof ApiAuthRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
+interface AppRouteChildren {
+  AppChannelsRoute: typeof AppChannelsRoute
+  AppChatRoute: typeof AppChatRoute
+  AppSettingsRoute: typeof AppSettingsRoute
+  AppSkillsRoute: typeof AppSkillsRoute
+  AppIndexRoute: typeof AppIndexRoute
+}
+
+const AppRouteChildren: AppRouteChildren = {
+  AppChannelsRoute: AppChannelsRoute,
+  AppChatRoute: AppChatRoute,
+  AppSettingsRoute: AppSettingsRoute,
+  AppSkillsRoute: AppSkillsRoute,
+  AppIndexRoute: AppIndexRoute,
+}
+
+const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
+
+interface AuthRouteChildren {
+  AuthLoginRoute: typeof AuthLoginRoute
+  AuthSignupRoute: typeof AuthSignupRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthLoginRoute: AuthLoginRoute,
+  AuthSignupRoute: AuthSignupRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  ChannelsRoute: ChannelsRoute,
-  ChatRoute: ChatRoute,
+  AppRoute: AppRouteWithChildren,
+  AuthRoute: AuthRouteWithChildren,
+  LandingRoute: LandingRoute,
   McpRoute: McpRoute,
-  SettingsRoute: SettingsRoute,
+  OnboardingRoute: OnboardingRoute,
   ApiSplatRoute: ApiSplatRoute,
+  ApiChatRoute: ApiChatRoute,
+  ApiConfigRoute: ApiConfigRoute,
+  ApiHealthRoute: ApiHealthRoute,
+  ApiKeysRoute: ApiKeysRoute,
+  ApiModelsRoute: ApiModelsRoute,
+  ApiOnboardingRoute: ApiOnboardingRoute,
+  ApiSkillsRoute: ApiSkillsRoute,
+  ApiTelegramRoute: ApiTelegramRoute,
+  ApiWhatsappRoute: ApiWhatsappRoute,
+  ApiWorkspaceRoute: ApiWorkspaceRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiAuthRegisterRoute: ApiAuthRegisterRoute,
   ApiRpcSplatRoute: ApiRpcSplatRoute,
   ApiTrpcSplatRoute: ApiTrpcSplatRoute,
 }

@@ -156,3 +156,23 @@ code, pre {
   }
 }
 
+/* Prose styling for markdown in chat */
+.prose pre {
+  @apply bg-background/80 border;
+}
+.prose pre code {
+  @apply bg-transparent p-0;
+}
+.prose a {
+  @apply text-primary underline decoration-primary/30 hover:decoration-primary;
+}
+.prose table {
+  @apply border-collapse;
+}
+.prose th, .prose td {
+  @apply border px-3 py-1.5 text-left text-sm;
+}
+.prose blockquote {
+  @apply border-l-primary/40;
+}
+

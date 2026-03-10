@@ -18,7 +18,19 @@ const config = defineConfig({
       outdir: './src/paraglide',
       strategy: ['url', 'baseLocale'],
     }),
-    nitro({ rollupConfig: { external: [/^@sentry\//] } }),
+    nitro({
+      rollupConfig: {
+        external: [
+          /^@sentry\//,
+          /^@whiskeysockets\//,
+          /^grammy/,
+          'qrcode',
+          'sharp',
+          'pino',
+          'link-preview-js',
+        ],
+      },
+    }),
     contentCollections(),
     tsconfigPaths({ projects: ['./tsconfig.json'] }),
     tailwindcss(),

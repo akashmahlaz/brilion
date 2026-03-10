@@ -1,7 +1,7 @@
 import { useRouter } from "@tanstack/react-router"
-import { Button } from "#/components/ui/button"
 import { Separator } from "#/components/ui/separator"
 import { SidebarTrigger } from "#/components/ui/sidebar"
+import { ThemeToggle } from "#/components/ThemeToggle"
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -14,6 +14,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/chat": "Chat",
   "/channels": "Channels",
   "/settings": "Settings",
+  "/skills": "Skills",
 }
 
 export function SiteHeader() {
@@ -38,10 +39,8 @@ export function SiteHeader() {
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-        <div className="ml-auto flex items-center gap-2">
-          <Button variant="ghost" size="sm">
-            v0.1.0
-          </Button>
+        <div className="ml-auto flex items-center gap-1">
+          <ThemeToggle />
         </div>
       </div>
     </header>
