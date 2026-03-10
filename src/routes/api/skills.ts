@@ -6,7 +6,6 @@ import {
   searchClawHub,
   installFromClawHub,
   installFromContent,
-  uninstallSkill,
 } from "#/server/lib/skill-installer";
 
 export const Route = createFileRoute("/api/skills")({

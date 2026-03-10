@@ -16,11 +16,11 @@ export const webRequest = tool({
       .optional()
       .describe("HTTP method (default: GET)"),
     headers: z
-      .record(z.string())
+      .record(z.string(), z.string())
       .optional()
       .describe("Additional request headers"),
     body: z
-      .union([z.string(), z.record(z.unknown())])
+      .union([z.string(), z.record(z.string(), z.unknown())])
       .optional()
       .describe("Request body — string or JSON object"),
     tokenProvider: z
@@ -72,7 +72,7 @@ export const webRequest = tool({
     try {
       const res = await fetch(url, {
         method,
-        headers,
+        headers: headers as HeadersInit,
         body: body
           ? typeof body === "string"
             ? body

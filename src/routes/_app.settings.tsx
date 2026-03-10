@@ -5,7 +5,6 @@ import {
   Plus,
   Trash2,
   RefreshCw,
-  Shield,
   FileText,
   Cpu,
   Check,
@@ -17,7 +16,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'

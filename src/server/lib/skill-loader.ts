@@ -60,13 +60,13 @@ function yamlList(yaml: string, key: string): string[] {
  */
 export async function loadSkillTools(
   userId?: string
-): Promise<Record<string, ReturnType<typeof tool>>> {
+): Promise<Record<string, any>> {
   await connectDB();
   const filter: Record<string, unknown> = { isEnabled: true };
   if (userId) filter.userId = userId;
 
   const skills = await UserSkill.find(filter).lean();
-  const tools: Record<string, ReturnType<typeof tool>> = {};
+  const tools: Record<string, any> = {};
 
   for (const s of skills) {
     const skill = s as {
@@ -95,13 +95,13 @@ function createSkillTool(
   name: string,
   description: string,
   content: string
-): ReturnType<typeof tool> {
+) {
   return tool({
     description: `Skill: ${name} — ${description || "Custom skill"}. Use this when the user's request matches this skill's purpose.`,
     inputSchema: z.object({
       userRequest: z.string().describe("The user's request to handle with this skill"),
     }),
-    execute: async ({ userRequest }) => {
+    execute: async ({ userRequest }: { userRequest: string }) => {
       return {
         skill: name,
         instructions: content,

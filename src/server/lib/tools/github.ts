@@ -227,7 +227,7 @@ export const githubDispatchWorkflow = tool({
       .describe("Workflow file name (e.g., 'deploy.yml') or ID"),
     ref: z.string().describe("Branch to run the workflow on"),
     inputs: z
-      .record(z.string())
+      .record(z.string(), z.string())
       .optional()
       .describe("Workflow input parameters"),
   }),

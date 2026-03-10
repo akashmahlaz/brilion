@@ -17,7 +17,7 @@ const ENV_MAP: Record<string, string> = {
 };
 
 export async function upsertAuthProfile(
-  provider: string,
+  _provider: string,
   data: { type: string; provider: string; token: string; baseUrl?: string }
 ) {
   await connectDB();
