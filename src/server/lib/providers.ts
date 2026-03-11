@@ -128,11 +128,36 @@ function buildProvider(
 
 /**
  * Resolve a model spec (e.g. "github/gpt-4o") into an AI SDK LanguageModel.
+ * Implements OpenClaw-style failover: tries primary, then each fallback.
  */
-export async function resolveModel(modelSpec?: string): Promise<LanguageModel> {
-  const config = await loadConfig();
+export async function resolveModel(modelSpec?: string, userId?: string): Promise<LanguageModel> {
+  console.log("[providers] resolveModel() called, spec:", modelSpec || "default", "userId:", userId || "none");
+  const config = await loadConfig(userId);
   const spec = modelSpec || config.agents?.defaults?.model?.primary || "gpt-4o";
+  const fallbacks: string[] = config.agents?.defaults?.model?.fallbacks || [];
+  console.log("[providers] resolved spec:", spec, "fallbacks:", fallbacks);
 
+  // Try primary first, then each fallback
+  const specs = [spec, ...fallbacks];
+  let lastError: Error | null = null;
+
+  for (const currentSpec of specs) {
+    try {
+      const model = await resolveModelSingle(currentSpec, userId);
+      if (currentSpec !== spec) {
+        console.log("[providers] Failover succeeded with:", currentSpec);
+      }
+      return model;
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      console.log("[providers] Failed to resolve", currentSpec, ":", lastError.message);
+    }
+  }
+
+  throw lastError || new Error("No AI provider configured. Set an API key first.");
+}
+
+async function resolveModelSingle(spec: string, userId?: string): Promise<LanguageModel> {
   let providerId: string;
   let modelId: string;
 
@@ -142,7 +167,7 @@ export async function resolveModel(modelSpec?: string): Promise<LanguageModel> {
     modelId = spec;
     // Try to find a configured provider
     for (const p of PROVIDER_CATALOG) {
-      const key = await resolveProviderKey(p.id);
+      const key = await resolveProviderKey(p.id, userId);
       if (key) {
         providerId = p.id;
         break;
@@ -151,26 +176,28 @@ export async function resolveModel(modelSpec?: string): Promise<LanguageModel> {
     providerId ??= "github";
   }
 
-  const apiKey = await resolveProviderKey(providerId!);
+  console.log("[providers] using provider:", providerId!, "model:", modelId);
+  const apiKey = await resolveProviderKey(providerId!, userId);
   if (!apiKey) {
     throw new Error(
       `No API key configured for provider '${providerId}'. Set one in settings.`
     );
   }
 
-  const baseUrl = await resolveProviderBaseUrl(providerId!);
+  const baseUrl = await resolveProviderBaseUrl(providerId!, userId);
+  console.log("[providers] baseUrl:", baseUrl || "default");
   const provider = buildProvider(providerId!, apiKey, baseUrl ?? undefined);
   return (provider as any)(modelId);
 }
 
-export async function resolveModelBySpec(spec: string): Promise<LanguageModel> {
-  return resolveModel(spec);
+export async function resolveModelBySpec(spec: string, userId?: string): Promise<LanguageModel> {
+  return resolveModel(spec, userId);
 }
 
-export async function getAvailableProviders() {
+export async function getAvailableProviders(userId?: string) {
   const result = [];
   for (const p of PROVIDER_CATALOG) {
-    const key = await resolveProviderKey(p.id);
+    const key = await resolveProviderKey(p.id, userId);
     result.push({
       ...p,
       configured: !!key,

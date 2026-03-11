@@ -9,7 +9,6 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as McpRouteImport } from './routes/mcp'
 import { Route as LandingRouteImport } from './routes/landing'
 import { Route as AuthRouteImport } from './routes/_auth'
@@ -19,7 +18,6 @@ import { Route as ApiWorkspaceRouteImport } from './routes/api/workspace'
 import { Route as ApiWhatsappRouteImport } from './routes/api/whatsapp'
 import { Route as ApiTelegramRouteImport } from './routes/api/telegram'
 import { Route as ApiSkillsRouteImport } from './routes/api/skills'
-import { Route as ApiOnboardingRouteImport } from './routes/api/onboarding'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
 import { Route as ApiKeysRouteImport } from './routes/api/keys'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -37,11 +35,6 @@ import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
 import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
-const OnboardingRoute = OnboardingRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const McpRoute = McpRouteImport.update({
   id: '/mcp',
   path: '/mcp',
@@ -83,11 +76,6 @@ const ApiTelegramRoute = ApiTelegramRouteImport.update({
 const ApiSkillsRoute = ApiSkillsRouteImport.update({
   id: '/api/skills',
   path: '/api/skills',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiOnboardingRoute = ApiOnboardingRouteImport.update({
-  id: '/api/onboarding',
-  path: '/api/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiModelsRoute = ApiModelsRouteImport.update({
@@ -175,7 +163,6 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/landing': typeof LandingRoute
   '/mcp': typeof McpRoute
-  '/onboarding': typeof OnboardingRoute
   '/channels': typeof AppChannelsRoute
   '/chat': typeof AppChatRoute
   '/settings': typeof AppSettingsRoute
@@ -188,7 +175,6 @@ export interface FileRoutesByFullPath {
   '/api/health': typeof ApiHealthRoute
   '/api/keys': typeof ApiKeysRoute
   '/api/models': typeof ApiModelsRoute
-  '/api/onboarding': typeof ApiOnboardingRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/whatsapp': typeof ApiWhatsappRoute
@@ -202,7 +188,6 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/landing': typeof LandingRoute
   '/mcp': typeof McpRoute
-  '/onboarding': typeof OnboardingRoute
   '/channels': typeof AppChannelsRoute
   '/chat': typeof AppChatRoute
   '/settings': typeof AppSettingsRoute
@@ -215,7 +200,6 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/api/keys': typeof ApiKeysRoute
   '/api/models': typeof ApiModelsRoute
-  '/api/onboarding': typeof ApiOnboardingRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/whatsapp': typeof ApiWhatsappRoute
@@ -231,7 +215,6 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/landing': typeof LandingRoute
   '/mcp': typeof McpRoute
-  '/onboarding': typeof OnboardingRoute
   '/_app/channels': typeof AppChannelsRoute
   '/_app/chat': typeof AppChatRoute
   '/_app/settings': typeof AppSettingsRoute
@@ -244,7 +227,6 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/api/keys': typeof ApiKeysRoute
   '/api/models': typeof ApiModelsRoute
-  '/api/onboarding': typeof ApiOnboardingRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/whatsapp': typeof ApiWhatsappRoute
@@ -261,7 +243,6 @@ export interface FileRouteTypes {
     | '/'
     | '/landing'
     | '/mcp'
-    | '/onboarding'
     | '/channels'
     | '/chat'
     | '/settings'
@@ -274,7 +255,6 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/keys'
     | '/api/models'
-    | '/api/onboarding'
     | '/api/skills'
     | '/api/telegram'
     | '/api/whatsapp'
@@ -288,7 +268,6 @@ export interface FileRouteTypes {
     | '/'
     | '/landing'
     | '/mcp'
-    | '/onboarding'
     | '/channels'
     | '/chat'
     | '/settings'
@@ -301,7 +280,6 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/keys'
     | '/api/models'
-    | '/api/onboarding'
     | '/api/skills'
     | '/api/telegram'
     | '/api/whatsapp'
@@ -316,7 +294,6 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/landing'
     | '/mcp'
-    | '/onboarding'
     | '/_app/channels'
     | '/_app/chat'
     | '/_app/settings'
@@ -329,7 +306,6 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/keys'
     | '/api/models'
-    | '/api/onboarding'
     | '/api/skills'
     | '/api/telegram'
     | '/api/whatsapp'
@@ -346,14 +322,12 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   LandingRoute: typeof LandingRoute
   McpRoute: typeof McpRoute
-  OnboardingRoute: typeof OnboardingRoute
   ApiSplatRoute: typeof ApiSplatRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiConfigRoute: typeof ApiConfigRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiKeysRoute: typeof ApiKeysRoute
   ApiModelsRoute: typeof ApiModelsRoute
-  ApiOnboardingRoute: typeof ApiOnboardingRoute
   ApiSkillsRoute: typeof ApiSkillsRoute
   ApiTelegramRoute: typeof ApiTelegramRoute
   ApiWhatsappRoute: typeof ApiWhatsappRoute
@@ -366,13 +340,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/onboarding': {
-      id: '/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof OnboardingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/mcp': {
       id: '/mcp'
       path: '/mcp'
@@ -434,13 +401,6 @@ declare module '@tanstack/react-router' {
       path: '/api/skills'
       fullPath: '/api/skills'
       preLoaderRoute: typeof ApiSkillsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/onboarding': {
-      id: '/api/onboarding'
-      path: '/api/onboarding'
-      fullPath: '/api/onboarding'
-      preLoaderRoute: typeof ApiOnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/models': {
@@ -593,14 +553,12 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   LandingRoute: LandingRoute,
   McpRoute: McpRoute,
-  OnboardingRoute: OnboardingRoute,
   ApiSplatRoute: ApiSplatRoute,
   ApiChatRoute: ApiChatRoute,
   ApiConfigRoute: ApiConfigRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiKeysRoute: ApiKeysRoute,
   ApiModelsRoute: ApiModelsRoute,
-  ApiOnboardingRoute: ApiOnboardingRoute,
   ApiSkillsRoute: ApiSkillsRoute,
   ApiTelegramRoute: ApiTelegramRoute,
   ApiWhatsappRoute: ApiWhatsappRoute,

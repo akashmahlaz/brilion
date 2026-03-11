@@ -5,7 +5,7 @@ import { SiteHeader } from '#/components/site-header'
 import { apiFetch } from '#/lib/api'
 
 export const Route = createFileRoute('/_app')({
-  beforeLoad: async ({ context }) => {
+  beforeLoad: async () => {
     try {
       const res = await apiFetch('/api/auth/session')
       if (!res.ok) throw new Error('Not authenticated')
@@ -26,14 +26,7 @@ export const Route = createFileRoute('/_app')({
 
 function AppLayout() {
   return (
-    <SidebarProvider
-      style={
-        {
-          "--sidebar-width": "calc(var(--spacing) * 72)",
-          "--header-height": "calc(var(--spacing) * 12)",
-        } as React.CSSProperties
-      }
-    >
+    <SidebarProvider>
       <AppSidebar />
       <SidebarInset>
         <SiteHeader />

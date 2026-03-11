@@ -4,18 +4,27 @@ import { apiFetch } from '#/lib/api'
 
 export const Route = createFileRoute('/_auth')({
   beforeLoad: async () => {
+    console.log('[AUTH LAYOUT] beforeLoad running — checking session...')
     // If user is already logged in, redirect to dashboard
     try {
       const res = await apiFetch('/api/auth/session')
+      console.log('[AUTH LAYOUT] session response:', res.status, res.statusText)
       if (res.ok) {
         const data = await res.json()
+        console.log('[AUTH LAYOUT] session data:', JSON.stringify(data))
         if (data?.user) {
+          console.log('[AUTH LAYOUT] User already logged in, redirecting to /')
           throw redirect({ to: '/' })
         }
       }
     } catch (e) {
-      if (e instanceof Response || (e && typeof e === 'object' && 'to' in e)) throw e
+      if (e instanceof Response || (e && typeof e === 'object' && 'to' in e)) {
+        console.log('[AUTH LAYOUT] Rethrowing redirect/response')
+        throw e
+      }
+      console.error('[AUTH LAYOUT] beforeLoad error:', e)
     }
+    console.log('[AUTH LAYOUT] No user session, showing auth page')
   },
   component: AuthLayout,
 })

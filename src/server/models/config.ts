@@ -6,9 +6,9 @@ const configSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      unique: true,
       index: true,
     },
-    _id: { type: String },
     meta: {
       lastTouchedVersion: { type: String, default: "1.0.0" },
       lastTouchedAt: { type: String, default: () => new Date().toISOString() },

@@ -16,16 +16,18 @@ export const Route = createFileRoute("/api/keys")({
     handlers: {
       // GET /api/keys — list API key profiles
       GET: async ({ request }) => {
-        await requireAuth(request);
+        const session = await requireAuth(request);
         await connectDB();
-        const profiles = await listAuthProfiles();
+        const userId = (session.user as any).id;
+        const profiles = await listAuthProfiles(userId);
         return Response.json(profiles);
       },
 
       // POST /api/keys — save an API key
       POST: async ({ request }) => {
-        await requireAuth(request);
+        const session = await requireAuth(request);
         await connectDB();
+        const userId = (session.user as any).id;
 
         const body = await request.json();
 
@@ -41,7 +43,7 @@ export const Route = createFileRoute("/api/keys")({
               type: "oauth",
               provider: "github-copilot",
               token: data.access_token,
-            });
+            }, userId);
           }
           return Response.json(data);
         }
@@ -60,7 +62,7 @@ export const Route = createFileRoute("/api/keys")({
           provider,
           token: apiKey,
           baseUrl,
-        });
+        }, userId);
 
         return Response.json({ ok: true });
       },

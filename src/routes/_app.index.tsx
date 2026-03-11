@@ -1,4 +1,5 @@
-import { createFileRoute, Link, useRouteContext } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { useState, useEffect } from 'react'
 import {
   MessageSquare,
   Radio,
@@ -11,9 +12,6 @@ import {
   Globe,
   TrendingUp,
   Brain,
-  Rocket,
-  CheckCircle2,
-  Circle,
 } from 'lucide-react'
 import {
   Card,
@@ -23,7 +21,7 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
-import { Button } from '#/components/ui/button'
+import { apiFetch } from '#/lib/api'
 
 export const Route = createFileRoute('/_app/')({
   component: DashboardPage,
@@ -36,19 +34,47 @@ function getGreeting() {
   return 'Good evening'
 }
 
-function DashboardPage() {
-  const { user } = Route.useRouteContext() as { user?: { name?: string; onboardingCompleted?: boolean } }
-  const firstName = user?.name?.split(' ')[0] ?? 'there'
+interface DashboardData {
+  whatsapp: { connected: boolean; dmPolicy: string } | null
+  telegram: { connected: boolean; username: string | null } | null
+  config: { model?: string } | null
+}
 
-  // Setup checklist for progress banner
-  const setupSteps = [
-    { label: 'Create account', done: true },
-    { label: 'Connect an AI provider', done: false },
-    { label: 'Link a messaging channel', done: false },
-    { label: 'Send your first message', done: false },
-  ]
-  const doneCount = setupSteps.filter((s) => s.done).length
-  const showSetupBanner = !user?.onboardingCompleted && doneCount < setupSteps.length
+function useDashboardData() {
+  const [data, setData] = useState<DashboardData>({
+    whatsapp: null,
+    telegram: null,
+    config: null,
+  })
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const [waRes, tgRes, cfgRes] = await Promise.all([
+          apiFetch('/api/whatsapp?action=status').then((r) => r.ok ? r.json() : null).catch(() => null),
+          apiFetch('/api/telegram?action=status').then((r) => r.ok ? r.json() : null).catch(() => null),
+          apiFetch('/api/config').then((r) => r.ok ? r.json() : null).catch(() => null),
+        ])
+        setData({ whatsapp: waRes, telegram: tgRes, config: cfgRes })
+      } catch { /* ignore */ }
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  return { ...data, loading }
+}
+
+function DashboardPage() {
+  const { user } = Route.useRouteContext() as { user?: { name?: string } }
+  const firstName = user?.name?.split(' ')[0] ?? 'there'
+  const { whatsapp, telegram, config, loading } = useDashboardData()
+
+  const waConnected = whatsapp?.connected ?? false
+  const tgConnected = telegram?.connected ?? false
+  const channelsOnline = [waConnected, tgConnected].filter(Boolean).length
+  const activeModel = config?.model || 'Not configured'
 
   return (
     <div className="@container/main flex flex-1 flex-col gap-2">
@@ -63,57 +89,13 @@ function DashboardPage() {
           </p>
         </div>
 
-        {/* Setup Progress Banner */}
-        {showSetupBanner && (
-          <div className="px-4 lg:px-6">
-            <Card className="border-primary/20 bg-gradient-to-r from-primary/5 via-primary/3 to-transparent">
-              <CardContent className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-4">
-                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
-                    <Rocket className="size-5 text-primary" />
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">Complete your setup</p>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                      {setupSteps.map((step) => (
-                        <div key={step.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                          {step.done ? (
-                            <CheckCircle2 className="size-3.5 text-primary" />
-                          ) : (
-                            <Circle className="size-3.5" />
-                          )}
-                          <span className={step.done ? 'line-through opacity-60' : ''}>
-                            {step.label}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    {/* Progress bar */}
-                    <div className="h-1.5 w-48 rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-primary transition-all"
-                        style={{ width: `${(doneCount / setupSteps.length) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-                <Button size="sm" asChild>
-                  <Link to="/onboarding">
-                    Continue setup <ArrowRight className="ml-1 size-3.5" />
-                  </Link>
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
         {/* Stats Row */}
         <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
           <Card className="@container/card bg-gradient-to-t from-primary/5 to-card">
             <CardHeader className="relative pb-0">
               <CardDescription>Active Model</CardDescription>
               <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                GPT-4o
+                {loading ? '…' : activeModel}
               </CardTitle>
               <div className="absolute right-4 top-4">
                 <TrendingUp className="size-4 text-muted-foreground" />
@@ -121,7 +103,7 @@ function DashboardPage() {
             </CardHeader>
             <CardFooter className="flex-col items-start gap-1 text-sm">
               <div className="line-clamp-1 flex gap-2 font-medium">
-                Powered by GitHub Models <Sparkles className="size-4" />
+                Powered by AI SDK <Sparkles className="size-4" />
               </div>
               <div className="text-muted-foreground">
                 Multi-provider support
@@ -134,8 +116,8 @@ function DashboardPage() {
               <CardDescription>Channels</CardDescription>
               <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
                 <span className="flex items-center gap-2">
-                  <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Active
+                  <span className={`size-2 rounded-full ${channelsOnline > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/40'}`} />
+                  {loading ? '…' : channelsOnline > 0 ? `${channelsOnline} Online` : 'Offline'}
                 </span>
               </CardTitle>
               <div className="absolute right-4 top-4">
@@ -144,10 +126,10 @@ function DashboardPage() {
             </CardHeader>
             <CardFooter className="flex-col items-start gap-1 text-sm">
               <div className="line-clamp-1 flex gap-2 font-medium">
-                WhatsApp &amp; Telegram <Globe className="size-4" />
+                {waConnected && 'WhatsApp'}{waConnected && tgConnected && ' & '}{tgConnected && 'Telegram'}{!waConnected && !tgConnected && 'No channels connected'} <Globe className="size-4" />
               </div>
               <div className="text-muted-foreground">
-                Multi-platform messaging
+                <Link to="/channels" className="hover:underline">Manage channels →</Link>
               </div>
             </CardFooter>
           </Card>
@@ -174,11 +156,11 @@ function DashboardPage() {
 
           <Card className="@container/card bg-gradient-to-t from-primary/5 to-card">
             <CardHeader className="relative pb-0">
-              <CardDescription>System</CardDescription>
+              <CardDescription>WhatsApp</CardDescription>
               <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
                 <span className="flex items-center gap-2">
-                  <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-                  Online
+                  <span className={`size-2 rounded-full ${waConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+                  {loading ? '…' : waConnected ? 'Connected' : 'Disconnected'}
                 </span>
               </CardTitle>
               <div className="absolute right-4 top-4">
@@ -187,10 +169,12 @@ function DashboardPage() {
             </CardHeader>
             <CardFooter className="flex-col items-start gap-1 text-sm">
               <div className="line-clamp-1 flex gap-2 font-medium">
-                All services operational <Activity className="size-4" />
+                {waConnected ? 'Receiving messages' : 'Connect to start'} <Activity className="size-4" />
               </div>
               <div className="text-muted-foreground">
-                Server connected
+                {waConnected ? `DM policy: ${whatsapp?.dmPolicy || 'open'}` : (
+                  <Link to="/channels" className="hover:underline">Connect WhatsApp →</Link>
+                )}
               </div>
             </CardFooter>
           </Card>

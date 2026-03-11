@@ -18,13 +18,17 @@ const ENV_MAP: Record<string, string> = {
 
 export async function upsertAuthProfile(
   _provider: string,
-  data: { type: string; provider: string; token: string; baseUrl?: string }
+  data: { type: string; provider: string; token: string; baseUrl?: string },
+  userId?: string
 ) {
   await connectDB();
   const profileId = `${data.provider}:${data.type}`;
+  const filter = userId
+    ? { profileId, userId }
+    : { profileId };
   return AuthProfile.findOneAndUpdate(
-    { profileId },
-    { ...data, profileId },
+    filter,
+    { ...data, profileId, ...(userId ? { userId } : {}) },
     { upsert: true, new: true }
   );
 }
@@ -50,23 +54,44 @@ export async function listAuthProfiles(userId?: string) {
 
 /**
  * Resolve an API key for a provider:
- * 1. Check AuthProfile in DB
+ * 1. Check AuthProfile in DB (by userId if given, else any match)
  * 2. Fall back to environment variable
  */
 export async function resolveProviderKey(
-  provider: string
+  provider: string,
+  userId?: string
 ): Promise<string | undefined> {
   await connectDB();
-  const profile = await AuthProfile.findOne({ provider, type: "api_key" }).lean();
+  const filter: Record<string, unknown> = { provider, type: "api_key" };
+  if (userId) filter.userId = userId;
+  let profile = await AuthProfile.findOne(filter).lean();
+  // Fallback: if userId given but no per-user profile, check global profiles
+  if (!profile && userId) {
+    profile = await AuthProfile.findOne({ provider, type: "api_key" }).lean();
+  }
   if (profile && (profile as any).token) return (profile as any).token;
+  // Also check OAuth tokens (e.g. Copilot)
+  const oauthFilter: Record<string, unknown> = { provider, type: "oauth" };
+  if (userId) oauthFilter.userId = userId;
+  let oauthProfile = await AuthProfile.findOne(oauthFilter).lean();
+  if (!oauthProfile && userId) {
+    oauthProfile = await AuthProfile.findOne({ provider, type: "oauth" }).lean();
+  }
+  if (oauthProfile && (oauthProfile as any).token) return (oauthProfile as any).token;
   const envKey = ENV_MAP[provider];
   return envKey ? process.env[envKey] : undefined;
 }
 
 export async function resolveProviderBaseUrl(
-  provider: string
+  provider: string,
+  userId?: string
 ): Promise<string | undefined> {
   await connectDB();
-  const profile = await AuthProfile.findOne({ provider }).lean();
+  const filter: Record<string, unknown> = { provider };
+  if (userId) filter.userId = userId;
+  let profile = await AuthProfile.findOne(filter).lean();
+  if (!profile && userId) {
+    profile = await AuthProfile.findOne({ provider }).lean();
+  }
   return (profile as any)?.baseUrl ?? undefined;
 }

@@ -13,9 +13,22 @@ const getSsrHeaders = createIsomorphicFn()
   .client((): Record<string, string> => ({}))
 
 /**
+ * During SSR, Node.js fetch requires absolute URLs.
+ * Resolve the base URL from the incoming request's Host header.
+ */
+const getBaseUrl = createIsomorphicFn()
+  .server(() => {
+    const host = getRequestHeaders().get('host') ?? 'localhost:3000'
+    const proto = getRequestHeaders().get('x-forwarded-proto') ?? 'http'
+    return `${proto}://${host}`
+  })
+  .client(() => '')
+
+/**
  * Drop-in replacement for fetch() that handles SSR vs client automatically.
  * All API routes are same-origin now (TanStack Start serves everything).
  * - Forwards cookies during SSR
+ * - Resolves relative URLs to absolute during SSR
  * - Always includes credentials
  */
 export async function apiFetch(
@@ -23,13 +36,15 @@ export async function apiFetch(
   init?: RequestInit
 ): Promise<Response> {
   const ssrHeaders = getSsrHeaders()
+  const base = getBaseUrl()
+  const url = path.startsWith('http') ? path : `${base}${path}`
 
-  return fetch(path, {
+  return fetch(url, {
     ...init,
     credentials: 'include',
     headers: {
       ...ssrHeaders,
       ...init?.headers,
-    },
+    } as HeadersInit,
   })
 }

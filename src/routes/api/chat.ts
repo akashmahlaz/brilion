@@ -21,7 +21,7 @@ export const Route = createFileRoute("/api/chat")({
         const modelOverride = modelSpec
           ? await (
               await import("#/server/lib/providers")
-            ).resolveModel(modelSpec)
+            ).resolveModel(modelSpec, userId)
           : undefined;
 
         const result = streamText({
@@ -62,7 +62,7 @@ export const Route = createFileRoute("/api/chat")({
           });
         }
 
-        return result.toDataStreamResponse();
+        return result.toTextStreamResponse();
       },
 
       // GET /api/chat — list conversations

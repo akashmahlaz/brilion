@@ -8,6 +8,10 @@ const conversationSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    foreignId: {
+      type: String,
+      index: true,
+    },
     title: { type: String, default: "New Chat" },
     messages: [
       {

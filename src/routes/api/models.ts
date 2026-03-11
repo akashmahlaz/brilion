@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { connectDB } from "#/server/db";
 import { requireAuth } from "#/server/middleware";
-import { PROVIDER_CATALOG, getAvailableProviders } from "#/server/lib/providers";
+import { getAvailableProviders } from "#/server/lib/providers";
 import { discoverModels } from "#/server/lib/model-discovery";
 
 export const Route = createFileRoute("/api/models")({
@@ -10,15 +10,16 @@ export const Route = createFileRoute("/api/models")({
       // GET /api/models?action=providers — list providers with config status
       // GET /api/models?provider=xxx — discover models for a provider
       GET: async ({ request }) => {
-        await requireAuth(request);
+        const session = await requireAuth(request);
         await connectDB();
+        const userId = (session.user as any).id;
 
         const url = new URL(request.url);
         const action = url.searchParams.get("action");
         const providerId = url.searchParams.get("provider");
 
         if (action === "providers" || (!action && !providerId)) {
-          const providers = await getAvailableProviders();
+          const providers = await getAvailableProviders(userId);
           return Response.json(providers);
         }
 

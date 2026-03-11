@@ -4,16 +4,21 @@ import Credentials from "@auth/core/providers/credentials";
 import { MongoDBAdapter } from "@auth/mongodb-adapter";
 import { compare } from "bcryptjs";
 import type { StartAuthJSConfig } from "start-authjs";
-import { clientPromise, connectDB } from "./db";
+import { clientPromise } from "./db";
 import { User } from "./models/user";
 import { Account } from "./models/account";
 
-await connectDB();
+console.log('[AUTH CONFIG] Loading auth config...');
+console.log('[AUTH CONFIG] AUTH_SECRET set?', !!process.env.AUTH_SECRET);
+console.log('[AUTH CONFIG] AUTH_URL:', process.env.AUTH_URL);
+console.log('[AUTH CONFIG] GOOGLE_CLIENT_ID set?', !!process.env.GOOGLE_CLIENT_ID);
+console.log('[AUTH CONFIG] GOOGLE_CLIENT_SECRET set?', !!process.env.GOOGLE_CLIENT_SECRET);
 
 export const authConfig: StartAuthJSConfig = {
   secret: process.env.AUTH_SECRET,
-  adapter: MongoDBAdapter(clientPromise),
+  adapter: MongoDBAdapter(clientPromise as any),
   session: { strategy: "jwt" as const },
+  debug: true,
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
@@ -65,6 +70,7 @@ export const authConfig: StartAuthJSConfig = {
   ],
   callbacks: {
     async redirect({ url, baseUrl }) {
+      console.log('[AUTH CALLBACK] redirect called:', { url, baseUrl });
       // Allow redirects to the same origin
       if (url.startsWith(baseUrl)) return url;
       // Allow relative URLs
@@ -72,9 +78,11 @@ export const authConfig: StartAuthJSConfig = {
       // Allow frontend URL
       const frontendUrl = process.env.FRONTEND_URL;
       if (frontendUrl && url.startsWith(frontendUrl)) return url;
+      console.log('[AUTH CALLBACK] redirect falling back to baseUrl:', baseUrl);
       return baseUrl;
     },
     async jwt({ token, user }) {
+      console.log('[AUTH CALLBACK] jwt called, user?', !!user, 'token.id:', token?.id);
       if (user) {
         token.id = user.id;
         // Fetch full user data from DB
@@ -88,6 +96,7 @@ export const authConfig: StartAuthJSConfig = {
       return token;
     },
     async session({ session, token }) {
+      console.log('[AUTH CALLBACK] session called, token.id:', token?.id, 'session.user:', session?.user?.email);
       if (token && session.user) {
         (session.user as any).id = token.id as string;
         (session.user as any).plan = token.plan;

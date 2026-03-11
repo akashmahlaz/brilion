@@ -15,12 +15,11 @@ import { getLocale } from '#/paraglide/runtime'
 
 import appCss from '../styles.css?url'
 
-import type { ApolloClientIntegration } from '@apollo/client-integration-tanstack-start'
 import type { QueryClient } from '@tanstack/react-query'
 import type { TRPCRouter } from '#/integrations/trpc/router'
 import type { TRPCOptionsProxy } from '@trpc/tanstack-react-query'
 
-interface MyRouterContext extends ApolloClientIntegration.RouterContext {
+interface MyRouterContext {
   queryClient: QueryClient
   trpc: TRPCOptionsProxy<TRPCRouter>
 }
@@ -32,6 +31,17 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
     if (typeof document !== 'undefined') {
       document.documentElement.setAttribute('lang', getLocale())
     }
+  },
+  notFoundComponent: () => {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center space-y-4">
+          <h1 className="text-4xl font-bold">404</h1>
+          <p className="text-muted-foreground">Page not found</p>
+          <a href="/" className="text-primary underline">Go home</a>
+        </div>
+      </div>
+    )
   },
 
   head: () => ({

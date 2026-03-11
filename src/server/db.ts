@@ -13,17 +13,11 @@ export async function connectDB() {
 
 /**
  * A MongoClient promise for use with @auth/mongodb-adapter.
- * Resolves the underlying client from the mongoose connection.
+ * Self-starting: triggers connectDB() and resolves when connected.
+ * Non-blocking at module level (no top-level await).
  */
-export const clientPromise: Promise<MongoClient> = new Promise((resolve) => {
-  const check = () => {
-    const client = mongoose.connection.getClient() as unknown as MongoClient;
-    if (client) return resolve(client);
-    mongoose.connection.once("connected", () => {
-      resolve(mongoose.connection.getClient() as unknown as MongoClient);
-    });
-  };
-  check();
-});
+export const clientPromise: Promise<MongoClient> = connectDB().then(
+  () => mongoose.connection.getClient() as unknown as MongoClient
+);
 
 export { mongoose };

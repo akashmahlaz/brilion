@@ -25,6 +25,9 @@ import {
 import { webRequest, getToken } from "./tools/web-request";
 import { loadSkillTools, getSkillContext } from "./skill-loader";
 
+const log = (...args: unknown[]) => console.log("[agent]", ...args);
+const logErr = (...args: unknown[]) => console.error("[agent]", ...args);
+
 const DEFAULT_SYSTEM_PROMPT = `You are an AI agency assistant with full self-management capabilities.
 
 ## TOOLS
@@ -118,13 +121,18 @@ async function getSystemPrompt(userId?: string): Promise<string> {
 }
 
 export async function getAgentConfig(userId?: string) {
+  log("getAgentConfig() called, userId:", userId || "none");
   const tools = await buildToolSet(userId);
+  log("Tools built, count:", Object.keys(tools).length);
   const systemPrompt = await getSystemPrompt(userId);
+  log("System prompt built, length:", systemPrompt.length);
 
   let model: LanguageModel;
   try {
-    model = await resolveModel();
-  } catch {
+    model = await resolveModel(undefined, userId);
+    log("Model resolved:", (model as any).modelId || "unknown");
+  } catch (e) {
+    logErr("resolveModel() failed:", e);
     throw new Error("No AI provider configured. Set an API key first.");
   }
 

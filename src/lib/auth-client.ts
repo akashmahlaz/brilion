@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
-
 // ── Session helpers ─────────────────────────────────────────
-// Auth is now served by TanStack Start on the same origin — no proxy needed.
+
+import { useState, useEffect, useCallback } from "react";
 
 export interface SessionUser {
   id: string;
@@ -18,12 +17,6 @@ export interface Session {
   expires: string;
 }
 
-async function getCsrfToken(): Promise<string> {
-  const res = await fetch("/api/auth/csrf", { credentials: "include" });
-  const data = await res.json();
-  return data.csrfToken;
-}
-
 export async function getSession(): Promise<Session | null> {
   const res = await fetch("/api/auth/session", { credentials: "include" });
   if (!res.ok) return null;
@@ -32,39 +25,7 @@ export async function getSession(): Promise<Session | null> {
   return data as Session;
 }
 
-// ── Sign in (OAuth via form POST) ───────────────────────────
-
-function submitAuthForm(action: string, callbackUrl: string, csrfToken: string) {
-  const form = document.createElement("form");
-  form.method = "POST";
-  form.action = action;
-
-  const addHidden = (name: string, value: string) => {
-    const input = document.createElement("input");
-    input.type = "hidden";
-    input.name = name;
-    input.value = value;
-    form.appendChild(input);
-  };
-
-  addHidden("csrfToken", csrfToken);
-  addHidden("callbackUrl", callbackUrl);
-
-  document.body.appendChild(form);
-  form.submit();
-}
-
-export async function signInWithGoogle(callbackUrl = "/") {
-  const csrfToken = await getCsrfToken();
-  const absoluteUrl = new URL(callbackUrl, window.location.origin).href;
-  submitAuthForm("/api/auth/signin/google", absoluteUrl, csrfToken);
-}
-
-export async function signInWithLinkedIn(callbackUrl = "/") {
-  const csrfToken = await getCsrfToken();
-  const absoluteUrl = new URL(callbackUrl, window.location.origin).href;
-  submitAuthForm("/api/auth/signin/linkedin", absoluteUrl, csrfToken);
-}
+// ── Sign in with email/password (Credentials provider) ─────
 
 export async function signInWithEmail(
   email: string,
@@ -72,8 +33,9 @@ export async function signInWithEmail(
   callbackUrl = "/"
 ): Promise<{ error: string | null }> {
   try {
-    const csrfToken = await getCsrfToken();
-    const absoluteUrl = new URL(callbackUrl, window.location.origin).href;
+    const csrfRes = await fetch("/api/auth/csrf", { credentials: "include" });
+    const { csrfToken } = await csrfRes.json();
+
     await fetch("/api/auth/callback/credentials", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -81,15 +43,14 @@ export async function signInWithEmail(
         csrfToken,
         email,
         password,
-        callbackUrl: absoluteUrl,
+        callbackUrl: new URL(callbackUrl, window.location.origin).href,
       }),
       credentials: "include",
     });
     const session = await getSession();
     if (session) return { error: null };
     return { error: "Invalid email or password" };
-  } catch (err) {
-    console.error("[auth-client] email sign-in error:", err);
+  } catch {
     return { error: "Something went wrong. Please try again." };
   }
 }
@@ -113,8 +74,7 @@ export async function signUpWithEmail(
       return { error: data.error || "Registration failed" };
     }
     return signInWithEmail(email, password, "/onboarding");
-  } catch (err) {
-    console.error("[auth-client] registration error:", err);
+  } catch {
     return { error: "Something went wrong. Please try again." };
   }
 }
@@ -123,15 +83,16 @@ export async function signUpWithEmail(
 
 export async function signOut(): Promise<void> {
   try {
-    const csrfToken = await getCsrfToken();
+    const csrfRes = await fetch("/api/auth/csrf", { credentials: "include" });
+    const { csrfToken } = await csrfRes.json();
     await fetch("/api/auth/signout", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ csrfToken }),
       credentials: "include",
     });
-  } catch (err) {
-    console.error("[auth-client] signout error:", err);
+  } catch {
+    // ignore
   }
 }
 

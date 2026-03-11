@@ -1,4 +1,4 @@
-import { connectDB } from "../db";
+// import { connectDB } from "../db";
 
 interface DeviceCodeResponse {
   device_code: string;
