@@ -10,6 +10,15 @@ import {
   LogOut,
   ChevronsUpDown,
   Brain,
+  Users,
+  Bot,
+  FileText,
+  Clock,
+  Network,
+  ScrollText,
+  BarChart3,
+  Terminal,
+  Wrench,
 } from "lucide-react"
 import { useState, useEffect } from "react"
 
@@ -62,12 +71,20 @@ function useChannelStatus() {
   return { whatsapp: wa, telegram: tg }
 }
 
+// OpenClaw-style navigation — exact tab order
 const navItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Overview", url: "/", icon: LayoutDashboard },
   { title: "Chat", url: "/chat", icon: MessageSquare },
   { title: "Channels", url: "/channels", icon: Radio },
+  { title: "Sessions", url: "/sessions", icon: Users },
+  { title: "Agents", url: "/agents", icon: Bot },
+  { title: "Config", url: "/config", icon: Settings2 },
   { title: "Skills", url: "/skills", icon: Brain },
-  { title: "Settings", url: "/settings", icon: Settings2 },
+  { title: "Cron", url: "/cron", icon: Clock },
+  { title: "Nodes", url: "/nodes", icon: Network },
+  { title: "Logs", url: "/logs", icon: ScrollText },
+  { title: "Usage", url: "/usage", icon: BarChart3 },
+  { title: "Debug", url: "/debug", icon: Terminal },
 ]
 
 const secondaryItems = [
@@ -97,9 +114,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <Sparkles className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">MyAI</span>
+                  <span className="truncate font-semibold">Brilion</span>
                   <span className="truncate text-xs text-muted-foreground">
-                    Personal Agent
+                    AI Gateway
                   </span>
                 </div>
               </Link>

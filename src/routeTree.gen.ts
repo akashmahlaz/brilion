@@ -26,10 +26,18 @@ import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiSplatRouteImport } from './routes/api.$'
 import { Route as AuthSignupRouteImport } from './routes/_auth.signup'
 import { Route as AuthLoginRouteImport } from './routes/_auth.login'
+import { Route as AppUsageRouteImport } from './routes/_app.usage'
 import { Route as AppSkillsRouteImport } from './routes/_app.skills'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
+import { Route as AppSessionsRouteImport } from './routes/_app.sessions'
+import { Route as AppNodesRouteImport } from './routes/_app.nodes'
+import { Route as AppLogsRouteImport } from './routes/_app.logs'
+import { Route as AppDebugRouteImport } from './routes/_app.debug'
+import { Route as AppCronRouteImport } from './routes/_app.cron'
+import { Route as AppConfigRouteImport } from './routes/_app.config'
 import { Route as AppChatRouteImport } from './routes/_app.chat'
 import { Route as AppChannelsRouteImport } from './routes/_app.channels'
+import { Route as AppAgentsRouteImport } from './routes/_app.agents'
 import { Route as ApiTrpcSplatRouteImport } from './routes/api.trpc.$'
 import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
 import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
@@ -118,6 +126,11 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => AuthRoute,
 } as any)
+const AppUsageRoute = AppUsageRouteImport.update({
+  id: '/usage',
+  path: '/usage',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSkillsRoute = AppSkillsRouteImport.update({
   id: '/skills',
   path: '/skills',
@@ -128,6 +141,36 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSessionsRoute = AppSessionsRouteImport.update({
+  id: '/sessions',
+  path: '/sessions',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppNodesRoute = AppNodesRouteImport.update({
+  id: '/nodes',
+  path: '/nodes',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppLogsRoute = AppLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppDebugRoute = AppDebugRouteImport.update({
+  id: '/debug',
+  path: '/debug',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCronRoute = AppCronRouteImport.update({
+  id: '/cron',
+  path: '/cron',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppConfigRoute = AppConfigRouteImport.update({
+  id: '/config',
+  path: '/config',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppChatRoute = AppChatRouteImport.update({
   id: '/chat',
   path: '/chat',
@@ -136,6 +179,11 @@ const AppChatRoute = AppChatRouteImport.update({
 const AppChannelsRoute = AppChannelsRouteImport.update({
   id: '/channels',
   path: '/channels',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppAgentsRoute = AppAgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
   getParentRoute: () => AppRoute,
 } as any)
 const ApiTrpcSplatRoute = ApiTrpcSplatRouteImport.update({
@@ -163,10 +211,18 @@ export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
   '/landing': typeof LandingRoute
   '/mcp': typeof McpRoute
+  '/agents': typeof AppAgentsRoute
   '/channels': typeof AppChannelsRoute
   '/chat': typeof AppChatRoute
+  '/config': typeof AppConfigRoute
+  '/cron': typeof AppCronRoute
+  '/debug': typeof AppDebugRoute
+  '/logs': typeof AppLogsRoute
+  '/nodes': typeof AppNodesRoute
+  '/sessions': typeof AppSessionsRoute
   '/settings': typeof AppSettingsRoute
   '/skills': typeof AppSkillsRoute
+  '/usage': typeof AppUsageRoute
   '/login': typeof AuthLoginRoute
   '/signup': typeof AuthSignupRoute
   '/api/$': typeof ApiSplatRoute
@@ -188,10 +244,18 @@ export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
   '/landing': typeof LandingRoute
   '/mcp': typeof McpRoute
+  '/agents': typeof AppAgentsRoute
   '/channels': typeof AppChannelsRoute
   '/chat': typeof AppChatRoute
+  '/config': typeof AppConfigRoute
+  '/cron': typeof AppCronRoute
+  '/debug': typeof AppDebugRoute
+  '/logs': typeof AppLogsRoute
+  '/nodes': typeof AppNodesRoute
+  '/sessions': typeof AppSessionsRoute
   '/settings': typeof AppSettingsRoute
   '/skills': typeof AppSkillsRoute
+  '/usage': typeof AppUsageRoute
   '/login': typeof AuthLoginRoute
   '/signup': typeof AuthSignupRoute
   '/api/$': typeof ApiSplatRoute
@@ -215,10 +279,18 @@ export interface FileRoutesById {
   '/_auth': typeof AuthRouteWithChildren
   '/landing': typeof LandingRoute
   '/mcp': typeof McpRoute
+  '/_app/agents': typeof AppAgentsRoute
   '/_app/channels': typeof AppChannelsRoute
   '/_app/chat': typeof AppChatRoute
+  '/_app/config': typeof AppConfigRoute
+  '/_app/cron': typeof AppCronRoute
+  '/_app/debug': typeof AppDebugRoute
+  '/_app/logs': typeof AppLogsRoute
+  '/_app/nodes': typeof AppNodesRoute
+  '/_app/sessions': typeof AppSessionsRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/skills': typeof AppSkillsRoute
+  '/_app/usage': typeof AppUsageRoute
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/signup': typeof AuthSignupRoute
   '/api/$': typeof ApiSplatRoute
@@ -243,10 +315,18 @@ export interface FileRouteTypes {
     | '/'
     | '/landing'
     | '/mcp'
+    | '/agents'
     | '/channels'
     | '/chat'
+    | '/config'
+    | '/cron'
+    | '/debug'
+    | '/logs'
+    | '/nodes'
+    | '/sessions'
     | '/settings'
     | '/skills'
+    | '/usage'
     | '/login'
     | '/signup'
     | '/api/$'
@@ -268,10 +348,18 @@ export interface FileRouteTypes {
     | '/'
     | '/landing'
     | '/mcp'
+    | '/agents'
     | '/channels'
     | '/chat'
+    | '/config'
+    | '/cron'
+    | '/debug'
+    | '/logs'
+    | '/nodes'
+    | '/sessions'
     | '/settings'
     | '/skills'
+    | '/usage'
     | '/login'
     | '/signup'
     | '/api/$'
@@ -294,10 +382,18 @@ export interface FileRouteTypes {
     | '/_auth'
     | '/landing'
     | '/mcp'
+    | '/_app/agents'
     | '/_app/channels'
     | '/_app/chat'
+    | '/_app/config'
+    | '/_app/cron'
+    | '/_app/debug'
+    | '/_app/logs'
+    | '/_app/nodes'
+    | '/_app/sessions'
     | '/_app/settings'
     | '/_app/skills'
+    | '/_app/usage'
     | '/_auth/login'
     | '/_auth/signup'
     | '/api/$'
@@ -459,6 +555,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof AuthRoute
     }
+    '/_app/usage': {
+      id: '/_app/usage'
+      path: '/usage'
+      fullPath: '/usage'
+      preLoaderRoute: typeof AppUsageRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/skills': {
       id: '/_app/skills'
       path: '/skills'
@@ -473,6 +576,48 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/sessions': {
+      id: '/_app/sessions'
+      path: '/sessions'
+      fullPath: '/sessions'
+      preLoaderRoute: typeof AppSessionsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/nodes': {
+      id: '/_app/nodes'
+      path: '/nodes'
+      fullPath: '/nodes'
+      preLoaderRoute: typeof AppNodesRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/logs': {
+      id: '/_app/logs'
+      path: '/logs'
+      fullPath: '/logs'
+      preLoaderRoute: typeof AppLogsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/debug': {
+      id: '/_app/debug'
+      path: '/debug'
+      fullPath: '/debug'
+      preLoaderRoute: typeof AppDebugRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/cron': {
+      id: '/_app/cron'
+      path: '/cron'
+      fullPath: '/cron'
+      preLoaderRoute: typeof AppCronRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/config': {
+      id: '/_app/config'
+      path: '/config'
+      fullPath: '/config'
+      preLoaderRoute: typeof AppConfigRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/chat': {
       id: '/_app/chat'
       path: '/chat'
@@ -485,6 +630,13 @@ declare module '@tanstack/react-router' {
       path: '/channels'
       fullPath: '/channels'
       preLoaderRoute: typeof AppChannelsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/agents': {
+      id: '/_app/agents'
+      path: '/agents'
+      fullPath: '/agents'
+      preLoaderRoute: typeof AppAgentsRouteImport
       parentRoute: typeof AppRoute
     }
     '/api/trpc/$': {
@@ -519,18 +671,34 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppAgentsRoute: typeof AppAgentsRoute
   AppChannelsRoute: typeof AppChannelsRoute
   AppChatRoute: typeof AppChatRoute
+  AppConfigRoute: typeof AppConfigRoute
+  AppCronRoute: typeof AppCronRoute
+  AppDebugRoute: typeof AppDebugRoute
+  AppLogsRoute: typeof AppLogsRoute
+  AppNodesRoute: typeof AppNodesRoute
+  AppSessionsRoute: typeof AppSessionsRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppSkillsRoute: typeof AppSkillsRoute
+  AppUsageRoute: typeof AppUsageRoute
   AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppAgentsRoute: AppAgentsRoute,
   AppChannelsRoute: AppChannelsRoute,
   AppChatRoute: AppChatRoute,
+  AppConfigRoute: AppConfigRoute,
+  AppCronRoute: AppCronRoute,
+  AppDebugRoute: AppDebugRoute,
+  AppLogsRoute: AppLogsRoute,
+  AppNodesRoute: AppNodesRoute,
+  AppSessionsRoute: AppSessionsRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppSkillsRoute: AppSkillsRoute,
+  AppUsageRoute: AppUsageRoute,
   AppIndexRoute: AppIndexRoute,
 }
 
