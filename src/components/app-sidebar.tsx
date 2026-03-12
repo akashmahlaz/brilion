@@ -12,13 +12,11 @@ import {
   Brain,
   Users,
   Bot,
-  FileText,
   Clock,
   Network,
   ScrollText,
   BarChart3,
   Terminal,
-  Wrench,
 } from "lucide-react"
 import { useState, useEffect } from "react"
 

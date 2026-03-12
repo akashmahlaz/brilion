@@ -10,7 +10,6 @@ import {
   MoreHorizontal,
   Trash2,
   RotateCcw,
-  Eye,
 } from 'lucide-react'
 import {
   Card,

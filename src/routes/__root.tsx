@@ -7,6 +7,7 @@ import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
 import { TanStackDevtools } from '@tanstack/react-devtools'
 
 import { Toaster } from 'sonner'
+import { TooltipProvider } from '#/components/ui/tooltip'
 import PostHogProvider from '../integrations/posthog/provider'
 import TanStackQueryProvider from '../integrations/tanstack-query/root-provider'
 import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
@@ -76,6 +77,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       </head>
       <body className="font-sans antialiased [overflow-wrap:anywhere]">
         <Toaster position="bottom-right" richColors closeButton />
+        <TooltipProvider>
         <PostHogProvider>
           <TanStackQueryProvider>
             {children}
@@ -93,6 +95,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             />
           </TanStackQueryProvider>
         </PostHogProvider>
+        </TooltipProvider>
         <Scripts />
       </body>
     </html>

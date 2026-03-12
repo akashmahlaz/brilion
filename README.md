@@ -1,4 +1,19 @@
-Welcome to your new TanStack Start app! 
+Brilion - This is orchestration with AI. The idea is simple, Build a one platform which connect to daily used apps like whatsapp from where user can manage everything, his social life, personal life, financial goals, learnings,Coding, build, manage by automate everything or with just one message.
+And brilion will memorize all.
+
+### Lets Understand Platform before how we will do it
+1. Example One (Digital marketing) - Lets say user is come, he connected his whatsapp and he sent message to ai that i have this client and this is his product, what this AI will do, it will check product, it will ask is he want to permote this product..likely ans is yes, then it will give him plan and ask him should i create for you ads Sets for you, after yes it create video ads sets, photos, and will give stretegy to him. and then it will ask him should i upload this to facebook, insta, tik tok, and others platforms
+
+2. Example two (financial Expert) --for this part we are reearching, will update soon
+3. Content Creator
+4. Traders 
+5. Coding
+6. Real Estate
+7. Teachers, Professional like govt jobs
+8. Law Firms - Lawyers, Judis
+9. Doctors 
+10. Founders
+11. Politicians
 
 # Getting Started
 
