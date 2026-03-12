@@ -5,6 +5,18 @@ import { requireAuth } from "#/server/middleware";
 import { Conversation } from "#/server/models/conversation";
 import { getAgentConfig } from "#/server/lib/agent";
 
+/**
+ * Generate a short title from the first user message using a simple heuristic.
+ * Takes first ~60 chars, trims to last complete word.
+ */
+function generateTitle(text: string): string {
+  const cleaned = text.replace(/\n+/g, " ").trim();
+  if (cleaned.length <= 50) return cleaned;
+  const truncated = cleaned.slice(0, 50);
+  const lastSpace = truncated.lastIndexOf(" ");
+  return (lastSpace > 20 ? truncated.slice(0, lastSpace) : truncated) + "…";
+}
+
 export const Route = createFileRoute("/api/chat")({
   server: {
     handlers: {
@@ -34,18 +46,26 @@ export const Route = createFileRoute("/api/chat")({
         if (conversationId) {
           result.text.then(async (fullText) => {
             try {
-              // Only save the latest user message and the AI response
               const lastUserMsg = messages[messages.length - 1];
-              await Conversation.findByIdAndUpdate(conversationId, {
-                $push: {
-                  messages: {
-                    $each: [
-                      { role: lastUserMsg.role, content: lastUserMsg.content },
-                      { role: "assistant", content: fullText },
-                    ],
-                  },
-                },
-              });
+
+              // Generate title from first user message if still "New Chat"
+              const conv = await Conversation.findById(conversationId);
+              if (!conv) return;
+
+              conv.messages.push(
+                { role: lastUserMsg.role, content: lastUserMsg.content },
+                { role: "assistant", content: fullText }
+              );
+
+              // Auto-title: if title is default and this is the first real message
+              if (
+                (conv.title === "New Chat" || !conv.title) &&
+                lastUserMsg.content
+              ) {
+                conv.title = generateTitle(lastUserMsg.content);
+              }
+
+              await conv.save(); // Triggers updatedAt via timestamps
             } catch (e) {
               console.error("[chat] Failed to save conversation:", e);
             }
@@ -55,7 +75,7 @@ export const Route = createFileRoute("/api/chat")({
         return result.toTextStreamResponse();
       },
 
-      // GET /api/chat — list conversations
+      // GET /api/chat — list conversations or get single
       GET: async ({ request }) => {
         const session = await requireAuth(request);
         await connectDB();
@@ -65,10 +85,7 @@ export const Route = createFileRoute("/api/chat")({
         const id = url.searchParams.get("id");
 
         if (id) {
-          const conv = await Conversation.findOne({
-            _id: id,
-            userId,
-          });
+          const conv = await Conversation.findOne({ _id: id, userId });
           if (!conv) {
             return Response.json(
               { error: "Conversation not found" },
@@ -79,12 +96,29 @@ export const Route = createFileRoute("/api/chat")({
         }
 
         const conversations = await Conversation.find({ userId })
-          .select("title channel foreignId model createdAt updatedAt")
+          .select(
+            "title channel foreignId model messages createdAt updatedAt"
+          )
           .sort({ updatedAt: -1 })
           .limit(50)
           .lean();
 
-        return Response.json(conversations);
+        const summaries = conversations.map((c: any) => ({
+          _id: c._id,
+          title: c.title,
+          channel: c.channel,
+          foreignId: c.foreignId,
+          model: c.model,
+          messageCount: c.messages?.length || 0,
+          lastMessage:
+            c.messages?.length > 0
+              ? c.messages[c.messages.length - 1].content?.slice(0, 80)
+              : null,
+          createdAt: c.createdAt,
+          updatedAt: c.updatedAt,
+        }));
+
+        return Response.json(summaries);
       },
 
       // DELETE /api/chat — delete conversation

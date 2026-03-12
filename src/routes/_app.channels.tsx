@@ -63,7 +63,12 @@ function WhatsAppCard() {
 
   useEffect(() => {
     fetchStatus()
+    const interval = setInterval(fetchStatus, 5000)
+    return () => clearInterval(interval)
   }, [])
+
+
+
 
   async function fetchStatus() {
     try {

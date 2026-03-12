@@ -11,6 +11,7 @@ import {
   Trash2,
   MessageCircle,
   Globe,
+  ChevronDown,
 } from 'lucide-react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -18,7 +19,6 @@ import { Button } from '#/components/ui/button'
 import { Textarea } from '#/components/ui/textarea'
 import { ScrollArea } from '#/components/ui/scroll-area'
 import { Avatar, AvatarFallback } from '#/components/ui/avatar'
-import { Badge } from '#/components/ui/badge'
 import { toast } from 'sonner'
 import { apiFetch } from '#/lib/api'
 
@@ -34,6 +34,8 @@ interface ConversationSummary {
   channel: 'web' | 'whatsapp' | 'telegram'
   foreignId?: string
   model?: string
+  messageCount?: number
+  lastMessage?: string | null
   updatedAt: string
   createdAt: string
 }
@@ -42,15 +44,23 @@ export const Route = createFileRoute('/_app/chat')({
   component: ChatPage,
 })
 
-const CHANNEL_META: Record<string, { label: string; color: string; icon: typeof Globe }> = {
-  web: { label: 'Web', color: 'bg-blue-500/10 text-blue-600', icon: Globe },
-  whatsapp: { label: 'WhatsApp', color: 'bg-emerald-500/10 text-emerald-600', icon: MessageCircle },
-  telegram: { label: 'Telegram', color: 'bg-sky-500/10 text-sky-600', icon: Send },
+const CHANNEL_META: Record<string, { label: string; color: string; dotColor: string; icon: typeof Globe }> = {
+  web: { label: 'Web', color: 'bg-blue-500/10 text-blue-600', dotColor: 'bg-blue-500', icon: Globe },
+  whatsapp: { label: 'WhatsApp', color: 'bg-emerald-500/10 text-emerald-600', dotColor: 'bg-emerald-500', icon: MessageCircle },
+  telegram: { label: 'Telegram', color: 'bg-sky-500/10 text-sky-600', dotColor: 'bg-sky-500', icon: Send },
 }
 
-function ChannelBadge({ channel }: { channel: string }) {
+function ChannelBadge({ channel, size = 'sm' }: { channel: string; size?: 'sm' | 'xs' }) {
   const meta = CHANNEL_META[channel] || CHANNEL_META.web
   const Icon = meta.icon
+  if (size === 'xs') {
+    return (
+      <span className={`inline-flex items-center gap-0.5 text-[9px] font-medium ${meta.color.split(' ')[1]}`}>
+        <span className={`size-1.5 rounded-full ${meta.dotColor}`} />
+        {meta.label}
+      </span>
+    )
+  }
   return (
     <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium ${meta.color}`}>
       <Icon className="size-2.5" />
@@ -87,19 +97,26 @@ function ChatPage() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [activeChannel, setActiveChannel] = useState<string>('web')
   const [filterChannel, setFilterChannel] = useState<FilterChannel>('all')
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const [showScrollBtn, setShowScrollBtn] = useState(false)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Scroll to bottom helper
+  const scrollToBottom = useCallback((smooth = true) => {
+    messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant' })
+  }, [])
 
   useEffect(() => {
     loadConversations()
-    // Poll for new conversations (WhatsApp/Telegram messages create them server-side)
     pollRef.current = setInterval(loadConversations, 5000)
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [])
 
+  // Scroll on new messages
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    scrollToBottom()
+  }, [messages, scrollToBottom])
 
   // Auto-refresh active conversation for incoming channel messages
   useEffect(() => {
@@ -121,6 +138,18 @@ function ChatPage() {
     }, 3000)
     return () => clearInterval(interval)
   }, [conversationId, activeChannel])
+
+  // Track scroll position for "scroll to bottom" button
+  useEffect(() => {
+    const el = scrollAreaRef.current?.querySelector('[data-radix-scroll-area-viewport]')
+    if (!el) return
+    const handler = () => {
+      const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+      setShowScrollBtn(distFromBottom > 200)
+    }
+    el.addEventListener('scroll', handler)
+    return () => el.removeEventListener('scroll', handler)
+  }, [])
 
   async function loadConversations() {
     try {
@@ -146,6 +175,8 @@ function ChatPage() {
             createdAt: m.createdAt,
           }))
         )
+        // Instant scroll when switching conversations
+        setTimeout(() => scrollToBottom(false), 50)
       }
     } catch {
       toast.error('Failed to load conversation')
@@ -193,7 +224,6 @@ function ChatPage() {
     const text = input.trim()
     if (!text || isLoading) return
 
-    // Only allow sending from web channel
     if (activeChannel !== 'web') {
       toast.error('You can only send messages from the web chat. Channel messages are read-only here.')
       return
@@ -243,6 +273,7 @@ function ChatPage() {
         })
       }
 
+      // Refresh conversation list to show updated title and order
       loadConversations()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to connect to server'
@@ -275,7 +306,7 @@ function ChatPage() {
       <div className="hidden md:flex w-72 flex-col border-r bg-muted/30">
         <div className="flex items-center justify-between p-3 border-b">
           <span className="text-sm font-medium">Conversations</span>
-          <Button variant="ghost" size="icon" className="size-7" onClick={startNewChat}>
+          <Button variant="ghost" size="icon" className="size-7" onClick={startNewChat} title="New chat">
             <Plus className="size-4" />
           </Button>
         </div>
@@ -298,39 +329,46 @@ function ChatPage() {
         </div>
 
         <ScrollArea className="flex-1">
-          <div className="p-2 space-y-1">
+          <div className="p-2 space-y-0.5">
             {filteredConversations.map((c) => (
               <div
                 key={c._id}
-                className={`group flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm cursor-pointer transition-colors ${
+                className={`group rounded-lg px-3 py-2.5 cursor-pointer transition-colors ${
                   conversationId === c._id ? 'bg-accent text-accent-foreground' : 'hover:bg-accent/50'
                 }`}
                 onClick={() => loadConversation(c._id)}
               >
-                <div className="flex flex-col flex-1 min-w-0 gap-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate font-medium text-xs">{c.title}</span>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className={`size-2 rounded-full shrink-0 ${CHANNEL_META[c.channel]?.dotColor || 'bg-gray-400'}`} />
+                      <span className="truncate text-xs font-medium">{c.title || 'Untitled'}</span>
+                    </div>
+                    {c.lastMessage && (
+                      <p className="text-[11px] text-muted-foreground truncate pl-3.5">
+                        {c.lastMessage}
+                      </p>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <ChannelBadge channel={c.channel} />
-                    <span className="text-[10px] text-muted-foreground">
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    <span className="text-[10px] text-muted-foreground whitespace-nowrap">
                       {formatTimeAgo(c.updatedAt)}
                     </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        deleteConversation(c._id)
+                      }}
+                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
                   </div>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    deleteConversation(c._id)
-                  }}
-                  className="opacity-0 group-hover:opacity-100 shrink-0 text-muted-foreground hover:text-destructive transition-opacity"
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
               </div>
             ))}
             {filteredConversations.length === 0 && (
-              <p className="px-3 py-6 text-xs text-muted-foreground text-center">
+              <p className="px-3 py-8 text-xs text-muted-foreground text-center">
                 {filterChannel === 'all' ? 'No conversations yet' : `No ${CHANNEL_META[filterChannel]?.label} conversations`}
               </p>
             )}
@@ -339,8 +377,8 @@ function ChatPage() {
       </div>
 
       {/* Main chat area */}
-      <div className="flex flex-1 flex-col">
-        {/* Channel header bar for non-web conversations */}
+      <div className="flex flex-1 flex-col relative">
+        {/* Channel header bar */}
         {conversationId && (
           <div className="flex items-center gap-3 px-4 py-2 border-b bg-muted/20">
             <ChannelBadge channel={activeChannel} />
@@ -349,25 +387,26 @@ function ChatPage() {
             </span>
             {isChannelConversation && (
               <span className="text-xs text-muted-foreground ml-auto">
-                Read-only — messages flow from {CHANNEL_META[activeChannel]?.label}
+                Read-only — replies go via {CHANNEL_META[activeChannel]?.label}
               </span>
             )}
           </div>
         )}
 
         {/* Messages */}
-        <ScrollArea className="flex-1">
-          <div className="mx-auto max-w-3xl px-4 py-8">
+        <ScrollArea className="flex-1" ref={scrollAreaRef}>
+          <div className="mx-auto max-w-3xl px-4 py-6">
+            {/* Empty state — no conversation selected */}
             {messages.length === 0 && !conversationId && (
-              <div className="flex flex-col items-center justify-center py-24 text-center">
-                <div className="mb-6 flex size-20 items-center justify-center rounded-3xl bg-primary/10">
-                  <Sparkles className="size-10 text-primary" />
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="mb-5 flex size-16 items-center justify-center rounded-2xl bg-primary/10">
+                  <Sparkles className="size-8 text-primary" />
                 </div>
-                <h2 className="text-2xl font-heading font-semibold">How can I help you?</h2>
+                <h2 className="text-xl font-heading font-semibold">How can I help you?</h2>
                 <p className="mt-2 max-w-sm text-sm text-muted-foreground">
                   Chat here or connect WhatsApp/Telegram to see all conversations in one place.
                 </p>
-                <div className="mt-8 flex flex-wrap justify-center gap-2">
+                <div className="mt-6 flex flex-wrap justify-center gap-2">
                   {[
                     'What can you do?',
                     'Check my channels',
@@ -377,7 +416,7 @@ function ChatPage() {
                     <button
                       key={s}
                       onClick={() => setInput(s)}
-                      className="rounded-xl border px-4 py-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                      className="rounded-xl border px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
                     >
                       {s}
                     </button>
@@ -386,110 +425,124 @@ function ChatPage() {
               </div>
             )}
 
+            {/* Empty conversation */}
             {messages.length === 0 && conversationId && (
-              <div className="flex flex-col items-center justify-center py-24 text-center">
-                <p className="text-sm text-muted-foreground">No messages in this conversation yet.</p>
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <p className="text-sm text-muted-foreground">No messages yet.</p>
               </div>
             )}
 
-            <div className="space-y-6">
-              {messages.map((msg, i) => (
-                <div
-                  key={i}
-                  className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : ''}`}
-                >
-                  {msg.role === 'assistant' && (
-                    <Avatar className="size-8 shrink-0 mt-1">
-                      <AvatarFallback className="bg-primary/10 text-primary">
-                        <Sparkles className="size-4" />
-                      </AvatarFallback>
-                    </Avatar>
-                  )}
-                  {msg.role === 'system' && (
-                    <div className="w-full text-center">
-                      <span className="text-xs text-muted-foreground bg-muted rounded-full px-3 py-1">
+            {/* Message list */}
+            <div className="space-y-4">
+              {messages.map((msg, i) => {
+                if (msg.role === 'system') {
+                  return (
+                    <div key={i} className="flex justify-center py-1">
+                      <span className="text-[11px] text-muted-foreground bg-muted rounded-full px-3 py-1">
                         {msg.content}
                       </span>
                     </div>
-                  )}
-                  {msg.role !== 'system' && (
+                  )
+                }
+
+                const isUser = msg.role === 'user'
+                return (
+                  <div key={i} className={`flex gap-3 ${isUser ? 'justify-end' : ''}`}>
+                    {!isUser && (
+                      <Avatar className="size-7 shrink-0 mt-0.5">
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                          <Sparkles className="size-3.5" />
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
                     <div
-                      className={`relative group max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
-                        msg.role === 'user'
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted'
+                      className={`relative group max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                        isUser
+                          ? 'bg-primary text-primary-foreground rounded-br-md'
+                          : 'bg-muted rounded-bl-md'
                       }`}
                     >
-                      {msg.role === 'assistant' ? (
-                        <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-pre:my-2 prose-pre:rounded-xl prose-code:before:content-none prose-code:after:content-none prose-code:bg-background/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs">
+                      {isUser ? (
+                        <div className="whitespace-pre-wrap">{msg.content}</div>
+                      ) : (
+                        <div className="prose prose-sm dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 prose-p:my-1.5 prose-pre:my-2 prose-pre:rounded-xl prose-code:before:content-none prose-code:after:content-none prose-code:bg-background/50 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs">
                           <Markdown remarkPlugins={[remarkGfm]}>
-                            {msg.content}
+                            {msg.content || '…'}
                           </Markdown>
                         </div>
-                      ) : (
-                        <div className="whitespace-pre-wrap">{msg.content}</div>
                       )}
                       {msg.content && <CopyButton text={msg.content} />}
+                      {msg.createdAt && (
+                        <span className="block mt-1 text-[10px] opacity-50">
+                          {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
                     </div>
-                  )}
-                  {msg.role === 'user' && (
-                    <Avatar className="size-8 shrink-0 mt-1">
-                      <AvatarFallback className="bg-secondary">
-                        <User className="size-4" />
-                      </AvatarFallback>
-                    </Avatar>
-                  )}
-                </div>
-              ))}
+                    {isUser && (
+                      <Avatar className="size-7 shrink-0 mt-0.5">
+                        <AvatarFallback className="bg-secondary text-xs">
+                          <User className="size-3.5" />
+                        </AvatarFallback>
+                      </Avatar>
+                    )}
+                  </div>
+                )
+              })}
 
+              {/* Typing indicator */}
               {isLoading && messages[messages.length - 1]?.role === 'user' && (
-                <div className="flex gap-4">
-                  <Avatar className="size-8 shrink-0 mt-1">
-                    <AvatarFallback className="bg-primary/10 text-primary">
-                      <Sparkles className="size-4" />
+                <div className="flex gap-3">
+                  <Avatar className="size-7 shrink-0 mt-0.5">
+                    <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                      <Sparkles className="size-3.5" />
                     </AvatarFallback>
                   </Avatar>
-                  <div className="rounded-2xl bg-muted px-4 py-3">
+                  <div className="rounded-2xl rounded-bl-md bg-muted px-4 py-3">
                     <div className="flex gap-1">
-                      <span className="size-2 rounded-full bg-foreground/50 animate-bounce [animation-delay:0ms]" />
-                      <span className="size-2 rounded-full bg-foreground/50 animate-bounce [animation-delay:150ms]" />
-                      <span className="size-2 rounded-full bg-foreground/50 animate-bounce [animation-delay:300ms]" />
+                      <span className="size-1.5 rounded-full bg-foreground/40 animate-bounce [animation-delay:0ms]" />
+                      <span className="size-1.5 rounded-full bg-foreground/40 animate-bounce [animation-delay:150ms]" />
+                      <span className="size-1.5 rounded-full bg-foreground/40 animate-bounce [animation-delay:300ms]" />
                     </div>
                   </div>
                 </div>
               )}
             </div>
 
-            <div ref={scrollRef} />
+            <div ref={messagesEndRef} className="h-1" />
           </div>
         </ScrollArea>
 
+        {/* Scroll to bottom FAB */}
+        {showScrollBtn && (
+          <button
+            onClick={() => scrollToBottom()}
+            className="absolute bottom-24 right-6 z-10 rounded-full bg-background border shadow-lg p-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronDown className="size-4" />
+          </button>
+        )}
+
         {/* Input Area */}
-        <div className="border-t bg-background/80 backdrop-blur-sm p-4">
+        <div className="border-t bg-background/80 backdrop-blur-sm p-3">
           <div className="mx-auto flex max-w-3xl items-end gap-2">
             <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={isChannelConversation ? `Messages from ${CHANNEL_META[activeChannel]?.label} — view only` : 'Ask your AI anything...'}
+              placeholder={isChannelConversation ? `Viewing ${CHANNEL_META[activeChannel]?.label} — reply happens there` : 'Message…'}
               rows={1}
-              className="min-h-[44px] max-h-[200px] resize-none rounded-2xl"
+              className="min-h-[42px] max-h-[160px] resize-none rounded-2xl text-sm"
               disabled={isLoading || isChannelConversation}
             />
             <Button
               onClick={handleSend}
               disabled={!input.trim() || isLoading || isChannelConversation}
               size="icon"
-              className="shrink-0 rounded-xl"
+              className="shrink-0 rounded-xl size-[42px]"
             >
               <Send className="size-4" />
             </Button>
           </div>
-          <p className="mt-2 text-center text-xs text-muted-foreground">
-            {isChannelConversation
-              ? `Viewing ${CHANNEL_META[activeChannel]?.label} conversation. Reply happens through that channel.`
-              : 'AI may produce inaccurate results. Always verify important information.'}
-          </p>
         </div>
       </div>
     </div>
@@ -501,11 +554,11 @@ function formatTimeAgo(dateStr: string): string {
   const then = new Date(dateStr).getTime()
   const diff = now - then
   const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
+  if (mins < 1) return 'now'
+  if (mins < 60) return `${mins}m`
   const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
+  if (hours < 24) return `${hours}h`
   const days = Math.floor(hours / 24)
-  if (days < 7) return `${days}d ago`
-  return new Date(dateStr).toLocaleDateString()
+  if (days < 7) return `${days}d`
+  return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }

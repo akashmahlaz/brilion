@@ -46,13 +46,21 @@ function getOrCreateConnection(userId: string): UserConnection {
 }
 
 async function connectForUser(userId: string, session?: LoginSession): Promise<void> {
-  log("connectForUser():", userId);
+  log("========== connectForUser() START ==========");
+  log("userId:", userId);
+  log("Has login session:", !!session);
+  
   const conn = getOrCreateConnection(userId);
   conn.status = "connecting";
 
+  log("Loading auth state from MongoDB...");
   const { state, saveCreds, clearState } = await useMongoAuthState(userId);
   conn.clearAuthState = clearState;
+  log("Auth state loaded. Has creds:", !!state.creds);
+  log("Creds registered:", state.creds.registered);
+  
   const { version } = await fetchLatestBaileysVersion();
+  log("Baileys version:", version);
 
   const sock = makeWASocket({
     version,
@@ -64,24 +72,35 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
     syncFullHistory: false,
     printQRInTerminal: false,
   });
+  log("WASocket created");
 
-  if (conn.socket) conn.socket.end(undefined);
+  if (conn.socket) {
+    log("Closing existing socket for user:", userId);
+    conn.socket.end(undefined);
+  }
   conn.socket = sock;
 
   sock.ev.on("connection.update", async (update: Partial<ConnectionState>) => {
     const { connection, lastDisconnect, qr } = update;
+    log(">>> connection.update for", userId, ":", JSON.stringify({ connection, hasQr: !!qr, hasLastDisconnect: !!lastDisconnect }));
 
-    if (qr && session) {
-      try {
-        session.qrDataUrl = await QRCode.toDataURL(qr, {
-          width: 300,
-          margin: 2,
-          color: { dark: "#000000", light: "#ffffff" },
-        });
-        session.message = "Scan QR code with WhatsApp on your phone";
-      } catch (e) {
-        session.message = "Failed to generate QR code";
-        logErr("QR generation failed:", e);
+    if (qr) {
+      log("QR code received for user:", userId);
+      if (session) {
+        try {
+          session.qrDataUrl = await QRCode.toDataURL(qr, {
+            width: 300,
+            margin: 2,
+            color: { dark: "#000000", light: "#ffffff" },
+          });
+          session.message = "Scan QR code with WhatsApp on your phone";
+          log("QR data URL generated successfully");
+        } catch (e) {
+          session.message = "Failed to generate QR code";
+          logErr("QR generation failed:", e);
+        }
+      } else {
+        log("WARNING: QR received but no login session to store it in!");
       }
     }
 
@@ -89,7 +108,9 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
       const statusCode = (
         lastDisconnect?.error as { output?: { statusCode?: number } }
       )?.output?.statusCode;
-      log("Connection closed for", userId, "code:", statusCode);
+      log("Connection CLOSED for", userId, "statusCode:", statusCode);
+      log("DisconnectReason.loggedOut =", DisconnectReason.loggedOut);
+      log("Full lastDisconnect:", JSON.stringify(lastDisconnect, null, 2));
 
       if (statusCode === DisconnectReason.loggedOut) {
         conn.status = "failed";
@@ -100,6 +121,7 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
           session.message = "Logged out. Please restart login.";
         }
       } else if (statusCode === 515 && session && !session.restartAttempted) {
+        log("Status 515 — pairing restart for user:", userId);
         session.restartAttempted = true;
         session.message = "Pairing successful, reconnecting...";
         try {
@@ -124,47 +146,97 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
     if (connection === "open") {
       conn.status = "connected";
       conn.jid = sock.user?.id || null;
-      log("Connected for user:", userId, "jid:", conn.jid);
+      log("========== CONNECTION OPEN ==========");
+      log("User:", userId);
+      log("JID:", conn.jid);
+      log("WhatsApp user info:", JSON.stringify(sock.user));
+      
       if (session) {
         session.status = "connected";
         session.message = "WhatsApp connected successfully!";
       }
 
       // Auto-start message router
+      log("Initializing message router for user:", userId);
       import("./router").then(({ initMessageRouter }) => {
         initMessageRouter(userId);
+        log("Message router initialized for user:", userId);
+        log("Current handler count:", messageHandlers.length);
       }).catch((e) => {
-        logErr("Failed to init message router:", e);
+        logErr("FAILED to init message router:", e);
       });
     }
   });
 
   // Register message listener
   sock.ev.on("messages.upsert", (update) => {
+    log("========== messages.upsert ==========");
+    log("User:", userId);
+    log("Message count:", update.messages.length);
+    log("Type:", update.type);
+    log("Handler count:", messageHandlers.length);
+    
     for (const msg of update.messages) {
-      if (msg.key.fromMe) continue;
+      log("--- Message ---");
+      log("  key:", JSON.stringify(msg.key));
+      log("  fromMe:", msg.key.fromMe);
+      log("  remoteJid:", msg.key.remoteJid);
+      log("  pushName:", msg.pushName);
+      log("  messageType:", msg.message ? Object.keys(msg.message).join(", ") : "null");
+      
+      if (msg.key.fromMe) {
+        log("  SKIPPED: fromMe=true");
+        continue;
+      }
+      
       const text =
         msg.message?.conversation ||
         msg.message?.extendedTextMessage?.text;
-      if (text && msg.key.remoteJid) {
-        for (const handler of messageHandlers) {
-          handler(userId, {
+      
+      log("  Extracted text:", text ? `"${text.substring(0, 100)}"` : "null/empty");
+      
+      if (!text) {
+        log("  SKIPPED: no text content");
+        log("  Full message object keys:", msg.message ? Object.keys(msg.message).join(", ") : "null");
+        continue;
+      }
+      
+      if (!msg.key.remoteJid) {
+        log("  SKIPPED: no remoteJid");
+        continue;
+      }
+
+      log("  >>> Dispatching to", messageHandlers.length, "handlers");
+      for (let i = 0; i < messageHandlers.length; i++) {
+        log("  Calling handler", i);
+        try {
+          messageHandlers[i](userId, {
             jid: msg.key.remoteJid,
             text,
             pushName: msg.pushName || undefined,
           });
+          log("  Handler", i, "called successfully");
+        } catch (e) {
+          logErr("  Handler", i, "threw error:", e);
         }
       }
     }
   });
 
-  sock.ev.on("creds.update", saveCreds);
+  sock.ev.on("creds.update", () => {
+    log("Creds updated for user:", userId);
+    saveCreds();
+  });
+  
+  log("All event listeners registered for user:", userId);
 }
 
 // ── Public API ──
 
 export async function startQrLogin(userId: string) {
-  log("startQrLogin() for user:", userId);
+  log("========== startQrLogin() ==========");
+  log("userId:", userId);
+  
   const sessionId = `wa-${userId}-${Date.now()}`;
   const session: LoginSession = {
     qrDataUrl: null,
@@ -175,10 +247,12 @@ export async function startQrLogin(userId: string) {
     restartAttempted: false,
   };
   loginSessions.set(sessionId, session);
+  log("Login session created:", sessionId);
 
   setTimeout(() => {
     const s = loginSessions.get(sessionId);
     if (s && s.status === "waiting-qr") {
+      log("Login session EXPIRED:", sessionId);
       s.status = "timeout";
       s.message = "Login session expired. Start a new one.";
       const conn = connections.get(userId);
@@ -193,14 +267,16 @@ export async function startQrLogin(userId: string) {
 
   try {
     await connectForUser(userId, session);
+    log("Waiting 2s for QR to generate...");
     await new Promise<void>((resolve) => setTimeout(resolve, 2000));
+    log("QR login result:", { sessionId, hasQr: !!session.qrDataUrl, status: session.status, message: session.message });
     return {
       sessionId,
       qrDataUrl: session.qrDataUrl,
       message: session.message,
     };
   } catch (err) {
-    logErr("startQrLogin error:", err);
+    logErr("startQrLogin FAILED:", err);
     session.status = "failed";
     session.message = `Failed to start: ${err instanceof Error ? err.message : String(err)}`;
     return { sessionId, qrDataUrl: null, message: session.message };
@@ -209,6 +285,7 @@ export async function startQrLogin(userId: string) {
 
 export function getLoginStatus(sessionId: string) {
   const session = loginSessions.get(sessionId);
+  log("getLoginStatus():", sessionId, session ? session.status : "NOT FOUND");
   if (!session)
     return {
       qrDataUrl: null,
@@ -224,7 +301,9 @@ export function getLoginStatus(sessionId: string) {
 
 export function isWhatsAppConnected(userId: string): boolean {
   const conn = connections.get(userId);
-  return conn?.status === "connected" && conn.socket !== null;
+  const result = conn?.status === "connected" && conn.socket !== null;
+  log("isWhatsAppConnected():", userId, "=", result, "(status:", conn?.status, "hasSocket:", !!conn?.socket, ")");
+  return result;
 }
 
 export function getStatus(userId: string): string {
@@ -232,15 +311,22 @@ export function getStatus(userId: string): string {
 }
 
 export async function send(userId: string, jid: string, text: string) {
+  log("========== send() ==========");
+  log("userId:", userId, "jid:", jid, "text length:", text.length);
+  log("text preview:", text.substring(0, 200));
+  
   const conn = connections.get(userId);
   if (!conn?.socket || conn.status !== "connected") {
+    logErr("SEND FAILED: not connected. status:", conn?.status, "hasSocket:", !!conn?.socket);
     return { status: "error", error: "WhatsApp not connected" };
   }
   try {
+    log("Calling socket.sendMessage...");
     await conn.socket.sendMessage(jid, { text });
+    log("Message SENT successfully to", jid);
     return { status: "sent" };
   } catch (err) {
-    logErr("send error:", err);
+    logErr("SEND ERROR:", err);
     return {
       status: "error",
       error: err instanceof Error ? err.message : String(err),
@@ -249,6 +335,7 @@ export async function send(userId: string, jid: string, text: string) {
 }
 
 export async function disconnect(userId: string): Promise<void> {
+  log("disconnect() userId:", userId);
   const conn = connections.get(userId);
   if (conn?.socket) {
     conn.socket.end(undefined);
@@ -258,6 +345,7 @@ export async function disconnect(userId: string): Promise<void> {
 }
 
 export async function logout(userId: string): Promise<void> {
+  log("logout() userId:", userId);
   const conn = connections.get(userId);
   try {
     await conn?.socket?.logout();
@@ -273,6 +361,7 @@ export async function logout(userId: string): Promise<void> {
 
 export function onMessage(handler: MessageHandler): () => void {
   messageHandlers.push(handler);
+  log("onMessage() handler registered. Total handlers:", messageHandlers.length);
   return () => {
     const idx = messageHandlers.indexOf(handler);
     if (idx >= 0) messageHandlers.splice(idx, 1);
@@ -284,11 +373,13 @@ export function onMessage(handler: MessageHandler): () => void {
  * Used at server startup.
  */
 export async function reconnect(userId: string): Promise<void> {
+  log("========== reconnect() ==========");
   log("Reconnecting stored session for:", userId);
   try {
     await connectForUser(userId);
+    log("Reconnect initiated for:", userId);
   } catch (e) {
-    logErr("Reconnect failed for", userId, ":", e);
+    logErr("Reconnect FAILED for", userId, ":", e);
   }
 }
 
