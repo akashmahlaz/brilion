@@ -12,15 +12,16 @@ export const Route = createFileRoute("/api/telegram")({
     handlers: {
       // GET /api/telegram?action=status
       GET: async ({ request }) => {
-        await requireAuth(request);
+        const session = await requireAuth(request);
+        const userId = (session.user as any).id;
 
         const url = new URL(request.url);
         const action = url.searchParams.get("action");
 
         if (action === "status") {
-          const bot = getTelegramBot();
+          const bot = getTelegramBot(userId);
           return Response.json({
-            connected: isTelegramConnected(),
+            connected: isTelegramConnected(userId),
             username: bot ? (bot as any).botInfo?.username : null,
           });
         }

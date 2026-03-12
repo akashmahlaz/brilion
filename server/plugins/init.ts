@@ -1,12 +1,13 @@
+import { defineNitroPlugin } from "nitro/runtime";
+
 /**
  * Nitro server plugin — runs once on server startup.
  * Reconnects WhatsApp sessions and starts Telegram bots.
  */
-export default defineNitroPlugin((nitroApp) => {
-  // Run after the server is ready (non-blocking)
-  nitroApp.hooks.hook("request", async () => {});
+export default defineNitroPlugin(() => {
+  console.log("[nitro-plugin] Server starting, initializing Brilion...");
 
-  // Use a self-executing async init on first load
+  // Non-blocking init — don't delay server startup
   (async () => {
     try {
       const { initServer } = await import("../../src/server/init");

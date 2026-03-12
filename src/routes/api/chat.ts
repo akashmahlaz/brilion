@@ -30,28 +30,18 @@ export const Route = createFileRoute("/api/chat")({
           messages,
         });
 
-        // Save conversation in background
+        // Save conversation in background (web chat only — channel messages saved by router)
         if (conversationId) {
           result.text.then(async (fullText) => {
             try {
+              // Only save the latest user message and the AI response
+              const lastUserMsg = messages[messages.length - 1];
               await Conversation.findByIdAndUpdate(conversationId, {
                 $push: {
                   messages: {
                     $each: [
-                      ...messages
-                        .filter(
-                          (m: any) =>
-                            m.role === "user" &&
-                            !body._alreadySaved
-                        )
-                        .map((m: any) => ({
-                          role: m.role,
-                          content: m.content,
-                        })),
-                      {
-                        role: "assistant",
-                        content: fullText,
-                      },
+                      { role: lastUserMsg.role, content: lastUserMsg.content },
+                      { role: "assistant", content: fullText },
                     ],
                   },
                 },
@@ -89,7 +79,7 @@ export const Route = createFileRoute("/api/chat")({
         }
 
         const conversations = await Conversation.find({ userId })
-          .select("title channel model createdAt updatedAt")
+          .select("title channel foreignId model createdAt updatedAt")
           .sort({ updatedAt: -1 })
           .limit(50)
           .lean();
