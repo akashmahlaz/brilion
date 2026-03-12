@@ -30,7 +30,8 @@ export const Route = createFileRoute("/api/telegram")({
 
       // POST /api/telegram — connect, disconnect
       POST: async ({ request }) => {
-        await requireAuth(request);
+        const session = await requireAuth(request);
+        const userId = (session.user as any).id;
 
         const body = await request.json();
         const { action } = body;
@@ -43,12 +44,12 @@ export const Route = createFileRoute("/api/telegram")({
               { status: 400 }
             );
           }
-          const result = await connectTelegram(botToken);
+          const result = await connectTelegram(botToken, userId);
           return Response.json(result);
         }
 
         if (action === "disconnect") {
-          await disconnectTelegram();
+          await disconnectTelegram(userId);
           return Response.json({ ok: true });
         }
 

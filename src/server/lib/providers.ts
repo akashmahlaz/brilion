@@ -158,7 +158,7 @@ export async function resolveModel(modelSpec?: string, userId?: string): Promise
 }
 
 async function resolveModelSingle(spec: string, userId?: string): Promise<LanguageModel> {
-  let providerId: string;
+  let providerId: string = "github";
   let modelId: string;
 
   if (spec.includes("/")) {
@@ -173,7 +173,6 @@ async function resolveModelSingle(spec: string, userId?: string): Promise<Langua
         break;
       }
     }
-    providerId ??= "github";
   }
 
   console.log("[providers] using provider:", providerId!, "model:", modelId);

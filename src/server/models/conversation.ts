@@ -37,6 +37,8 @@ const conversationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+conversationSchema.index({ userId: 1, channel: 1, foreignId: 1 });
+
 export const Conversation =
   mongoose.models.Conversation ||
   mongoose.model("Conversation", conversationSchema);

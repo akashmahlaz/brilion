@@ -59,11 +59,10 @@ function yamlList(yaml: string, key: string): string[] {
  * Each skill becomes a tool that injects the skill's instructions into the AI context.
  */
 export async function loadSkillTools(
-  userId?: string
+  userId: string
 ): Promise<Record<string, any>> {
   await connectDB();
-  const filter: Record<string, unknown> = { isEnabled: true };
-  if (userId) filter.userId = userId;
+  const filter: Record<string, unknown> = { isEnabled: true, userId };
 
   const skills = await UserSkill.find(filter).lean();
   const tools: Record<string, any> = {};
@@ -116,10 +115,9 @@ function createSkillTool(
  * Get skill summaries for the system prompt — injected so the AI
  * knows what skills are available without needing to call a tool.
  */
-export async function getSkillContext(userId?: string): Promise<string> {
+export async function getSkillContext(userId: string): Promise<string> {
   await connectDB();
-  const filter: Record<string, unknown> = { isEnabled: true };
-  if (userId) filter.userId = userId;
+  const filter: Record<string, unknown> = { isEnabled: true, userId };
 
   const skills = await UserSkill.find(filter)
     .select("name description content")

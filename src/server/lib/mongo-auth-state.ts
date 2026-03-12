@@ -7,25 +7,27 @@ import type {
 import { proto } from "@whiskeysockets/baileys";
 import { initAuthCreds, BufferJSON } from "@whiskeysockets/baileys";
 
-export async function useMongoAuthState() {
+export async function useMongoAuthState(userId: string) {
   await connectDB();
 
+  const prefix = (id: string) => `${userId}:${id}`;
+
   const readData = async (id: string) => {
-    const doc = await WaAuth.findById(id).lean();
+    const doc = await WaAuth.findById(prefix(id)).lean();
     return doc ? JSON.parse(JSON.stringify((doc as any).data), BufferJSON.reviver) : null;
   };
 
   const writeData = async (id: string, data: unknown) => {
     const serialized = JSON.parse(JSON.stringify(data, BufferJSON.replacer));
     await WaAuth.findByIdAndUpdate(
-      id,
-      { data: serialized },
+      prefix(id),
+      { data: serialized, userId },
       { upsert: true }
     );
   };
 
   const removeData = async (id: string) => {
-    await WaAuth.findByIdAndDelete(id);
+    await WaAuth.findByIdAndDelete(prefix(id));
   };
 
   const creds: AuthenticationCreds =
@@ -73,7 +75,16 @@ export async function useMongoAuthState() {
       await writeData("creds", creds);
     },
     clearState: async () => {
-      await WaAuth.deleteMany({});
+      await WaAuth.deleteMany({ userId });
     },
   };
+}
+
+/**
+ * Check if a userId has stored auth state (for reconnection on startup).
+ */
+export async function hasStoredAuthState(userId: string): Promise<boolean> {
+  await connectDB();
+  const doc = await WaAuth.findById(`${userId}:creds`).lean();
+  return !!doc;
 }

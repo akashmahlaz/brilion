@@ -3,15 +3,7 @@ import { resolveModel } from "./providers";
 import { buildSystemPromptFromWorkspace } from "./workspace";
 import { loadConfig } from "./config";
 import {
-  readOwnConfig,
-  updateModel,
-  toggleChannel,
-  updateSystemPrompt,
-  setApiKey,
-  readWorkspaceFileT,
-  writeWorkspaceFileT,
-  listWorkspaceFilesT,
-  patchConfig,
+  createMetaTools,
 } from "./tools/meta";
 import { tavilySearch } from "./tools/tavily";
 import {
@@ -53,21 +45,10 @@ Instead of running commands locally, use web_request with stored tokens to:
 
 Always be helpful, concise, and action-oriented.`;
 
-export async function buildToolSet(userId?: string): Promise<ToolSet> {
-  const metaTools = {
-    read_own_config: readOwnConfig,
-    update_model: updateModel,
-    toggle_channel: toggleChannel,
-    update_system_prompt: updateSystemPrompt,
-    set_api_key: setApiKey,
-    patch_config: patchConfig,
-  };
+export async function buildToolSet(userId: string): Promise<ToolSet> {
+  const metaTools = createMetaTools(userId);
 
-  const workspaceTools = {
-    read_workspace_file: readWorkspaceFileT,
-    write_workspace_file: writeWorkspaceFileT,
-    list_workspace_files: listWorkspaceFilesT,
-  };
+  const workspaceTools = {};  // Now included in metaTools
 
   const builtInTools = {
     tavily_search: tavilySearch,
@@ -92,7 +73,7 @@ export async function buildToolSet(userId?: string): Promise<ToolSet> {
   return { ...builtInTools, ...metaTools, ...workspaceTools, ...skillTools };
 }
 
-async function getSystemPrompt(userId?: string): Promise<string> {
+async function getSystemPrompt(userId: string): Promise<string> {
   const parts: string[] = [];
 
   try {
@@ -120,7 +101,7 @@ async function getSystemPrompt(userId?: string): Promise<string> {
   return parts.join("\n\n---\n\n");
 }
 
-export async function getAgentConfig(userId?: string) {
+export async function getAgentConfig(userId: string) {
   log("getAgentConfig() called, userId:", userId || "none");
   const tools = await buildToolSet(userId);
   log("Tools built, count:", Object.keys(tools).length);

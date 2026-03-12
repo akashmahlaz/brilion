@@ -30,7 +30,7 @@ export const Route = createFileRoute("/api/whatsapp")({
         if (action === "status") {
           const config = await loadConfig(userId);
           const status = {
-            connected: isWhatsAppConnected(),
+            connected: isWhatsAppConnected(userId),
             onboarded: config.channels?.whatsapp?.onboarded || false,
             phoneType: config.channels?.whatsapp?.phoneType || null,
             dmPolicy: config.channels?.whatsapp?.dmPolicy || "pairing",
@@ -70,7 +70,7 @@ export const Route = createFileRoute("/api/whatsapp")({
 
         if (action === "login") {
           log("POST login — starting QR login...");
-          const result = await startQrLogin();
+          const result = await startQrLogin(userId);
           log("QR login started:", { sessionId: result.sessionId, hasQr: !!result.qrDataUrl });
           return Response.json(result);
         }
@@ -83,17 +83,17 @@ export const Route = createFileRoute("/api/whatsapp")({
               { status: 400 }
             );
           }
-          const result = await sendWhatsAppMessage(jid, text);
+          const result = await sendWhatsAppMessage(userId, jid, text);
           return Response.json(result);
         }
 
         if (action === "disconnect") {
-          await disconnectWhatsApp();
+          await disconnectWhatsApp(userId);
           return Response.json({ ok: true });
         }
 
         if (action === "logout") {
-          await logoutWhatsApp();
+          await logoutWhatsApp(userId);
           return Response.json({ ok: true });
         }
 

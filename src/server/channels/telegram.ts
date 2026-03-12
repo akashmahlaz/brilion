@@ -1,98 +1,91 @@
 import { Bot } from "grammy";
 import { routeMessage } from "../lib/router";
+import { Config } from "../models/config";
 import { loadConfig, saveConfig } from "../lib/config";
 import { connectDB } from "../db";
 
-let bot: Bot | null = null;
-let isRunning = false;
+const log = (...args: unknown[]) => console.log("[telegram]", ...args);
 
-/**
- * Initialize the Telegram bot with a bot token.
- * Does NOT start polling — call startPolling() separately.
- */
-export async function initTelegramBot(token: string): Promise<{ ok: boolean; botInfo?: { username: string } }> {
-  try {
-    bot = new Bot(token);
-
-    // Set up message handler — routes to AI agent
-    bot.on("message:text", async (ctx) => {
-      const text = ctx.message.text;
-      const senderId = ctx.from.id.toString();
-      const senderName =
-        ctx.from.first_name + (ctx.from.last_name ? ` ${ctx.from.last_name}` : "");
-
-      try {
-        const reply = await routeMessage({
-          channel: "telegram",
-          senderId,
-          senderName,
-          text,
-        });
-
-        // Send the AI's reply back through Telegram
-        if (reply) {
-          // Split long messages (Telegram has 4096 char limit)
-          const chunks = splitMessage(reply, 4000);
-          for (const chunk of chunks) {
-            await ctx.reply(chunk, { parse_mode: "Markdown" }).catch(async () => {
-              // Fallback to plain text if Markdown fails
-              await ctx.reply(chunk);
-            });
-          }
-        }
-      } catch (err) {
-        console.error("[telegram] Message handling error:", err);
-        await ctx.reply("Sorry, I encountered an error processing your message.").catch(() => {});
-      }
-    });
-
-    // Get bot info to verify token works
-    const me = await bot.api.getMe();
-    return { ok: true, botInfo: { username: me.username } };
-  } catch (err) {
-    bot = null;
-    throw new Error(
-      `Failed to init Telegram bot: ${err instanceof Error ? err.message : String(err)}`
-    );
-  }
+interface TelegramBotEntry {
+  bot: Bot;
+  isRunning: boolean;
+  userId: string;
 }
 
-/**
- * Start long-polling for messages.
- */
-export async function startPolling(): Promise<void> {
-  if (!bot) throw new Error("Bot not initialized. Call initTelegramBot first.");
-  if (isRunning) return;
+const userBots = new Map<string, TelegramBotEntry>();
 
-  bot.start({
+async function initBotForUser(token: string, userId: string): Promise<{ ok: boolean; botInfo?: { username: string } }> {
+  const existing = userBots.get(userId);
+  if (existing?.isRunning) {
+    await existing.bot.stop();
+  }
+
+  const bot = new Bot(token);
+
+  bot.on("message:text", async (ctx) => {
+    const text = ctx.message.text;
+    const senderId = ctx.from.id.toString();
+    const senderName =
+      ctx.from.first_name + (ctx.from.last_name ? ` ${ctx.from.last_name}` : "");
+
+    try {
+      const reply = await routeMessage({
+        channel: "telegram",
+        userId,
+        senderId,
+        senderName,
+        text,
+      });
+
+      if (reply) {
+        const chunks = splitMessage(reply, 4000);
+        for (const chunk of chunks) {
+          await ctx.reply(chunk, { parse_mode: "Markdown" }).catch(async () => {
+            await ctx.reply(chunk);
+          });
+        }
+      }
+    } catch (err) {
+      log("Message handling error for user", userId, ":", err);
+      await ctx.reply("Sorry, I encountered an error processing your message.").catch(() => {});
+    }
+  });
+
+  const me = await bot.api.getMe();
+  userBots.set(userId, { bot, isRunning: false, userId });
+  return { ok: true, botInfo: { username: me.username } };
+}
+
+async function startPollingForUser(userId: string): Promise<void> {
+  const entry = userBots.get(userId);
+  if (!entry || entry.isRunning) return;
+
+  entry.bot.start({
     onStart: () => {
-      isRunning = true;
-      console.log("[telegram] Bot started polling");
+      entry.isRunning = true;
+      log("Bot started polling for user:", userId);
     },
   });
 }
 
-/**
- * Stop the bot.
- */
-export async function stopBot(): Promise<void> {
-  if (bot && isRunning) {
-    await bot.stop();
-    isRunning = false;
-    console.log("[telegram] Bot stopped");
+async function stopBotForUser(userId: string): Promise<void> {
+  const entry = userBots.get(userId);
+  if (entry?.isRunning) {
+    await entry.bot.stop();
+    entry.isRunning = false;
   }
 }
 
-/**
- * Send a message to a Telegram chat.
- */
 export async function sendTelegramMessage(
   chatId: string | number,
-  text: string
+  text: string,
+  userId?: string
 ): Promise<{ status: string; error?: string }> {
-  if (!bot) return { status: "error", error: "Bot not initialized" };
+  // Find the bot for this user, or any bot as fallback
+  const entry = userId ? userBots.get(userId) : userBots.values().next().value;
+  if (!entry?.bot) return { status: "error", error: "Bot not initialized" };
   try {
-    await bot.api.sendMessage(chatId, text);
+    await entry.bot.api.sendMessage(chatId, text);
     return { status: "sent" };
   } catch (err) {
     return {
@@ -102,49 +95,61 @@ export async function sendTelegramMessage(
   }
 }
 
-export function isTelegramConnected(): boolean {
-  return isRunning;
+export function isTelegramConnected(userId?: string): boolean {
+  if (userId) return userBots.get(userId)?.isRunning ?? false;
+  return Array.from(userBots.values()).some((e) => e.isRunning);
 }
 
-export function getTelegramBot(): Bot | null {
-  return bot;
+export function getTelegramBot(userId?: string): Bot | null {
+  if (userId) return userBots.get(userId)?.bot ?? null;
+  const first = userBots.values().next().value as TelegramBotEntry | undefined;
+  return first?.bot ?? null;
 }
 
 /**
- * Auto-start Telegram bot if token is stored in config.
- * Call this at server startup.
+ * Auto-start Telegram bots for all users with stored tokens.
  */
 export async function autoStartTelegram(): Promise<void> {
   try {
     await connectDB();
-    const config = await loadConfig();
-    const botToken = config.channels?.telegram?.botToken;
-    if (!botToken || !config.channels?.telegram?.enabled) return;
+    const configs = await Config.find({
+      "channels.telegram.enabled": true,
+      "channels.telegram.botToken": { $exists: true, $ne: null },
+    }).lean();
 
-    await initTelegramBot(botToken);
-    await startPolling();
+    for (const config of configs as any[]) {
+      const userId = config.userId;
+      const botToken = config.channels?.telegram?.botToken;
+      if (!userId || !botToken) continue;
+
+      try {
+        await initBotForUser(botToken, userId);
+        await startPollingForUser(userId);
+        log("Auto-started bot for user:", userId);
+      } catch (err) {
+        log("Auto-start failed for user:", userId, err);
+      }
+    }
   } catch (err) {
-    console.error("[telegram] Auto-start failed:", err);
+    log("autoStartTelegram failed:", err);
   }
 }
 
-/**
- * Save bot token to config and start the bot.
- */
 export async function connectTelegram(
-  botToken: string
+  botToken: string,
+  userId?: string
 ): Promise<{ ok: boolean; username?: string; error?: string }> {
   try {
-    const result = await initTelegramBot(botToken);
+    if (!userId) return { ok: false, error: "userId required" };
+    const result = await initBotForUser(botToken, userId);
 
-    // Save token to config
     await connectDB();
-    const config = await loadConfig();
+    const config = await loadConfig(userId);
     config.channels.telegram.botToken = botToken;
     config.channels.telegram.enabled = true;
     await saveConfig(config);
 
-    await startPolling();
+    await startPollingForUser(userId);
     return { ok: true, username: result.botInfo?.username };
   } catch (err) {
     return {
@@ -154,15 +159,13 @@ export async function connectTelegram(
   }
 }
 
-/**
- * Disconnect Telegram bot and clear token.
- */
-export async function disconnectTelegram(): Promise<void> {
-  await stopBot();
-  bot = null;
+export async function disconnectTelegram(userId?: string): Promise<void> {
+  if (!userId) return;
+  await stopBotForUser(userId);
+  userBots.delete(userId);
 
   await connectDB();
-  const config = await loadConfig();
+  const config = await loadConfig(userId);
   config.channels.telegram.botToken = undefined;
   config.channels.telegram.enabled = false;
   await saveConfig(config);
@@ -177,7 +180,6 @@ function splitMessage(text: string, maxLen: number): string[] {
       chunks.push(remaining);
       break;
     }
-    // Try to split at newline
     let splitAt = remaining.lastIndexOf("\n", maxLen);
     if (splitAt < maxLen / 2) splitAt = maxLen;
     chunks.push(remaining.slice(0, splitAt));

@@ -15,6 +15,7 @@ type ChannelId = "whatsapp" | "telegram" | "web";
 
 interface IncomingMessage {
   channel: ChannelId;
+  userId: string;
   senderId: string;
   senderName?: string;
   text: string;
@@ -29,13 +30,11 @@ interface ChannelConfig {
 
 /**
  * Check if a sender is allowed based on the DM policy.
- * Mirrors OpenClaw's allowFrom gating logic.
  */
 function isAllowed(sender: string, channelCfg: ChannelConfig): boolean {
   if (!channelCfg.enabled) return false;
   if (channelCfg.dmPolicy === "disabled") return false;
   if (channelCfg.dmPolicy === "open") return true;
-  // allowlist or pairing — check allowFrom list
   return channelCfg.allowFrom.some(
     (pattern) => pattern === "*" || pattern === sender ||
       sender.includes(pattern.replace(/^\+/, ""))
@@ -44,17 +43,15 @@ function isAllowed(sender: string, channelCfg: ChannelConfig): boolean {
 
 /**
  * OpenClaw-style chat commands.
- * Returns a response string if the message is a command, null otherwise.
  */
 async function handleChatCommand(
   text: string,
   msg: IncomingMessage,
-  ownerId: any
+  ownerId: string
 ): Promise<string | null> {
   const cmd = text.trim().toLowerCase();
 
   if (cmd === "/new" || cmd === "/reset") {
-    // Delete conversation for this sender to start fresh
     const deleted = await Conversation.findOneAndDelete({
       channel: msg.channel,
       foreignId: msg.senderId,
@@ -66,7 +63,7 @@ async function handleChatCommand(
   }
 
   if (cmd === "/status") {
-    const config = await loadConfig(ownerId?.toString());
+    const config = await loadConfig(ownerId);
     const conv = await Conversation.findOne({
       channel: msg.channel,
       foreignId: msg.senderId,
@@ -91,28 +88,27 @@ async function handleChatCommand(
     if (!conv || !conv.messages || conv.messages.length < 10) {
       return "Not enough messages to compact.";
     }
-    // Keep first 2 and last 6 messages, summarize the middle
+    const originalCount = conv.messages.length;
     const keep = [
       ...conv.messages.slice(0, 2),
       {
         role: "system",
-        content: `[Compacted ${conv.messages.length - 8} earlier messages]`,
+        content: `[Compacted ${originalCount - 8} earlier messages]`,
         createdAt: new Date(),
       },
       ...conv.messages.slice(-6),
     ];
     conv.messages = keep;
     await conv.save();
-    return `Compacted: kept ${keep.length} messages (was ${conv.messages.length + conv.messages.length - keep.length}).`;
+    return `Compacted: kept ${keep.length} messages (was ${originalCount}).`;
   }
 
   if (cmd.startsWith("/model")) {
     const parts = text.trim().split(/\s+/);
     if (parts.length < 2) {
-      const config = await loadConfig(ownerId?.toString());
+      const config = await loadConfig(ownerId);
       return `Current model: ${config.agents?.defaults?.model?.primary || "gpt-4o"}`;
     }
-    // Change model for this session's conversation only
     const newModel = parts[1];
     const conv = await Conversation.findOne({
       channel: msg.channel,
@@ -156,45 +152,37 @@ async function handleChatCommand(
     ].join("\n");
   }
 
-  return null; // Not a command
+  return null;
 }
 
 /**
  * Route an incoming message through the AI agent and send the reply
- * back through the same channel. Implements OpenClaw-style routing:
- * - DM policy check
- * - Chat command handling (/new, /reset, /status, /model, etc.)
- * - Conversation history with context window
- * - Model failover via fallbacks
+ * back through the same channel.
  */
 export async function routeMessage(msg: IncomingMessage): Promise<string> {
-  log("routeMessage() called:", { channel: msg.channel, senderId: msg.senderId, senderName: msg.senderName, textLength: msg.text.length });
+  log("routeMessage() called:", { channel: msg.channel, userId: msg.userId, senderId: msg.senderId });
   await connectDB();
 
-  const config = await loadConfig();
+  const ownerId = msg.userId;
+  const config = await loadConfig(ownerId);
   if (!config || !config.userId) {
-    logErr("No config/userId found — cannot route message. Please ensure a config exists.");
+    logErr("No config found for userId:", ownerId);
     return "[error] Agent not configured yet. Open the dashboard first.";
   }
-  const ownerId = config.userId;
-  log("Config loaded (owner:", ownerId, "), checking channel config for:", msg.channel);
-  const channelCfg = config.channels?.[msg.channel] as ChannelConfig | undefined;
 
+  const channelCfg = config.channels?.[msg.channel] as ChannelConfig | undefined;
   if (channelCfg && !isAllowed(msg.senderId, channelCfg)) {
-    log("BLOCKED: sender not allowed by DM policy:", msg.senderId);
+    log("BLOCKED: sender not allowed:", msg.senderId);
     return "[blocked] Sender not allowed by DM policy.";
   }
 
-  // Handle chat commands (OpenClaw-style /commands)
+  // Handle chat commands
   if (msg.text.startsWith("/")) {
     const cmdResult = await handleChatCommand(msg.text, msg, ownerId);
-    if (cmdResult !== null) {
-      log("Chat command handled:", msg.text.split(" ")[0]);
-      return cmdResult;
-    }
+    if (cmdResult !== null) return cmdResult;
   }
 
-  // Find or create conversation for this sender+channel
+  // Find or create conversation
   let conv = await Conversation.findOne({
     channel: msg.channel,
     foreignId: msg.senderId,
@@ -202,7 +190,6 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   });
 
   if (!conv) {
-    log("Creating new conversation for:", msg.senderId);
     conv = await Conversation.create({
       userId: ownerId,
       channel: msg.channel,
@@ -211,36 +198,26 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
       messages: [],
       model: config.agents?.defaults?.model?.primary || "gpt-4o",
     });
-  } else {
-    log("Found existing conversation, id:", conv._id, "messages:", conv.messages?.length);
   }
 
-  // Build messages array from conversation history (last 20 messages for context)
   const history = (conv.messages || []).slice(-20).map((m: any) => ({
     role: m.role,
     content: m.content,
   }));
   history.push({ role: "user" as const, content: msg.text });
-  log("History built, total messages:", history.length);
 
-  // Get agent config with userId for proper key resolution & model failover
-  log("Getting agent config...");
-  const agentConfig = await getAgentConfig(ownerId.toString());
-  log("Agent config ready, model:", agentConfig.model?.toString?.() || "unknown");
+  const agentConfig = await getAgentConfig(ownerId);
 
-  // Use per-conversation model override if set
   let modelOverride;
   if (conv.model && conv.model !== config.agents?.defaults?.model?.primary) {
     try {
       const { resolveModel } = await import("./providers");
-      modelOverride = await resolveModel(conv.model, ownerId.toString());
-      log("Using conversation model override:", conv.model);
+      modelOverride = await resolveModel(conv.model, ownerId);
     } catch {
-      log("Conversation model override failed, using default");
+      // use default
     }
   }
 
-  log("Calling streamText...");
   const result = streamText({
     ...agentConfig,
     ...(modelOverride ? { model: modelOverride } : {}),
@@ -248,7 +225,6 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   });
 
   const fullText = await result.text;
-  log("AI response received, length:", fullText.length, "preview:", fullText.slice(0, 100));
 
   // Save to conversation
   conv.messages.push(
@@ -256,51 +232,44 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
     { role: "assistant", content: fullText }
   );
   await conv.save();
-  log("Conversation saved");
 
-  // Send reply back through the channel
+  // Send reply back through channel
   switch (msg.channel) {
     case "whatsapp":
-      log("Sending WhatsApp reply to:", msg.senderId);
-      await sendWhatsAppMessage(msg.senderId, fullText);
+      await sendWhatsAppMessage(ownerId, msg.senderId, fullText);
       break;
     case "telegram":
-      log("Telegram reply - handled by caller");
+      // handled by caller
       break;
   }
 
-  log("routeMessage() complete for:", msg.senderId);
   return fullText;
 }
 
 /**
  * Start listening for incoming messages on all enabled channels.
- * Call this once at server startup.
+ * Per-user initialization — safe to call multiple times.
  */
-let _initialized = false;
-export async function initMessageRouter(): Promise<void> {
-  if (_initialized) {
-    log("initMessageRouter() already initialized, skipping");
-    return;
-  }
-  _initialized = true;
-  log("initMessageRouter() — registering WhatsApp listener...");
+const _initializedUsers = new Set<string>();
 
-  // WhatsApp listener
-  onWhatsAppMessage(async (msg) => {
-    log(">>> WhatsApp message received:", { jid: msg.jid, pushName: msg.pushName, text: msg.text.slice(0, 100) });
-    try {
-      const reply = await routeMessage({
-        channel: "whatsapp",
-        senderId: msg.jid,
-        senderName: msg.pushName,
-        text: msg.text,
-      });
-      log("<<< WhatsApp reply sent, length:", reply.length);
-    } catch (err) {
+export async function initMessageRouter(userId: string): Promise<void> {
+  if (_initializedUsers.has(userId)) return;
+  _initializedUsers.add(userId);
+  log("initMessageRouter() for user:", userId);
+
+  onWhatsAppMessage((ownerUserId, msg) => {
+    if (ownerUserId !== userId) return;
+    log(">>> WhatsApp message for user:", userId, "jid:", msg.jid);
+    routeMessage({
+      channel: "whatsapp",
+      userId,
+      senderId: msg.jid,
+      senderName: msg.pushName,
+      text: msg.text,
+    }).catch((err) => {
       logErr("WhatsApp message routing FAILED:", err);
-    }
+    });
   });
 
-  log("Message router initialized successfully");
+  log("Message router initialized for user:", userId);
 }

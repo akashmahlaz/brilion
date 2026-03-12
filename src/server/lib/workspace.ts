@@ -24,47 +24,42 @@ const BOOTSTRAP_FILES = [
   },
 ];
 
-export async function ensureWorkspace(userId?: string) {
+export async function ensureWorkspace(userId: string) {
   await connectDB();
   for (const file of BOOTSTRAP_FILES) {
-    const filter = userId
-      ? { userId, filename: file.filename }
-      : { filename: file.filename };
+    const filter = { userId, filename: file.filename };
     const exists = await WorkspaceFile.findOne(filter);
     if (!exists) {
-      await WorkspaceFile.create({ ...file, ...(userId ? { userId } : {}) });
+      await WorkspaceFile.create({ ...file, userId });
     }
   }
 }
 
 export async function readWorkspaceFile(
   filename: string,
-  userId?: string
+  userId: string
 ): Promise<string | null> {
   await connectDB();
-  const filter = userId ? { userId, filename } : { filename };
-  const file = await WorkspaceFile.findOne(filter);
+  const file = await WorkspaceFile.findOne({ userId, filename });
   return file ? file.content : null;
 }
 
 export async function writeWorkspaceFile(
   filename: string,
   content: string,
-  userId?: string
+  userId: string
 ) {
   await connectDB();
-  const filter = userId ? { userId, filename } : { filename };
   return WorkspaceFile.findOneAndUpdate(
-    filter,
-    { content, ...(userId ? { userId } : {}) },
+    { userId, filename },
+    { content, userId },
     { upsert: true, new: true }
   );
 }
 
-export async function listWorkspaceFiles(userId?: string) {
+export async function listWorkspaceFiles(userId: string) {
   await connectDB();
-  const filter = userId ? { userId } : {};
-  const files = await WorkspaceFile.find(filter)
+  const files = await WorkspaceFile.find({ userId })
     .select("filename content updatedAt")
     .lean();
   return files.map((f: any) => ({
@@ -75,11 +70,10 @@ export async function listWorkspaceFiles(userId?: string) {
 }
 
 export async function buildSystemPromptFromWorkspace(
-  userId?: string
+  userId: string
 ): Promise<string> {
   await connectDB();
-  const filter = userId ? { userId } : {};
-  const files = await WorkspaceFile.find(filter).lean();
+  const files = await WorkspaceFile.find({ userId }).lean();
 
   const ordered = ["BOOTSTRAP.md", "SOUL.md", "USER.md"];
   const parts: string[] = [];

@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Sparkles, User, Copy, Check, Plus, MessageSquare, Trash2 } from 'lucide-react'
+import { Send, Send as SendIcon, Sparkles, User, Copy, Check, Plus, MessageSquare, Trash2, MessageCircle } from 'lucide-react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '#/components/ui/button'
@@ -18,7 +18,7 @@ interface Message {
 interface ConversationSummary {
   _id: string
   title: string
-  channel: string
+  channel: 'web' | 'whatsapp' | 'telegram'
   updatedAt: string
 }
 
@@ -49,6 +49,7 @@ function ChatPage() {
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [conversationId, setConversationId] = useState<string | null>(null)
+  const [activeChannel, setActiveChannel] = useState<string>('web')
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -66,7 +67,7 @@ function ChatPage() {
       const res = await apiFetch('/api/chat')
       if (res.ok) {
         const data = await res.json()
-        setConversations(data.filter((c: any) => c.channel === 'web'))
+        setConversations(data)
       }
     } catch { /* ignore */ }
   }
@@ -77,6 +78,7 @@ function ChatPage() {
       if (res.ok) {
         const data = await res.json()
         setConversationId(data._id)
+        setActiveChannel(data.channel || 'web')
         setMessages(
           (data.messages || []).map((m: any) => ({
             role: m.role,
@@ -121,6 +123,7 @@ function ChatPage() {
 
   function startNewChat() {
     setConversationId(null)
+    setActiveChannel('web')
     setMessages([])
   }
 
@@ -214,7 +217,13 @@ function ChatPage() {
                 }`}
                 onClick={() => loadConversation(c._id)}
               >
-                <MessageSquare className="size-3.5 shrink-0 text-muted-foreground" />
+                {c.channel === 'whatsapp' ? (
+                  <MessageCircle className="size-3.5 shrink-0 text-emerald-500" />
+                ) : c.channel === 'telegram' ? (
+                  <SendIcon className="size-3.5 shrink-0 text-blue-500" />
+                ) : (
+                  <MessageSquare className="size-3.5 shrink-0 text-muted-foreground" />
+                )}
                 <span className="truncate flex-1">{c.title}</span>
                 <button
                   onClick={(e) => {

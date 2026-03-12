@@ -4,9 +4,7 @@ import { mongoose } from "../db";
 const waAuthSchema = new mongoose.Schema(
   {
     userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
+      type: String,
       index: true,
     },
     _id: { type: String }, // "userId:creds" or "userId:keys:<type>:<id>"

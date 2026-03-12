@@ -13,14 +13,15 @@ export const Route = createFileRoute("/api/workspace")({
     handlers: {
       // GET /api/workspace — list files or read a file
       GET: async ({ request }) => {
-        await requireAuth(request);
+        const session = await requireAuth(request);
         await connectDB();
+        const userId = (session.user as any).id;
 
         const url = new URL(request.url);
         const filename = url.searchParams.get("filename");
 
         if (filename) {
-          const content = await readWorkspaceFile(filename);
+          const content = await readWorkspaceFile(filename, userId);
           if (content === null) {
             return Response.json(
               { error: "File not found" },
@@ -30,15 +31,16 @@ export const Route = createFileRoute("/api/workspace")({
           return Response.json({ filename, content });
         }
 
-        await ensureWorkspace();
-        const files = await listWorkspaceFiles();
+        await ensureWorkspace(userId);
+        const files = await listWorkspaceFiles(userId);
         return Response.json(files);
       },
 
       // PUT /api/workspace — write a file
       PUT: async ({ request }) => {
-        await requireAuth(request);
+        const session = await requireAuth(request);
         await connectDB();
+        const userId = (session.user as any).id;
 
         const body = await request.json();
         const { filename, content } = body;
@@ -49,7 +51,7 @@ export const Route = createFileRoute("/api/workspace")({
           );
         }
 
-        await writeWorkspaceFile(filename, content);
+        await writeWorkspaceFile(filename, content, userId);
         return Response.json({ ok: true, filename });
       },
     },

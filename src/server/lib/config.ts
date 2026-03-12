@@ -21,13 +21,9 @@ export async function loadConfig(userId?: string) {
       config = await Config.create({ userId });
     }
   } else {
-    // No userId — single-user fallback: grab the first config
-    config = await Config.findOne({});
-    if (!config) {
-      log("No config in DB and no userId — returning in-memory defaults");
-      // Return an unsaved Mongoose doc with schema defaults
-      return new Config({});
-    }
+    // No userId — refuse to guess. Return safe in-memory defaults.
+    log("loadConfig() called without userId — returning in-memory defaults (multi-tenant safe)");
+    return new Config({});
   }
 
   return config;
