@@ -10,7 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as McpRouteImport } from './routes/mcp'
-import { Route as LandingRouteImport } from './routes/landing'
+import { Route as HomeRouteImport } from './routes/home'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as AppRouteImport } from './routes/_app'
 import { Route as AppIndexRouteImport } from './routes/_app.index'
@@ -48,9 +48,9 @@ const McpRoute = McpRouteImport.update({
   path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LandingRoute = LandingRouteImport.update({
-  id: '/landing',
-  path: '/landing',
+const HomeRoute = HomeRouteImport.update({
+  id: '/home',
+  path: '/home',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -209,7 +209,7 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AppIndexRoute
-  '/landing': typeof LandingRoute
+  '/home': typeof HomeRoute
   '/mcp': typeof McpRoute
   '/agents': typeof AppAgentsRoute
   '/channels': typeof AppChannelsRoute
@@ -242,7 +242,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof AppIndexRoute
-  '/landing': typeof LandingRoute
+  '/home': typeof HomeRoute
   '/mcp': typeof McpRoute
   '/agents': typeof AppAgentsRoute
   '/channels': typeof AppChannelsRoute
@@ -277,7 +277,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_app': typeof AppRouteWithChildren
   '/_auth': typeof AuthRouteWithChildren
-  '/landing': typeof LandingRoute
+  '/home': typeof HomeRoute
   '/mcp': typeof McpRoute
   '/_app/agents': typeof AppAgentsRoute
   '/_app/channels': typeof AppChannelsRoute
@@ -313,7 +313,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/landing'
+    | '/home'
     | '/mcp'
     | '/agents'
     | '/channels'
@@ -346,7 +346,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/landing'
+    | '/home'
     | '/mcp'
     | '/agents'
     | '/channels'
@@ -380,7 +380,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/_app'
     | '/_auth'
-    | '/landing'
+    | '/home'
     | '/mcp'
     | '/_app/agents'
     | '/_app/channels'
@@ -416,7 +416,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRouteWithChildren
-  LandingRoute: typeof LandingRoute
+  HomeRoute: typeof HomeRoute
   McpRoute: typeof McpRoute
   ApiSplatRoute: typeof ApiSplatRoute
   ApiChatRoute: typeof ApiChatRoute
@@ -443,11 +443,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/landing': {
-      id: '/landing'
-      path: '/landing'
-      fullPath: '/landing'
-      preLoaderRoute: typeof LandingRouteImport
+    '/home': {
+      id: '/home'
+      path: '/home'
+      fullPath: '/home'
+      preLoaderRoute: typeof HomeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_auth': {
@@ -719,7 +719,7 @@ const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 const rootRouteChildren: RootRouteChildren = {
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRouteWithChildren,
-  LandingRoute: LandingRoute,
+  HomeRoute: HomeRoute,
   McpRoute: McpRoute,
   ApiSplatRoute: ApiSplatRoute,
   ApiChatRoute: ApiChatRoute,

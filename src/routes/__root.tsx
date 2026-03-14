@@ -55,7 +55,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'MyAI \u2014 Personal Agent',
+        title: 'Brilion — Automate Everything',
       },
     ],
     links: [
