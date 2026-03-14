@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "vite dev --port 3000",
-    "git" : "git add . ;  git commit -m 'command commit' ; git push",
+    "git": "git add . ;  git commit -m 'command commit' ; git push",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
@@ -74,6 +74,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "framer-motion": "^12.36.0",
     "grammy": "^1.41.1",
     "graphql": "^16.10.0",
     "highlight.js": "^11.11.1",
