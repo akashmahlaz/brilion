@@ -35,7 +35,7 @@ export function Hero() {
         >
           <p className="text-[13px] font-semibold text-gray-600 tracking-wide flex items-center gap-2">
             <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            AI-Powered Life Automation
+            Private - Powerfull
           </p>
         </motion.div>
 
@@ -60,9 +60,9 @@ export function Hero() {
           transition={{ duration: 0.8, delay: 0.3 }}
           className="text-[17px] sm:text-[19px] text-gray-500 leading-[1.75] max-w-135"
         >
-          Connect WhatsApp to every app you use. Create ads, deploy code,
+          Automate ads, Coding, Sales, Calls
           <br className="hidden sm:block" />
-          run trades, book meetings — one conversation handles it all.
+          Run Trades, Book meetings — one message.
         </motion.p>
 
         {/* CTAs */}

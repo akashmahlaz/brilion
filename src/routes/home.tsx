@@ -1,6 +1,7 @@
 ﻿import { createFileRoute } from '@tanstack/react-router'
 import { Navbar } from '#/components/landing/navbar'
 import { Hero } from '#/components/landing/hero'
+import { LogoCarousel } from '#/components/landing/logo-carousel'
 
 export const Route = createFileRoute('/home')({
   component: LandingPage,
@@ -21,6 +22,7 @@ function LandingPage() {
     <div className="min-h-screen bg-[#F8F7F3]">
       <Navbar />
       <Hero />
+      <LogoCarousel />
     </div>
   )
 }

@@ -5,7 +5,7 @@ And brilion will memorize all.
 1. Example One (Digital marketing) - Lets say user is come, he connected his whatsapp and he sent message to ai that i have this client and this is his product, what this AI will do, it will check product, it will ask is he want to permote this product..likely ans is yes, then it will give him plan and ask him should i create for you ads Sets for you, after yes it create video ads sets, photos, and will give stretegy to him. and then it will ask him should i upload this to facebook, insta, tik tok, and others platforms
 
 2. Example two (financial Expert) --for this part we are reearching, will update soon
-3. Content Creator - we will give access to Brlio AI agent
+3. Content Creator - we will give access to Brlion AI agent
 4. Traders 
 5. Coding
 6. Real Estate

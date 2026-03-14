@@ -242,3 +242,12 @@ html {
     transform: translate(-15px, 10px) scale(0.98);
   }
 }
+
+@keyframes logo-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
