@@ -1,60 +1,85 @@
-/* ── Logo Carousel ──
-   Infinite-scroll strip of integration logos.
-   Pure CSS animation — no JS, no dependencies.
+import { motion } from 'framer-motion'
+
+/* ── Integrations Section ──
+   Premium static grid showing the actual platforms Brilion connects to.
+   Matches the hero's warm-paper aesthetic.
 */
 
-const LOGOS: { name: string; icon: string }[] = [
+const INTEGRATIONS = [
   { name: 'WhatsApp', icon: '/logos/whatsapp.svg' },
-  { name: 'Meta', icon: '/logos/meta.svg' },
+  { name: 'Facebook', icon: '/logos/meta.svg' },
+  { name: 'Instagram', icon: '/logos/instagram.svg' },
   { name: 'Google', icon: '/logos/google.svg' },
-  { name: 'Slack', icon: '/logos/slack.svg' },
-  { name: 'GitHub', icon: '/logos/github.svg' },
   { name: 'Telegram', icon: '/logos/telegram.svg' },
-  { name: 'Stripe', icon: '/logos/stripe.svg' },
-  { name: 'Notion', icon: '/logos/notion.svg' },
+  { name: 'Binance', icon: '/logos/binance.svg' },
   { name: 'Shopify', icon: '/logos/shopify.svg' },
-  { name: 'Discord', icon: '/logos/discord.svg' },
-  { name: 'Linear', icon: '/logos/linear.svg' },
-  { name: 'Vercel', icon: '/logos/vercel.svg' },
+  { name: 'Stripe', icon: '/logos/stripe.svg' },
+  { name: 'GitHub', icon: '/logos/github.svg' },
+  { name: 'YouTube', icon: '/logos/youtube.svg' },
+  { name: 'Slack', icon: '/logos/slack.svg' },
+  { name: 'TradingView', icon: '/logos/tradingview.svg' },
 ]
-
-function LogoItem({ name, icon }: { name: string; icon: string }) {
-  return (
-    <div className="flex items-center gap-2.5 px-6 shrink-0 opacity-40 hover:opacity-80 transition-opacity duration-300 grayscale hover:grayscale-0">
-      <img
-        src={icon}
-        alt={name}
-        className="h-6 w-auto object-contain"
-        loading="lazy"
-      />
-      <span className="text-[13px] font-medium text-gray-500 whitespace-nowrap hidden sm:inline">
-        {name}
-      </span>
-    </div>
-  )
-}
 
 export function LogoCarousel() {
   return (
-    <section className="relative py-14 border-y border-gray-100 bg-gray-50/40 overflow-hidden">
-      {/* Heading */}
-      <p className="text-center text-[11px] font-semibold text-gray-400 uppercase tracking-[3px] mb-8">
-        Integrates with your daily tools
-      </p>
+    <section className="relative py-20 sm:py-28">
+      <div className="max-w-5xl mx-auto px-6">
+        {/* Heading */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-80px' }}
+          transition={{ duration: 0.6 }}
+          className="text-center mb-14"
+        >
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-[3px] mb-3">
+            Connected Platforms
+          </p>
+          <h2 className="font-heading text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
+            One message. Every platform.
+          </h2>
+          <p className="mt-3 text-[15px] text-gray-400 max-w-md mx-auto">
+            Brilion talks to the tools you already use — marketing, trading,
+            development, payments, and more.
+          </p>
+        </motion.div>
 
-      {/* Scroll track */}
-      <div className="relative">
-        {/* Fade edges */}
-        <div className="absolute inset-y-0 left-0 w-24 bg-linear-to-r from-gray-50/90 to-transparent z-10 pointer-events-none" />
-        <div className="absolute inset-y-0 right-0 w-24 bg-linear-to-l from-gray-50/90 to-transparent z-10 pointer-events-none" />
-
-        {/* Scrolling row */}
-        <div className="flex animate-[logo-scroll_30s_linear_infinite]">
-          {/* Duplicate the set twice for seamless loop */}
-          {[...LOGOS, ...LOGOS].map((logo, i) => (
-            <LogoItem key={`${logo.name}-${i}`} name={logo.name} icon={logo.icon} />
+        {/* Logo grid */}
+        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+          {INTEGRATIONS.map((item, i) => (
+            <motion.div
+              key={item.name}
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-40px' }}
+              transition={{ duration: 0.4, delay: i * 0.04 }}
+              className="group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-2xl border border-transparent bg-white/60 hover:bg-white hover:border-gray-200/80 hover:shadow-lg hover:shadow-gray-100/50 transition-all duration-300 cursor-default"
+            >
+              <div className="flex size-11 items-center justify-center rounded-xl bg-gray-50 group-hover:bg-gray-100/80 transition-colors duration-300">
+                <img
+                  src={item.icon}
+                  alt={item.name}
+                  className="size-6 object-contain"
+                  loading="lazy"
+                />
+              </div>
+              <span className="text-[12px] font-medium text-gray-400 group-hover:text-gray-700 transition-colors duration-300">
+                {item.name}
+              </span>
+            </motion.div>
           ))}
         </div>
+
+        {/* Bottom note */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+          className="text-center text-[12px] text-gray-400 mt-8"
+        >
+          + 30 more integrations coming soon
+        </motion.p>
       </div>
     </section>
   )
