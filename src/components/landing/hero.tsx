@@ -60,9 +60,9 @@ export function Hero() {
           transition={{ duration: 0.8, delay: 0.3 }}
           className="text-[17px] sm:text-[19px] text-gray-500 leading-[1.75] max-w-135"
         >
-          Automate ads, Coding, Sales, Calls
+          Automate ads, coding, sales and meetings.
           <br className="hidden sm:block" />
-          Run Trades, Book meetings — one message.
+          Trade, publish, deploy — one message.
         </motion.p>
 
         {/* CTAs */}

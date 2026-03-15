@@ -2,6 +2,7 @@
 import { Navbar } from '#/components/landing/navbar'
 import { Hero } from '#/components/landing/hero'
 import { LogoCarousel } from '#/components/landing/logo-carousel'
+import { VideoShowcase } from '#/components/landing/video-showcase'
 
 export const Route = createFileRoute('/home')({
   component: LandingPage,
@@ -23,6 +24,7 @@ function LandingPage() {
       <Navbar />
       <Hero />
       <LogoCarousel />
+      <VideoShowcase />
     </div>
   )
 }

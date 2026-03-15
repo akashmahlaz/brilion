@@ -1,11 +1,9 @@
-import { motion } from 'framer-motion'
-
-/* ── Integrations Section ──
-   Premium static grid showing the actual platforms Brilion connects to.
-   Matches the hero's warm-paper aesthetic.
+/* ── Logo Carousel ──
+   Infinite marquee of platform icons. Pure CSS animation.
+   Large icons, no labels, elegant fade edges on warm paper.
 */
 
-const INTEGRATIONS = [
+const LOGOS = [
   { name: 'WhatsApp', icon: '/logos/whatsapp.svg' },
   { name: 'Facebook', icon: '/logos/meta.svg' },
   { name: 'Instagram', icon: '/logos/instagram.svg' },
@@ -20,66 +18,39 @@ const INTEGRATIONS = [
   { name: 'TradingView', icon: '/logos/tradingview.svg' },
 ]
 
+function LogoIcon({ name, icon }: { name: string; icon: string }) {
+  return (
+    <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-white border border-gray-200/50 mx-5 shadow-sm shadow-gray-100/50 hover:scale-105 hover:border-gray-200 hover:shadow-md hover:shadow-gray-200/40 transition-all duration-300">
+      <img
+        src={icon}
+        alt={name}
+        className="size-9 object-contain opacity-60 hover:opacity-100 transition-opacity duration-300"
+        loading="lazy"
+      />
+    </div>
+  )
+}
+
 export function LogoCarousel() {
   return (
-    <section className="relative py-20 sm:py-28">
-      <div className="max-w-5xl mx-auto px-6">
-        {/* Heading */}
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-80px' }}
-          transition={{ duration: 0.6 }}
-          className="text-center mb-14"
-        >
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-[3px] mb-3">
-            Connected Platforms
-          </p>
-          <h2 className="font-heading text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
-            One message. Every platform.
-          </h2>
-          <p className="mt-3 text-[15px] text-gray-400 max-w-md mx-auto">
-            Brilion talks to the tools you already use — marketing, trading,
-            development, payments, and more.
-          </p>
-        </motion.div>
+    <section className="relative py-16">
+      {/* Label */}
+      <p className="text-center text-[11px] font-semibold text-gray-400 uppercase tracking-[3px] mb-10">
+        Works with the platforms you already use
+      </p>
 
-        {/* Logo grid */}
-        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-          {INTEGRATIONS.map((item, i) => (
-            <motion.div
-              key={item.name}
-              initial={{ opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-40px' }}
-              transition={{ duration: 0.4, delay: i * 0.04 }}
-              className="group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-2xl border border-transparent bg-white/60 hover:bg-white hover:border-gray-200/80 hover:shadow-lg hover:shadow-gray-100/50 transition-all duration-300 cursor-default"
-            >
-              <div className="flex size-11 items-center justify-center rounded-xl bg-gray-50 group-hover:bg-gray-100/80 transition-colors duration-300">
-                <img
-                  src={item.icon}
-                  alt={item.name}
-                  className="size-6 object-contain"
-                  loading="lazy"
-                />
-              </div>
-              <span className="text-[12px] font-medium text-gray-400 group-hover:text-gray-700 transition-colors duration-300">
-                {item.name}
-              </span>
-            </motion.div>
+      {/* Marquee track */}
+      <div className="relative overflow-hidden">
+        {/* Fade edges */}
+        <div className="absolute inset-y-0 left-0 w-32 bg-linear-to-r from-[#F8F7F3] to-transparent z-10 pointer-events-none" />
+        <div className="absolute inset-y-0 right-0 w-32 bg-linear-to-l from-[#F8F7F3] to-transparent z-10 pointer-events-none" />
+
+        {/* Row */}
+        <div className="flex w-max animate-[logo-scroll_35s_linear_infinite] hover:paused">
+          {[...LOGOS, ...LOGOS].map((logo, i) => (
+            <LogoIcon key={`${logo.name}-${i}`} name={logo.name} icon={logo.icon} />
           ))}
         </div>
-
-        {/* Bottom note */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-          className="text-center text-[12px] text-gray-400 mt-8"
-        >
-          + 30 more integrations coming soon
-        </motion.p>
       </div>
     </section>
   )
