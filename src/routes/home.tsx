@@ -3,6 +3,7 @@ import { Navbar } from '#/components/landing/navbar'
 import { Hero } from '#/components/landing/hero'
 import { LogoCarousel } from '#/components/landing/logo-carousel'
 import { VideoShowcase } from '#/components/landing/video-showcase'
+import { IntegrationsBeam } from '#/components/landing/integrations-beam'
 import { Features } from '#/components/landing/features'
 
 export const Route = createFileRoute('/home')({
@@ -25,6 +26,7 @@ function LandingPage() {
       <Navbar />
       <Hero />
       <LogoCarousel />
+      <IntegrationsBeam />
       <VideoShowcase />
       <Features />
     </div>
