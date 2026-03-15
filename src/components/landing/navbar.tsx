@@ -92,14 +92,9 @@ export function Navbar() {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-2xl border-b border-gray-100/60">
       <div className="max-w-7xl mx-auto px-6 lg:px-8 flex items-center justify-between h-16">
         {/* Logo */}
-        <a href="/home" className="flex items-center gap-2.5 shrink-0">
-          <img src="/logo.png" alt="Brilion" className="h-8 w-auto" />
-          <span
-            className="text-[22px] font-bold tracking-tight text-gray-900"
-            style={{ fontFamily: 'Georgia, serif' }}
-          >
-            Brilion
-          </span>
+        <a href="/home" className="flex items-center shrink-0 -ml-1">
+          <img src="/BRILION.svg" alt="Brilion" className="h-8 w-aut
+          o" />
         </a>
 
         {/* Desktop Nav — mega dropdown */}

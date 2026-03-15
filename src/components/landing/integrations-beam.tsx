@@ -2,6 +2,8 @@ import { forwardRef, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { cn } from '#/lib/utils'
 import { AnimatedBeam } from '#/components/ui/animated-beam'
+import { Ripple } from '#/components/ui/ripple'
+import { DotPattern } from '#/components/ui/dot-pattern'
 
 /* ── Integrations Hub ──
    Fan-in / fan-out beam layout:
@@ -77,8 +79,15 @@ export function IntegrationsBeam() {
         >
           <div
             ref={containerRef}
-            className="relative flex h-100 w-full items-center justify-center overflow-hidden p-10"
+            className="relative flex h-125 w-full items-center justify-center overflow-hidden p-10"
           >
+            {/* Background dot pattern */}
+            <DotPattern
+              width={24}
+              height={24}
+              cr={1}
+              className="opacity-[0.15] mask-[radial-gradient(500px_circle_at_center,white,transparent)]"
+            />
             {/* Left column — 3 input channels */}
             <div className="flex flex-col items-center justify-between gap-12">
               <Circle ref={whatsappRef}>
@@ -101,15 +110,21 @@ export function IntegrationsBeam() {
             </div>
 
             {/* Center — Brilion hub */}
-            <div className="mx-auto flex items-center justify-center">
+            <div className="relative mx-auto flex items-center justify-center">
+              <Ripple
+                mainCircleSize={80}
+                mainCircleOpacity={0.08}
+                numCircles={5}
+                className="[--foreground:147_197_253]"
+              />
               <Circle
                 ref={brilionRef}
-                className="size-20 border-gray-300/60 shadow-[0_0_30px_-8px_rgba(59,130,246,0.35)]"
+                className="size-20 border-blue-200/60 shadow-[0_0_30px_-8px_rgba(59,130,246,0.35)]"
               >
                 <img
                   src="/logo.png"
                   alt="Brilion"
-                  className="size-11 rounded-sm"
+                  className="size-26 object-cover"
                 />
               </Circle>
             </div>
