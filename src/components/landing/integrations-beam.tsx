@@ -15,7 +15,7 @@ const Circle = forwardRef<
   <div
     ref={ref}
     className={cn(
-      'z-10 flex size-12 items-center justify-center rounded-full border-2 border-gray-200/60 bg-white p-2.5 shadow-[0_0_20px_-12px_rgba(0,0,0,0.8)]',
+      'z-10 flex size-14 items-center justify-center rounded-full border-2 border-gray-200/60 bg-white p-3 shadow-[0_0_20px_-12px_rgba(0,0,0,0.8)]',
       className,
     )}
   >
@@ -77,7 +77,7 @@ export function IntegrationsBeam() {
         >
           <div
             ref={containerRef}
-            className="relative flex h-100 w-full items-center justify-center overflow-hidden rounded-3xl border border-gray-200/60 bg-white p-10 shadow-xl shadow-gray-200/30"
+            className="relative flex h-100 w-full items-center justify-center overflow-hidden p-10"
           >
             {/* Left column — 3 input channels */}
             <div className="flex flex-col items-center justify-between gap-12">
@@ -85,18 +85,18 @@ export function IntegrationsBeam() {
                 <img
                   src="/logos/whatsapp.svg"
                   alt="WhatsApp"
-                  className="size-7"
+                  className="size-8"
                 />
               </Circle>
               <Circle ref={telegramRef}>
                 <img
                   src="/logos/telegram.svg"
                   alt="Telegram"
-                  className="size-7"
+                  className="size-8"
                 />
               </Circle>
               <Circle ref={webRef}>
-                <img src="/logos/slack.svg" alt="Web Chat" className="size-7" />
+                <img src="/logos/slack.svg" alt="Web Chat" className="size-8" />
               </Circle>
             </div>
 
@@ -104,12 +104,12 @@ export function IntegrationsBeam() {
             <div className="mx-auto flex items-center justify-center">
               <Circle
                 ref={brilionRef}
-                className="size-16 border-gray-300/60 shadow-[0_0_30px_-8px_rgba(59,130,246,0.35)]"
+                className="size-20 border-gray-300/60 shadow-[0_0_30px_-8px_rgba(59,130,246,0.35)]"
               >
                 <img
                   src="/logo.png"
                   alt="Brilion"
-                  className="size-9 rounded-sm"
+                  className="size-11 rounded-sm"
                 />
               </Circle>
             </div>
@@ -117,27 +117,27 @@ export function IntegrationsBeam() {
             {/* Right column — 5 output platforms */}
             <div className="flex flex-col items-center justify-between gap-6">
               <Circle ref={facebookRef}>
-                <img src="/logos/meta.svg" alt="Facebook" className="size-7" />
+                <img src="/logos/meta.svg" alt="Facebook" className="size-8" />
               </Circle>
               <Circle ref={binanceRef}>
                 <img
                   src="/logos/binance.svg"
                   alt="Binance"
-                  className="size-7"
+                  className="size-8"
                 />
               </Circle>
               <Circle ref={stripeRef}>
-                <img src="/logos/stripe.svg" alt="Stripe" className="size-7" />
+                <img src="/logos/stripe.svg" alt="Stripe" className="size-8" />
               </Circle>
               <Circle ref={googleRef}>
                 <img
                   src="/logos/google.svg"
                   alt="Google"
-                  className="size-7"
+                  className="size-8"
                 />
               </Circle>
               <Circle ref={githubRef}>
-                <img src="/logos/github.svg" alt="GitHub" className="size-7" />
+                <img src="/logos/github.svg" alt="GitHub" className="size-8" />
               </Circle>
             </div>
 
@@ -219,14 +219,7 @@ export function IntegrationsBeam() {
             />
           </div>
 
-          {/* Decorative glow behind the card */}
-          <div
-            className="absolute -inset-6 -z-10 rounded-[2rem] opacity-30 blur-3xl pointer-events-none"
-            style={{
-              background:
-                'radial-gradient(ellipse at center, #bfdbfe 0%, transparent 70%)',
-            }}
-          />
+
         </motion.div>
 
         {/* Bottom caption */}

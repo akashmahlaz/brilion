@@ -26,8 +26,8 @@ function LandingPage() {
       <Navbar />
       <Hero />
       <LogoCarousel />
-      <IntegrationsBeam />
       <VideoShowcase />
+      <IntegrationsBeam />
       <Features />
     </div>
   )
