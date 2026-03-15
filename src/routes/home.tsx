@@ -5,6 +5,7 @@ import { LogoCarousel } from '#/components/landing/logo-carousel'
 import { VideoShowcase } from '#/components/landing/video-showcase'
 import { IntegrationsBeam } from '#/components/landing/integrations-beam'
 import { Features } from '#/components/landing/features'
+import { HowItWorks } from '#/components/landing/how-it-works'
 
 export const Route = createFileRoute('/home')({
   component: LandingPage,
@@ -29,6 +30,7 @@ function LandingPage() {
       <VideoShowcase />
       <IntegrationsBeam />
       <Features />
+      <HowItWorks />
     </div>
   )
 }
