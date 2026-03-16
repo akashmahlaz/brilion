@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
 import {
   Key,
@@ -11,6 +11,17 @@ import {
   ChevronRight,
   Save,
   ExternalLink,
+  Radio,
+  Bot,
+  Wrench,
+  Brain,
+  Clock,
+  MonitorSmartphone,
+  ScrollText,
+  BarChart3,
+  Bug,
+  MessageSquare,
+  Settings,
 } from 'lucide-react'
 import {
   Card,
@@ -60,11 +71,70 @@ export const Route = createFileRoute('/_app/settings')({
   component: SettingsPage,
 })
 
+const SETTINGS_NAV = [
+  { label: 'General', icon: Settings, to: '/settings' as const, active: true },
+  { separator: true, label: 'AI' },
+  { label: 'Agents', icon: Bot, to: '/agents' as const },
+  { label: 'Skills', icon: Brain, to: '/skills' as const },
+  { label: 'Config', icon: Wrench, to: '/config' as const },
+  { separator: true, label: 'Channels' },
+  { label: 'Channels', icon: Radio, to: '/channels' as const },
+  { label: 'Sessions', icon: MessageSquare, to: '/sessions' as const },
+  { separator: true, label: 'System' },
+  { label: 'Cron Jobs', icon: Clock, to: '/cron' as const },
+  { label: 'Nodes', icon: MonitorSmartphone, to: '/nodes' as const },
+  { label: 'Logs', icon: ScrollText, to: '/logs' as const },
+  { label: 'Usage', icon: BarChart3, to: '/usage' as const },
+  { label: 'Debug', icon: Bug, to: '/debug' as const },
+] as const
+
 function SettingsPage() {
+  const router = useRouter()
+  const pathname = router.state.location.pathname
+
   return (
-    <div className="@container/main flex flex-1 flex-col gap-2">
-      <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-        <div className="px-4 lg:px-6">
+    <div className="flex flex-1 overflow-hidden">
+      {/* Settings navigation */}
+      <nav className="hidden md:flex w-56 shrink-0 flex-col border-r border-gray-200/40 bg-white/40 overflow-y-auto">
+        <div className="p-4">
+          <h2 className="font-heading text-sm font-bold text-gray-900 tracking-tight">Settings</h2>
+          <p className="text-[11px] text-gray-400 mt-0.5">Manage your workspace</p>
+        </div>
+        <div className="flex flex-col gap-0.5 px-2 pb-4">
+          {SETTINGS_NAV.map((item, i) => {
+            if ('separator' in item && item.separator) {
+              return (
+                <div key={i} className="pt-3 pb-1 px-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                    {item.label}
+                  </span>
+                </div>
+              )
+            }
+            if (!('to' in item)) return null
+            const Icon = item.icon
+            const isActive = pathname === item.to
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] transition-colors ${
+                  isActive
+                    ? 'bg-gray-900 text-white font-medium'
+                    : 'text-gray-600 hover:bg-gray-100/80 hover:text-gray-900'
+                }`}
+              >
+                {Icon && <Icon className="size-3.5 shrink-0" />}
+                <span>{item.label}</span>
+              </Link>
+            )
+          })}
+        </div>
+      </nav>
+
+      {/* Settings content — General tab */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto py-6 px-4 lg:px-6">
           <Tabs defaultValue="models" className="space-y-6">
             <TabsList className="rounded-xl">
               <TabsTrigger value="models" className="rounded-lg gap-2">
@@ -607,7 +677,7 @@ function WorkspaceTab() {
               <Textarea
                 value={fileContent}
                 onChange={(e) => setFileContent(e.target.value)}
-                className="min-h-[400px] font-mono text-sm rounded-xl resize-y"
+                className="min-h-100 font-mono text-sm rounded-xl resize-y"
                 placeholder="File content..."
               />
             )

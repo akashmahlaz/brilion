@@ -1,24 +1,17 @@
 import { Link, useNavigate, useRouter } from "@tanstack/react-router"
 import {
-  MessageSquare,
   Settings2,
-  Radio,
-  LayoutDashboard,
-  LifeBuoy,
-  Send,
   Sparkles,
   LogOut,
   ChevronsUpDown,
-  Brain,
-  Users,
-  Bot,
-  Clock,
-  Network,
-  ScrollText,
-  BarChart3,
-  Terminal,
+  Plus,
+  Trash2,
+  MessageCircle,
+  Send,
+  Globe,
+  Search,
 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 
 import { useSession, signOut } from "#/lib/auth-client"
 import { apiFetch } from "#/lib/api"
@@ -37,73 +30,118 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
 } from "#/components/ui/sidebar"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "#/components/ui/tooltip"
 
-function useChannelStatus() {
-  const [wa, setWa] = useState(false)
-  const [tg, setTg] = useState(false)
-
-  useEffect(() => {
-    async function poll() {
-      try {
-        const [waRes, tgRes] = await Promise.all([
-          apiFetch("/api/whatsapp?action=status").then((r) => r.ok ? r.json() : null).catch(() => null),
-          apiFetch("/api/telegram?action=status").then((r) => r.ok ? r.json() : null).catch(() => null),
-        ])
-        if (waRes) setWa(waRes.connected)
-        if (tgRes) setTg(tgRes.connected)
-      } catch { /* ignore */ }
-    }
-    poll()
-    const id = setInterval(poll, 15_000)
-    return () => clearInterval(id)
-  }, [])
-
-  return { whatsapp: wa, telegram: tg }
+// ─── Types ───────────────────────────────────────────────
+interface ConversationSummary {
+  _id: string
+  title: string
+  channel: "web" | "whatsapp" | "telegram"
+  foreignId?: string
+  model?: string
+  messageCount?: number
+  lastMessage?: string | null
+  updatedAt: string
+  createdAt: string
 }
 
-// OpenClaw-style navigation — exact tab order
-const navItems = [
-  { title: "Overview", url: "/overview", icon: LayoutDashboard },
-  { title: "Chat", url: "/chat", icon: MessageSquare },
-  { title: "Channels", url: "/channels", icon: Radio },
-  { title: "Sessions", url: "/sessions", icon: Users },
-  { title: "Agents", url: "/agents", icon: Bot },
-  { title: "Config", url: "/config", icon: Settings2 },
-  { title: "Skills", url: "/skills", icon: Brain },
-  { title: "Cron", url: "/cron", icon: Clock },
-  { title: "Nodes", url: "/nodes", icon: Network },
-  { title: "Logs", url: "/logs", icon: ScrollText },
-  { title: "Usage", url: "/usage", icon: BarChart3 },
-  { title: "Debug", url: "/debug", icon: Terminal },
-]
+const CHANNEL_DOT: Record<string, string> = {
+  web: "bg-blue-500",
+  whatsapp: "bg-emerald-500",
+  telegram: "bg-sky-500",
+}
 
-const secondaryItems = [
-  { title: "Support", url: "#", icon: LifeBuoy },
-  { title: "Feedback", url: "#", icon: Send },
-]
-
+// ─── Sidebar ─────────────────────────────────────────────
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: session } = useSession()
   const navigate = useNavigate()
   const router = useRouter()
   const user = session?.user
   const pathname = router.state.location.pathname
-  const status = useChannelStatus()
 
-  // Determine active count for channels badge
-  const channelsOnline = [status.whatsapp, status.telegram].filter(Boolean).length
+  const [conversations, setConversations] = useState<ConversationSummary[]>([])
+  const [search, setSearch] = useState("")
+
+  const loadConversations = useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/chat")
+      if (res.ok) setConversations(await res.json())
+    } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => {
+    loadConversations()
+    const id = setInterval(loadConversations, 5000)
+    return () => clearInterval(id)
+  }, [loadConversations])
+
+  const filteredConversations = search
+    ? conversations.filter((c) =>
+        c.title?.toLowerCase().includes(search.toLowerCase())
+      )
+    : conversations
+
+  // Group by date
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  const weekAgo = new Date(today)
+  weekAgo.setDate(weekAgo.getDate() - 7)
+
+  const groups: { label: string; items: ConversationSummary[] }[] = []
+  const todayItems: ConversationSummary[] = []
+  const yesterdayItems: ConversationSummary[] = []
+  const weekItems: ConversationSummary[] = []
+  const olderItems: ConversationSummary[] = []
+
+  for (const c of filteredConversations) {
+    const d = new Date(c.updatedAt)
+    if (d >= today) todayItems.push(c)
+    else if (d >= yesterday) yesterdayItems.push(c)
+    else if (d >= weekAgo) weekItems.push(c)
+    else olderItems.push(c)
+  }
+
+  if (todayItems.length) groups.push({ label: "Today", items: todayItems })
+  if (yesterdayItems.length) groups.push({ label: "Yesterday", items: yesterdayItems })
+  if (weekItems.length) groups.push({ label: "Previous 7 days", items: weekItems })
+  if (olderItems.length) groups.push({ label: "Older", items: olderItems })
+
+  async function deleteConversation(id: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    try {
+      await apiFetch(`/api/chat?id=${encodeURIComponent(id)}`, { method: "DELETE" })
+      loadConversations()
+    } catch { /* ignore */ }
+  }
+
+  function handleNewChat() {
+    navigate({ to: "/chat" })
+  }
+
+  // Determine if a conversation is active from URL search params
+  const activeConvId = (() => {
+    try {
+      const url = new URL(window.location.href)
+      return url.searchParams.get("id")
+    } catch { return null }
+  })()
 
   return (
     <Sidebar collapsible="icon" className="border-r-0" {...props}>
-      <SidebarHeader className="pb-2">
+      {/* ─── Header: Logo + New Chat ─── */}
+      <SidebarHeader className="pb-0">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
@@ -113,79 +151,120 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-heading font-bold tracking-tight text-gray-900">Brilion</span>
-                  <span className="truncate text-[11px] text-gray-400">
-                    AI Gateway
-                  </span>
+                  <span className="truncate text-[11px] text-gray-400">AI Gateway</span>
                 </div>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+
+        {/* New Chat button */}
+        <div className="px-2 pt-3 pb-2">
+          <button
+            onClick={handleNewChat}
+            className="group flex w-full items-center gap-2 rounded-xl border border-gray-200/60 bg-white/70 backdrop-blur-sm px-3 py-2.5 text-[13px] font-medium text-gray-600 hover:bg-white hover:border-gray-300 hover:text-gray-900 transition-all duration-200"
+          >
+            <Plus className="size-4 text-gray-400 group-hover:text-gray-600 transition-colors" />
+            New chat
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="px-2 pb-2">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search chats…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-lg border border-gray-200/60 bg-white/50 pl-8 pr-3 py-1.5 text-[12px] text-gray-600 placeholder:text-gray-400 focus:outline-none focus:border-gray-300 focus:bg-white transition-all"
+            />
+          </div>
+        </div>
       </SidebarHeader>
 
+      {/* ─── Conversation list ─── */}
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-gray-400 font-semibold">Platform</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {navItems.map((item) => {
-                const isActive = pathname === item.url || (item.url !== "/" && pathname.startsWith(item.url))
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      asChild
-                      isActive={isActive}
-                      tooltip={item.title}
-                    >
-                      <Link to={item.url}>
-                        <item.icon />
-                        <span>{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                    {/* Channel status badge */}
-                    {item.title === "Channels" && (
-                      <SidebarMenuBadge>
-                        {channelsOnline > 0 ? (
-                          <span className="flex items-center gap-1">
-                            <span className="size-1.5 rounded-full bg-emerald-500" />
-                            <span className="text-[10px]">{channelsOnline}</span>
-                          </span>
-                        ) : (
-                          <span className="size-1.5 rounded-full bg-gray-300" />
-                        )}
-                      </SidebarMenuBadge>
-                    )}
-                  </SidebarMenuItem>
-                )
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <div className="flex-1 overflow-y-auto px-2">
+          {groups.length === 0 && (
+            <div className="px-3 py-8 text-center">
+              <p className="text-[12px] text-gray-400">No conversations yet</p>
+              <p className="text-[11px] text-gray-300 mt-1">Start a new chat above</p>
+            </div>
+          )}
 
-        <SidebarGroup className="mt-auto">
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {secondaryItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild size="sm" tooltip={item.title}>
-                    <Link to={item.url}>
-                      <item.icon />
-                      <span>{item.title}</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+          {groups.map((group) => (
+            <SidebarGroup key={group.label} className="py-1">
+              <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-gray-400">
+                {group.label}
+              </p>
+              <SidebarGroupContent>
+                <div className="space-y-0.5">
+                  {group.items.map((c) => {
+                    const isActive = activeConvId === c._id
+                    return (
+                      <button
+                        key={c._id}
+                        type="button"
+                        onClick={() => navigate({ to: "/chat", search: { id: c._id } })}
+                        className={`group/item w-full text-left rounded-lg px-2.5 py-2 transition-all duration-150 ${
+                          isActive
+                            ? "bg-white/80 shadow-sm border border-gray-200/60"
+                            : "hover:bg-white/50"
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className={`size-1.5 rounded-full mt-1.5 shrink-0 ${CHANNEL_DOT[c.channel] || "bg-gray-400"}`} />
+                          <div className="flex-1 min-w-0">
+                            <span className="block truncate text-[13px] font-medium text-gray-700">
+                              {c.title || "Untitled"}
+                            </span>
+                            {c.lastMessage && (
+                              <span className="block truncate text-[11px] text-gray-400 mt-0.5">
+                                {c.lastMessage}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <span className="text-[10px] text-gray-400 opacity-0 group-hover/item:opacity-100">
+                              {formatTimeAgo(c.updatedAt)}
+                            </span>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={(e) => deleteConversation(c._id, e)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") deleteConversation(c._id, e as any)
+                                  }}
+                                  className="opacity-0 group-hover/item:opacity-100 text-gray-400 hover:text-red-500 transition-all p-0.5 rounded"
+                                >
+                                  <Trash2 className="size-3" />
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="right">Delete</TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))}
+        </div>
       </SidebarContent>
 
+      {/* ─── Footer: User menu ─── */}
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent">
+                <SidebarMenuButton size="lg" className="data-[state=open]:bg-white/60">
                   <Avatar className="size-8 rounded-xl">
                     <AvatarImage src={user?.image ?? undefined} alt={user?.name ?? ""} />
                     <AvatarFallback className="rounded-xl bg-gray-900 text-white text-xs font-semibold">
@@ -245,4 +324,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarRail />
     </Sidebar>
   )
+}
+
+function formatTimeAgo(dateStr: string): string {
+  const now = Date.now()
+  const then = new Date(dateStr).getTime()
+  const diff = now - then
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return "now"
+  if (mins < 60) return `${mins}m`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d`
+  return new Date(dateStr).toLocaleDateString(undefined, { month: "short", day: "numeric" })
 }

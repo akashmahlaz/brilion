@@ -29,22 +29,22 @@ function AppLayout() {
     <SidebarProvider>
       <AppSidebar />
       <SidebarInset className="relative bg-[#F8F7F3]">
-        {/* Ambient gradient blurs — matching hero */}
+        {/* Subtle ambient glow — premium feel */}
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           <div
-            className="absolute -top-32 right-0 w-150 h-100 opacity-20"
+            className="absolute -top-40 right-0 w-160 h-100 opacity-15"
             style={{
               background:
                 'radial-gradient(ellipse at center, #bfdbfe 0%, #dbeafe 40%, transparent 70%)',
-              filter: 'blur(100px)',
+              filter: 'blur(120px)',
             }}
           />
           <div
-            className="absolute bottom-0 left-0 w-125 h-87.5 opacity-15"
+            className="absolute bottom-0 left-0 w-100 h-75 opacity-10"
             style={{
               background:
                 'radial-gradient(ellipse at center, #fef3c7 0%, #fed7aa 40%, transparent 70%)',
-              filter: 'blur(100px)',
+              filter: 'blur(120px)',
             }}
           />
         </div>
