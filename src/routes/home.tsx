@@ -6,6 +6,12 @@ import { VideoShowcase } from '#/components/landing/video-showcase'
 import { IntegrationsBeam } from '#/components/landing/integrations-beam'
 import { Features } from '#/components/landing/features'
 import { HowItWorks } from '#/components/landing/how-it-works'
+import { Stats } from '#/components/landing/stats'
+import { Testimonials } from '#/components/landing/testimonials'
+import { Pricing } from '#/components/landing/pricing'
+import { FAQ } from '#/components/landing/faq'
+import { CTA } from '#/components/landing/cta'
+import { Footer } from '#/components/landing/footer'
 
 export const Route = createFileRoute('/home')({
   component: LandingPage,
@@ -31,6 +37,12 @@ function LandingPage() {
       <IntegrationsBeam />
       <Features />
       <HowItWorks />
+      <Stats />
+      <Testimonials />
+      <Pricing />
+      <FAQ />
+      <CTA />
+      <Footer />
     </div>
   )
 }
