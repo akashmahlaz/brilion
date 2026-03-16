@@ -56,33 +56,30 @@ const SOCIAL_LINKS = [
 
 export function Footer() {
   return (
-    <footer className="relative bg-gray-950 text-gray-400">
-      {/* Top border accent */}
-      <div className="absolute top-0 left-0 right-0 h-px bg-linear-to-r from-transparent via-gray-700 to-transparent" />
-
-      <div className="max-w-6xl mx-auto px-6 pt-20 pb-12">
+    <footer className="border-t border-gray-200/60 bg-[#F8F7F3]">
+      <div className="max-w-6xl mx-auto px-6 pt-16 pb-10">
         {/* Main grid */}
         <div className="grid grid-cols-2 gap-10 md:grid-cols-6 lg:gap-12">
           {/* Brand column */}
-          <div className="col-span-2 space-y-6">
+          <div className="col-span-2 space-y-5">
             <Link to="/home" className="inline-block">
-              <img src="/BRILION.svg" alt="Brilion" className="h-7 brightness-0 invert" />
+              <img src="/BRILION.svg" alt="Brilion" className="h-7" />
             </Link>
             <p className="text-[14px] text-gray-500 leading-relaxed max-w-xs">
               Your personal AI operating system. One conversation to automate
-              everything — marketing, trading, code, scheduling, and beyond.
+              everything — marketing, trading, code, and beyond.
             </p>
 
             {/* Social */}
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
               {SOCIAL_LINKS.map((social) => (
                 <a
                   key={social.label}
                   href={social.href}
                   aria-label={social.label}
-                  className="flex size-9 items-center justify-center rounded-lg bg-white/5 text-gray-500 hover:text-white hover:bg-white/10 transition-all duration-200"
+                  className="flex size-8 items-center justify-center rounded-full border border-gray-200/60 text-gray-400 hover:text-gray-700 hover:border-gray-300 transition-all duration-200"
                 >
-                  <svg className="size-4" fill="currentColor" viewBox="0 0 24 24">
+                  <svg className="size-3.5" fill="currentColor" viewBox="0 0 24 24">
                     <path d={social.svg} />
                   </svg>
                 </a>
@@ -93,15 +90,15 @@ export function Footer() {
           {/* Link columns */}
           {Object.entries(FOOTER_LINKS).map(([title, links]) => (
             <div key={title}>
-              <p className="text-[11px] font-semibold text-gray-300 uppercase tracking-[2px] mb-5">
+              <p className="text-[11px] font-bold text-gray-900 uppercase tracking-widest mb-4">
                 {title}
               </p>
-              <ul className="space-y-3">
+              <ul className="space-y-2.5">
                 {links.map((link) => (
                   <li key={link.label}>
                     <a
                       href={link.href}
-                      className="text-[13px] text-gray-500 hover:text-white transition-colors duration-200"
+                      className="text-[13px] text-gray-500 hover:text-gray-900 transition-colors duration-200"
                     >
                       {link.label}
                     </a>
@@ -112,23 +109,20 @@ export function Footer() {
           ))}
         </div>
 
-        {/* Divider */}
-        <div className="mt-16 h-px bg-white/5" />
-
         {/* Bottom bar */}
-        <div className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:justify-between">
-          <p className="text-[12px] text-gray-600">
+        <div className="mt-14 flex flex-col items-center gap-4 border-t border-gray-200/40 pt-8 sm:flex-row sm:justify-between">
+          <p className="text-[12px] text-gray-400">
             &copy; {new Date().getFullYear()} Brilion Technologies Pvt. Ltd. All rights reserved.
           </p>
           <div className="flex items-center gap-6">
-            <a href="#" className="text-[12px] text-gray-600 hover:text-gray-400 transition-colors">
+            <a href="#" className="text-[12px] text-gray-400 hover:text-gray-600 transition-colors">
               Privacy Policy
             </a>
-            <a href="#" className="text-[12px] text-gray-600 hover:text-gray-400 transition-colors">
+            <a href="#" className="text-[12px] text-gray-400 hover:text-gray-600 transition-colors">
               Terms of Service
             </a>
-            <a href="#" className="text-[12px] text-gray-600 hover:text-gray-400 transition-colors">
-              Cookie Settings
+            <a href="#" className="text-[12px] text-gray-400 hover:text-gray-600 transition-colors">
+              Cookies
             </a>
           </div>
         </div>
