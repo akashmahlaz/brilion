@@ -1,5 +1,4 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { Highlighter } from '#/components/ui/highlighter'
 import { useState } from 'react'
 import {
   MessageSquare,
@@ -134,9 +133,7 @@ export function Features() {
             Platform
           </p>
           <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 tracking-tight leading-[1.15]">
-            <Highlighter action="underline" color="#3b82f6" strokeWidth={2} animationDuration={800} isView>
-              Everything you need,
-            </Highlighter>
+            Everything you need,
             <br />
             <span className="text-gray-400">nothing you don&apos;t.</span>
           </h2>
