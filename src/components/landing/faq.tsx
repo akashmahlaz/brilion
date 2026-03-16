@@ -1,5 +1,4 @@
 import { motion } from 'framer-motion'
-import { Highlighter } from '#/components/ui/highlighter'
 import {
   Accordion,
   AccordionContent,
@@ -61,10 +60,7 @@ export function FAQ() {
             Questions?
             <br />
             <span className="text-gray-400">
-              We&apos;ve got{' '}
-              <Highlighter action="highlight" color="#fde68a" animationDuration={800} isView>
-                answers.
-              </Highlighter>
+              We&apos;ve got answers.
             </span>
           </h2>
         </motion.div>

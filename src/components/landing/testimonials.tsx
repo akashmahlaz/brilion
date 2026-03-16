@@ -298,7 +298,7 @@ export function Testimonials() {
                   {FEATURED.handle} · {FEATURED.role}
                 </p>
               </div>
-              <span className="ml-auto hidden sm:inline-block text-[10px] font-bold uppercase tracking-[2px] text-gray-300 border border-gray-100 rounded-full px-4 py-1.5 bg-gray-50/60">
+              <span className="ml-auto hidden sm:inline-block text-[10px] font-bold uppercase tracking-[2px] text-blue-400 border border-gray-300 rounded-full px-4 py-1.5 bg-white">
                 {FEATURED.tag}
               </span>
             </div>
