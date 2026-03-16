@@ -253,6 +253,24 @@ html {
   }
 }
 
+@keyframes testimonial-scroll-left {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes testimonial-scroll-right {
+  0% {
+    transform: translateX(-50%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
 @keyframes video-ping {
   0% {
     transform: scale(1);
