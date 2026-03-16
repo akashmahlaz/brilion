@@ -37,6 +37,7 @@ export const authConfig: StartAuthJSConfig = {
     MicrosoftEntraId({
       clientId: process.env.MICROSOFT_ENTRA_ID_CLIENT_ID!,
       clientSecret: process.env.MICROSOFT_ENTRA_ID_CLIENT_SECRET!,
+      tenantId: process.env.MICROSOFT_ENTRA_ID_TENANT_ID!,
     }),
     Credentials({
       name: "credentials",
