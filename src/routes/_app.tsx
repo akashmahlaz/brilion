@@ -28,10 +28,31 @@ function AppLayout() {
   return (
     <SidebarProvider>
       <AppSidebar />
-      <SidebarInset>
-        <SiteHeader />
-        <div className="flex flex-1 flex-col overflow-hidden">
-          <Outlet />
+      <SidebarInset className="relative bg-[#F8F7F3]">
+        {/* Ambient gradient blurs — matching hero */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div
+            className="absolute -top-32 right-0 w-150 h-100 opacity-20"
+            style={{
+              background:
+                'radial-gradient(ellipse at center, #bfdbfe 0%, #dbeafe 40%, transparent 70%)',
+              filter: 'blur(100px)',
+            }}
+          />
+          <div
+            className="absolute bottom-0 left-0 w-125 h-87.5 opacity-15"
+            style={{
+              background:
+                'radial-gradient(ellipse at center, #fef3c7 0%, #fed7aa 40%, transparent 70%)',
+              filter: 'blur(100px)',
+            }}
+          />
+        </div>
+        <div className="relative z-10 flex h-full flex-col">
+          <SiteHeader />
+          <div className="flex flex-1 flex-col overflow-hidden">
+            <Outlet />
+          </div>
         </div>
       </SidebarInset>
     </SidebarProvider>

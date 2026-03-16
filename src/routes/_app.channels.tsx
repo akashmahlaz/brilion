@@ -30,15 +30,15 @@ export const Route = createFileRoute('/_app/channels')({
 
 function ChannelsPage() {
   return (
-    <div className="@container/main flex flex-1 flex-col gap-2">
-      <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-        <div className="px-4 lg:px-6 space-y-1">
-          <h2 className="text-xl font-semibold tracking-tight">Channels</h2>
-          <p className="text-sm text-muted-foreground">
+    <div className="flex flex-1 flex-col overflow-y-auto">
+      <div className="flex flex-col gap-4 py-6 md:gap-6 md:py-8">
+        <div className="px-4 lg:px-6 space-y-1.5">
+          <h2 className="font-heading text-[28px] font-extrabold text-gray-900 tracking-tight">Channels</h2>
+          <p className="text-[15px] text-gray-500">
             Connect messaging platforms to your AI agent.
           </p>
         </div>
-        <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 md:grid-cols-2">
           <WhatsAppCard />
           <TelegramCard />
         </div>

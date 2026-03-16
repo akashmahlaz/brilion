@@ -13,14 +13,7 @@ import {
   TrendingUp,
   Brain,
 } from 'lucide-react'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from '#/components/ui/card'
+import { motion } from 'framer-motion'
 import { apiFetch } from '#/lib/api'
 
 export const Route = createFileRoute('/_app/overview')({
@@ -66,6 +59,15 @@ function useDashboardData() {
   return { ...data, loading }
 }
 
+const stagger = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08 } },
+}
+const fadeUp = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] } },
+}
+
 function DashboardPage() {
   const { user } = Route.useRouteContext() as { user?: { name?: string } }
   const firstName = user?.name?.split(' ')[0] ?? 'there'
@@ -77,233 +79,228 @@ function DashboardPage() {
   const activeModel = config?.model || 'Not configured'
 
   return (
-    <div className="@container/main flex flex-1 flex-col gap-2">
-      <div className="flex flex-col gap-6 py-4 md:py-6">
+    <div className="flex flex-1 flex-col overflow-y-auto">
+      <motion.div
+        variants={stagger}
+        initial="hidden"
+        animate="show"
+        className="flex flex-col gap-6 py-6 md:py-8"
+      >
         {/* Welcome Section */}
-        <div className="px-4 lg:px-6 space-y-1">
-          <h1 className="text-2xl font-heading font-semibold tracking-tight md:text-3xl">
+        <motion.div variants={fadeUp} className="px-4 lg:px-6 space-y-1.5">
+          <h1 className="font-heading text-[28px] sm:text-[36px] font-extrabold text-gray-900 tracking-tight leading-tight">
             {getGreeting()}, {firstName}
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-[15px] text-gray-500">
             Here's what's happening with your AI agent today.
           </p>
-        </div>
+        </motion.div>
 
-        {/* Stats Row */}
-        <div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-4">
-          <Card className="@container/card bg-gradient-to-t from-primary/5 to-card">
-            <CardHeader className="relative pb-0">
-              <CardDescription>Active Model</CardDescription>
-              <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                {loading ? '…' : activeModel}
-              </CardTitle>
-              <div className="absolute right-4 top-4">
-                <TrendingUp className="size-4 text-muted-foreground" />
-              </div>
-            </CardHeader>
-            <CardFooter className="flex-col items-start gap-1 text-sm">
-              <div className="line-clamp-1 flex gap-2 font-medium">
-                Powered by AI SDK <Sparkles className="size-4" />
-              </div>
-              <div className="text-muted-foreground">
-                Multi-provider support
-              </div>
-            </CardFooter>
-          </Card>
-
-          <Card className="@container/card bg-gradient-to-t from-primary/5 to-card">
-            <CardHeader className="relative pb-0">
-              <CardDescription>Channels</CardDescription>
-              <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                <span className="flex items-center gap-2">
-                  <span className={`size-2 rounded-full ${channelsOnline > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/40'}`} />
-                  {loading ? '…' : channelsOnline > 0 ? `${channelsOnline} Online` : 'Offline'}
-                </span>
-              </CardTitle>
-              <div className="absolute right-4 top-4">
-                <Activity className="size-4 text-muted-foreground" />
-              </div>
-            </CardHeader>
-            <CardFooter className="flex-col items-start gap-1 text-sm">
-              <div className="line-clamp-1 flex gap-2 font-medium">
-                {waConnected && 'WhatsApp'}{waConnected && tgConnected && ' & '}{tgConnected && 'Telegram'}{!waConnected && !tgConnected && 'No channels connected'} <Globe className="size-4" />
-              </div>
-              <div className="text-muted-foreground">
-                <Link to="/channels" className="hover:underline">Manage channels →</Link>
-              </div>
-            </CardFooter>
-          </Card>
-
-          <Card className="@container/card bg-gradient-to-t from-primary/5 to-card">
-            <CardHeader className="relative pb-0">
-              <CardDescription>AI Providers</CardDescription>
-              <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                10+
-              </CardTitle>
-              <div className="absolute right-4 top-4">
-                <Bot className="size-4 text-muted-foreground" />
-              </div>
-            </CardHeader>
-            <CardFooter className="flex-col items-start gap-1 text-sm">
-              <div className="line-clamp-1 flex gap-2 font-medium">
-                OpenAI, Anthropic, Google… <Bot className="size-4" />
-              </div>
-              <div className="text-muted-foreground">
-                Connect any provider you want
-              </div>
-            </CardFooter>
-          </Card>
-
-          <Card className="@container/card bg-gradient-to-t from-primary/5 to-card">
-            <CardHeader className="relative pb-0">
-              <CardDescription>WhatsApp</CardDescription>
-              <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-                <span className="flex items-center gap-2">
-                  <span className={`size-2 rounded-full ${waConnected ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
-                  {loading ? '…' : waConnected ? 'Connected' : 'Disconnected'}
-                </span>
-              </CardTitle>
-              <div className="absolute right-4 top-4">
-                <TrendingUp className="size-4 text-muted-foreground" />
-              </div>
-            </CardHeader>
-            <CardFooter className="flex-col items-start gap-1 text-sm">
-              <div className="line-clamp-1 flex gap-2 font-medium">
-                {waConnected ? 'Receiving messages' : 'Connect to start'} <Activity className="size-4" />
-              </div>
-              <div className="text-muted-foreground">
-                {waConnected ? `DM policy: ${whatsapp?.dmPolicy || 'open'}` : (
-                  <Link to="/channels" className="hover:underline">Connect WhatsApp →</Link>
-                )}
-              </div>
-            </CardFooter>
-          </Card>
-        </div>
+        {/* Stats Row — Glass cards */}
+        <motion.div
+          variants={stagger}
+          className="grid grid-cols-1 gap-4 px-4 lg:px-6 sm:grid-cols-2 xl:grid-cols-4"
+        >
+          <motion.div variants={fadeUp}>
+            <GlassStatCard
+              label="Active Model"
+              value={loading ? '…' : activeModel}
+              icon={<TrendingUp className="size-4" />}
+              footnote="Powered by AI SDK"
+              sub="Multi-provider support"
+              accentColor="blue"
+            />
+          </motion.div>
+          <motion.div variants={fadeUp}>
+            <GlassStatCard
+              label="Channels"
+              value={loading ? '…' : channelsOnline > 0 ? `${channelsOnline} Online` : 'Offline'}
+              icon={<Activity className="size-4" />}
+              footnote={
+                waConnected && tgConnected ? 'WhatsApp & Telegram' :
+                waConnected ? 'WhatsApp' :
+                tgConnected ? 'Telegram' :
+                'No channels connected'
+              }
+              sub={<Link to="/channels" className="hover:underline">Manage channels →</Link>}
+              dot={channelsOnline > 0}
+              accentColor="emerald"
+            />
+          </motion.div>
+          <motion.div variants={fadeUp}>
+            <GlassStatCard
+              label="AI Providers"
+              value="10+"
+              icon={<Bot className="size-4" />}
+              footnote="OpenAI, Anthropic, Google…"
+              sub="Connect any provider"
+              accentColor="violet"
+            />
+          </motion.div>
+          <motion.div variants={fadeUp}>
+            <GlassStatCard
+              label="WhatsApp"
+              value={loading ? '…' : waConnected ? 'Connected' : 'Disconnected'}
+              icon={<Globe className="size-4" />}
+              footnote={waConnected ? 'Receiving messages' : 'Connect to start'}
+              sub={
+                waConnected
+                  ? `DM policy: ${whatsapp?.dmPolicy || 'open'}`
+                  : <Link to="/channels" className="hover:underline">Connect WhatsApp →</Link>
+              }
+              dot={waConnected}
+              accentColor="amber"
+            />
+          </motion.div>
+        </motion.div>
 
         {/* Quick Actions — Bento Grid */}
-        <div className="px-4 lg:px-6">
+        <motion.div variants={fadeUp} className="px-4 lg:px-6">
           <div className="grid auto-rows-min gap-4 md:grid-cols-3">
             {/* Large Chat Card */}
-            <Card className="md:col-span-2 group hover:border-primary/30 transition-colors">
-              <Link to="/chat" className="block">
-                <CardHeader>
-                  <div className="flex items-center gap-4">
-                    <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 group-hover:bg-primary/20 transition-colors">
-                      <MessageSquare className="size-6 text-primary" />
-                    </div>
-                    <div className="flex-1">
-                      <CardTitle className="text-lg">Start Chatting</CardTitle>
-                      <CardDescription>
-                        Talk to your AI agent in natural language
-                      </CardDescription>
-                    </div>
-                    <ArrowRight className="size-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
+            <Link to="/chat" className="md:col-span-2 group block">
+              <div className="h-full rounded-2xl border border-white/60 bg-white/70 backdrop-blur-xl p-6 shadow-[0_8px_60px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_60px_rgba(0,0,0,0.07)] hover:border-blue-200/60 transition-all duration-300">
+                <div className="flex items-center gap-4">
+                  <div className="flex size-12 items-center justify-center rounded-2xl bg-gray-900 text-white shadow-[inset_0_0_12px_rgba(255,255,255,0.15)]">
+                    <MessageSquare className="size-5" />
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground">
-                    Your AI can answer questions, manage your workspace,
-                    interact with connected channels, and use built-in tools.
-                  </p>
-                </CardContent>
-              </Link>
-            </Card>
+                  <div className="flex-1">
+                    <h3 className="font-heading text-lg font-bold text-gray-900 tracking-tight">Start Chatting</h3>
+                    <p className="text-[13px] text-gray-500">
+                      Talk to your AI agent in natural language
+                    </p>
+                  </div>
+                  <ArrowRight className="size-5 text-gray-300 group-hover:text-gray-900 group-hover:translate-x-1 transition-all duration-300" />
+                </div>
+                <p className="text-sm text-gray-500 mt-4">
+                  Your AI can answer questions, manage your workspace,
+                  interact with connected channels, and use built-in tools.
+                </p>
+              </div>
+            </Link>
 
             {/* Channels Card */}
-            <Card className="group hover:border-chart-2/30 transition-colors">
-              <Link to="/channels" className="block">
-                <CardHeader>
-                  <div className="flex items-center gap-4">
-                    <div className="flex size-12 items-center justify-center rounded-2xl bg-chart-2/10 group-hover:bg-chart-2/20 transition-colors">
-                      <Radio className="size-6 text-chart-2" />
-                    </div>
-                    <ArrowRight className="ml-auto size-5 text-muted-foreground group-hover:text-chart-2 group-hover:translate-x-1 transition-all" />
+            <Link to="/channels" className="group block">
+              <div className="h-full rounded-2xl border border-white/60 bg-white/70 backdrop-blur-xl p-6 shadow-[0_8px_60px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_60px_rgba(0,0,0,0.07)] hover:border-emerald-200/60 transition-all duration-300">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="flex size-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                    <Radio className="size-5" />
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <CardTitle className="text-lg mb-1">Channels</CardTitle>
-                  <CardDescription>
-                    WhatsApp &amp; Telegram connections
-                  </CardDescription>
-                </CardContent>
-              </Link>
-            </Card>
+                  <ArrowRight className="ml-auto size-5 text-gray-300 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all duration-300" />
+                </div>
+                <h3 className="font-heading text-lg font-bold text-gray-900 tracking-tight mb-1">Channels</h3>
+                <p className="text-[13px] text-gray-500">WhatsApp &amp; Telegram connections</p>
+              </div>
+            </Link>
 
             {/* Skills Card */}
-            <Card className="group hover:border-chart-4/30 transition-colors">
-              <Link to="/skills" className="block">
-                <CardHeader>
-                  <div className="flex items-center gap-4">
-                    <div className="flex size-12 items-center justify-center rounded-2xl bg-chart-4/10 group-hover:bg-chart-4/20 transition-colors">
-                      <Brain className="size-6 text-chart-4" />
-                    </div>
-                    <ArrowRight className="ml-auto size-5 text-muted-foreground group-hover:text-chart-4 group-hover:translate-x-1 transition-all" />
+            <Link to="/skills" className="group block">
+              <div className="h-full rounded-2xl border border-white/60 bg-white/70 backdrop-blur-xl p-6 shadow-[0_8px_60px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_60px_rgba(0,0,0,0.07)] hover:border-violet-200/60 transition-all duration-300">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="flex size-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-600">
+                    <Brain className="size-5" />
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <CardTitle className="text-lg mb-1">Skills</CardTitle>
-                  <CardDescription>
-                    Customize how your AI behaves
-                  </CardDescription>
-                </CardContent>
-              </Link>
-            </Card>
+                  <ArrowRight className="ml-auto size-5 text-gray-300 group-hover:text-violet-600 group-hover:translate-x-1 transition-all duration-300" />
+                </div>
+                <h3 className="font-heading text-lg font-bold text-gray-900 tracking-tight mb-1">Skills</h3>
+                <p className="text-[13px] text-gray-500">Customize how your AI behaves</p>
+              </div>
+            </Link>
 
             {/* Settings Card */}
-            <Card className="group hover:border-chart-3/30 transition-colors">
-              <Link to="/settings" className="block">
-                <CardHeader>
-                  <div className="flex items-center gap-4">
-                    <div className="flex size-12 items-center justify-center rounded-2xl bg-chart-3/10 group-hover:bg-chart-3/20 transition-colors">
-                      <Settings2 className="size-6 text-chart-3" />
-                    </div>
-                    <ArrowRight className="ml-auto size-5 text-muted-foreground group-hover:text-chart-3 group-hover:translate-x-1 transition-all" />
+            <Link to="/settings" className="group block">
+              <div className="h-full rounded-2xl border border-white/60 bg-white/70 backdrop-blur-xl p-6 shadow-[0_8px_60px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_60px_rgba(0,0,0,0.07)] hover:border-amber-200/60 transition-all duration-300">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="flex size-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600">
+                    <Settings2 className="size-5" />
                   </div>
-                </CardHeader>
-                <CardContent>
-                  <CardTitle className="text-lg mb-1">Settings</CardTitle>
-                  <CardDescription>
-                    API keys, providers &amp; config
-                  </CardDescription>
-                </CardContent>
-              </Link>
-            </Card>
+                  <ArrowRight className="ml-auto size-5 text-gray-300 group-hover:text-amber-600 group-hover:translate-x-1 transition-all duration-300" />
+                </div>
+                <h3 className="font-heading text-lg font-bold text-gray-900 tracking-tight mb-1">Settings</h3>
+                <p className="text-[13px] text-gray-500">API keys, providers &amp; config</p>
+              </div>
+            </Link>
 
             {/* Agent Capabilities — wide card */}
-            <Card className="md:col-span-2">
-              <CardHeader>
-                <CardTitle className="text-lg">What your agent can do</CardTitle>
-                <CardDescription>
-                  Built-in capabilities — no extra setup needed
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-                  {[
-                    'Answer Questions',
-                    'Web Search',
-                    'Manage Files',
-                    'Read Config',
-                    'Edit Settings',
-                    'Switch Models',
-                    'Multi-Language',
-                    'Channel Reply',
-                    'Self Update',
-                    'Custom Skills',
-                  ].map((tool) => (
-                    <div
-                      key={tool}
-                      className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
-                    >
-                      <Zap className="size-3.5 text-primary shrink-0" />
-                      <span className="truncate">{tool}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <div className="md:col-span-2 rounded-2xl border border-white/60 bg-white/70 backdrop-blur-xl p-6 shadow-[0_8px_60px_rgba(0,0,0,0.04)]">
+              <h3 className="font-heading text-lg font-bold text-gray-900 tracking-tight">What your agent can do</h3>
+              <p className="text-[13px] text-gray-500 mb-4">
+                Built-in capabilities — no extra setup needed
+              </p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+                {[
+                  'Answer Questions',
+                  'Web Search',
+                  'Manage Files',
+                  'Read Config',
+                  'Edit Settings',
+                  'Switch Models',
+                  'Multi-Language',
+                  'Channel Reply',
+                  'Self Update',
+                  'Custom Skills',
+                ].map((tool) => (
+                  <div
+                    key={tool}
+                    className="flex items-center gap-2 rounded-xl border border-gray-200/60 bg-white/60 px-3 py-2 text-[13px] text-gray-600"
+                  >
+                    <Zap className="size-3.5 text-blue-500 shrink-0" />
+                    <span className="truncate">{tool}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        </div>
+        </motion.div>
+      </motion.div>
+    </div>
+  )
+}
+
+/* ─── Glass Stat Card ────────────────────────────────── */
+
+const ACCENT_COLORS = {
+  blue: { dot: 'bg-blue-500', bg: 'hover:border-blue-200/60' },
+  emerald: { dot: 'bg-emerald-500', bg: 'hover:border-emerald-200/60' },
+  violet: { dot: 'bg-violet-500', bg: 'hover:border-violet-200/60' },
+  amber: { dot: 'bg-amber-500', bg: 'hover:border-amber-200/60' },
+}
+
+function GlassStatCard({
+  label,
+  value,
+  icon,
+  footnote,
+  sub,
+  dot,
+  accentColor = 'blue',
+}: {
+  label: string
+  value: string
+  icon: React.ReactNode
+  footnote: React.ReactNode
+  sub: React.ReactNode
+  dot?: boolean
+  accentColor?: keyof typeof ACCENT_COLORS
+}) {
+  const colors = ACCENT_COLORS[accentColor]
+  return (
+    <div className={`rounded-2xl border border-white/60 bg-white/70 backdrop-blur-xl p-5 shadow-[0_8px_60px_rgba(0,0,0,0.04)] transition-all duration-300 ${colors.bg}`}>
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-[12px] font-medium text-gray-400 uppercase tracking-wider">{label}</span>
+        <span className="text-gray-400">{icon}</span>
+      </div>
+      <div className="flex items-center gap-2 mb-3">
+        {dot !== undefined && (
+          <span className={`size-2 rounded-full ${dot ? `${colors.dot} animate-pulse` : 'bg-gray-300'}`} />
+        )}
+        <span className="font-heading text-[22px] font-bold text-gray-900 tracking-tight">{value}</span>
+      </div>
+      <div className="flex flex-col gap-0.5">
+        <span className="text-[13px] font-medium text-gray-600 flex items-center gap-1.5">
+          {footnote} <Sparkles className="size-3 text-gray-400" />
+        </span>
+        <span className="text-[12px] text-gray-400">{sub}</span>
       </div>
     </div>
   )

@@ -2,8 +2,6 @@ import { useRouter } from "@tanstack/react-router"
 import { useState, useEffect } from "react"
 import { Separator } from "#/components/ui/separator"
 import { SidebarTrigger } from "#/components/ui/sidebar"
-import { ThemeToggle } from "#/components/ThemeToggle"
-import { Badge } from "#/components/ui/badge"
 import { apiFetch } from "#/lib/api"
 import {
   Breadcrumb,
@@ -13,7 +11,7 @@ import {
 } from "#/components/ui/breadcrumb"
 
 const PAGE_TITLES: Record<string, string> = {
-  "/": "Overview",
+  "/overview": "Overview",
   "/chat": "Chat",
   "/channels": "Channels",
   "/sessions": "Sessions",
@@ -50,40 +48,38 @@ export function SiteHeader() {
   }, [])
 
   return (
-    <header className="flex h-(--header-height) shrink-0 items-center gap-2 border-b transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
+    <header className="flex h-(--header-height) shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
-        <SidebarTrigger className="-ml-1" />
+        <SidebarTrigger className="-ml-1 text-gray-500 hover:text-gray-900" />
         <Separator
           orientation="vertical"
-          className="mx-2 data-[orientation=vertical]:h-4"
+          className="mx-2 data-[orientation=vertical]:h-4 bg-gray-200/60"
         />
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbPage className="line-clamp-1">
+              <BreadcrumbPage className="line-clamp-1 font-heading font-semibold text-gray-900 tracking-tight">
                 {title}
               </BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-        <div className="ml-auto flex items-center gap-2">
-          {/* Gateway status indicator — OpenClaw style */}
-          <Badge
-            variant={health?.status === "ok" ? "default" : "secondary"}
-            className="gap-1.5 text-[10px] font-mono"
-          >
+        <div className="ml-auto flex items-center gap-2.5">
+          {/* Gateway status indicator */}
+          <div className="flex items-center gap-2 rounded-full border border-gray-200/60 bg-white/70 backdrop-blur-sm px-3 py-1.5">
             <span
               className={`size-1.5 rounded-full ${
                 health?.status === "ok"
                   ? "bg-emerald-500 animate-pulse"
                   : health?.status === "error"
                     ? "bg-red-500"
-                    : "bg-muted-foreground/40"
+                    : "bg-gray-300"
               }`}
             />
-            {health?.status === "ok" ? "Connected" : health?.status === "error" ? "Error" : "Offline"}
-          </Badge>
-          <ThemeToggle />
+            <span className="text-[11px] font-medium text-gray-500">
+              {health?.status === "ok" ? "Connected" : health?.status === "error" ? "Error" : "Offline"}
+            </span>
+          </div>
         </div>
       </div>
     </header>

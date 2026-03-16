@@ -102,18 +102,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const channelsOnline = [status.whatsapp, status.telegram].filter(Boolean).length
 
   return (
-    <Sidebar collapsible="icon" {...props}>
-      <SidebarHeader>
+    <Sidebar collapsible="icon" className="border-r-0" {...props}>
+      <SidebarHeader className="pb-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild>
               <Link to="/">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-xl bg-gray-900 text-white shadow-[inset_0_0_12px_rgba(255,255,255,0.15)]">
                   <Sparkles className="size-4" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">Brilion</span>
-                  <span className="truncate text-xs text-muted-foreground">
+                  <span className="truncate font-heading font-bold tracking-tight text-gray-900">Brilion</span>
+                  <span className="truncate text-[11px] text-gray-400">
                     AI Gateway
                   </span>
                 </div>
@@ -125,7 +125,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Platform</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] uppercase tracking-widest text-gray-400 font-semibold">Platform</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
               {navItems.map((item) => {
@@ -151,7 +151,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                             <span className="text-[10px]">{channelsOnline}</span>
                           </span>
                         ) : (
-                          <span className="size-1.5 rounded-full bg-muted-foreground/40" />
+                          <span className="size-1.5 rounded-full bg-gray-300" />
                         )}
                       </SidebarMenuBadge>
                     )}
@@ -186,36 +186,36 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent">
-                  <Avatar className="size-8 rounded-lg">
+                  <Avatar className="size-8 rounded-xl">
                     <AvatarImage src={user?.image ?? undefined} alt={user?.name ?? ""} />
-                    <AvatarFallback className="rounded-lg text-xs">
+                    <AvatarFallback className="rounded-xl bg-gray-900 text-white text-xs font-semibold">
                       {user?.name?.charAt(0)?.toUpperCase() ?? "?"}
                     </AvatarFallback>
                   </Avatar>
                   <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">{user?.name ?? "User"}</span>
-                    <span className="truncate text-xs text-muted-foreground">{user?.email ?? ""}</span>
+                    <span className="truncate font-medium text-gray-900">{user?.name ?? "User"}</span>
+                    <span className="truncate text-[11px] text-gray-400">{user?.email ?? ""}</span>
                   </div>
-                  <ChevronsUpDown className="ml-auto size-4" />
+                  <ChevronsUpDown className="ml-auto size-4 text-gray-400" />
                 </SidebarMenuButton>
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                className="w-[--radix-dropdown-menu-trigger-width] min-w-56"
+                className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-xl"
                 side="bottom"
                 align="end"
                 sideOffset={4}
               >
                 <DropdownMenuLabel className="p-0 font-normal">
                   <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                    <Avatar className="size-8 rounded-lg">
+                    <Avatar className="size-8 rounded-xl">
                       <AvatarImage src={user?.image ?? undefined} alt={user?.name ?? ""} />
-                      <AvatarFallback className="rounded-lg text-xs">
+                      <AvatarFallback className="rounded-xl bg-gray-900 text-white text-xs font-semibold">
                         {user?.name?.charAt(0)?.toUpperCase() ?? "?"}
                       </AvatarFallback>
                     </Avatar>
                     <div className="grid flex-1 text-left text-sm leading-tight">
                       <span className="truncate font-semibold">{user?.name ?? "User"}</span>
-                      <span className="truncate text-xs text-muted-foreground">{user?.email ?? ""}</span>
+                      <span className="truncate text-xs text-gray-400">{user?.email ?? ""}</span>
                     </div>
                   </div>
                 </DropdownMenuLabel>
