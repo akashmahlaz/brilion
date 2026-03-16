@@ -1,6 +1,7 @@
 import Google from "@auth/core/providers/google";
 import GitHub from "@auth/core/providers/github";
 import LinkedIn from "@auth/core/providers/linkedin";
+import MicrosoftEntraId from "@auth/core/providers/microsoft-entra-id";
 import Credentials from "@auth/core/providers/credentials";
 import { MongoDBAdapter } from "@auth/mongodb-adapter";
 import { compare } from "bcryptjs";
@@ -32,6 +33,10 @@ export const authConfig: StartAuthJSConfig = {
     LinkedIn({
       clientId: process.env.LINKEDIN_CLIENT_ID!,
       clientSecret: process.env.LINKEDIN_CLIENT_SECRET!,
+    }),
+    MicrosoftEntraId({
+      clientId: process.env.MICROSOFT_ENTRA_ID_CLIENT_ID!,
+      clientSecret: process.env.MICROSOFT_ENTRA_ID_CLIENT_SECRET!,
     }),
     Credentials({
       name: "credentials",
