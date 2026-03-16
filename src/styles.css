@@ -167,6 +167,25 @@ code, pre {
   @apply border-l-primary/40;
 }
 
+/* ─── Thin warm scrollbar (removes browser dark default) ─── */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,0,0,0.08) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(0,0,0,0.08);
+  border-radius: 9999px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(0,0,0,0.14);
+}
+
 .dark {
   --background: oklch(0.12 0.015 285);
   --foreground: oklch(0.96 0.005 280);

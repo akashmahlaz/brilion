@@ -16,10 +16,9 @@ import {
   Trash2,
   MessageCircle,
   Send,
-  CheckCircle2,
-  Circle,
   Wifi,
   WifiOff,
+  Paperclip,
 } from 'lucide-react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -60,10 +59,10 @@ export const Route = createFileRoute('/_app/chat')({
 })
 
 // ─── Channel config ──────────────────────────────────────────────────────────
-const CHANNEL_META: Record<string, { label: string; icon: typeof Globe; color: string; dotColor: string }> = {
-  web: { label: 'Web Chat', icon: Globe, color: 'text-blue-600', dotColor: 'bg-blue-500' },
-  whatsapp: { label: 'WhatsApp', icon: MessageCircle, color: 'text-emerald-600', dotColor: 'bg-emerald-500' },
-  telegram: { label: 'Telegram', icon: Send, color: 'text-sky-600', dotColor: 'bg-sky-500' },
+const CHANNEL_META: Record<string, { label: string; icon: typeof Globe; dotColor: string; bgColor: string }> = {
+  web: { label: 'Web Chat', icon: Globe, dotColor: 'bg-emerald-500', bgColor: 'bg-emerald-50 text-emerald-600' },
+  whatsapp: { label: 'WhatsApp', icon: MessageCircle, dotColor: 'bg-emerald-500', bgColor: 'bg-emerald-50 text-emerald-600' },
+  telegram: { label: 'Telegram', icon: Send, dotColor: 'bg-sky-500', bgColor: 'bg-sky-50 text-sky-600' },
 }
 
 // ─── Copy button ─────────────────────────────────────────────────────────────
@@ -78,7 +77,7 @@ function CopyButton({ text }: { text: string }) {
             setCopied(true)
             setTimeout(() => setCopied(false), 2000)
           }}
-          className="opacity-0 group-hover:opacity-100 absolute -bottom-3 right-2 p-1 rounded-lg bg-white/90 border border-gray-200/60 text-gray-400 hover:text-gray-700 shadow-sm transition-all"
+          className="opacity-0 group-hover:opacity-100 absolute -bottom-3 right-2 p-1 rounded-lg bg-white/90 border border-border/60 text-muted-foreground hover:text-foreground shadow-sm transition-all"
         >
           {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
         </button>
@@ -129,7 +128,18 @@ function ChatPage() {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
+
+  // Determine the most recently active connected channel
+  const activeConnectedChannel = (() => {
+    const connected = Object.entries(channelStatus).filter(([, v]) => v)
+    if (connected.length === 0) return 'web'
+    // If whatsapp/telegram connected, show that; otherwise web
+    if (channelStatus.whatsapp) return 'whatsapp'
+    if (channelStatus.telegram) return 'telegram'
+    return 'web'
+  })()
 
   // ─── Scroll helpers ──────────────────────────────────────────────────────
   const scrollToBottom = useCallback((instant = false) => {
@@ -289,6 +299,19 @@ function ChatPage() {
     setIsLoading(false)
   }
 
+  function handleFileClick() {
+    fileInputRef.current?.click()
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    // For now, just show the filename — actual upload can be wired up later
+    setInput(prev => prev ? `${prev}\n[File: ${file.name}]` : `[File: ${file.name}]`)
+    e.target.value = ''
+    textareaRef.current?.focus()
+  }
+
   // ─── Send message ──────────────────────────────────────────────────────
   const handleSend = useCallback(async () => {
     const text = input.trim()
@@ -364,7 +387,6 @@ function ChatPage() {
   }
 
   const isChannelConversation = activeChannel !== 'web'
-  const connectedCount = Object.values(channelStatus).filter(Boolean).length
 
   // Filter conversations by search
   const filteredConversations = searchQuery
@@ -374,38 +396,42 @@ function ChatPage() {
       )
     : conversations
 
+  // Active channel for split button display
+  const splitMeta = CHANNEL_META[activeConnectedChannel] || CHANNEL_META.web
+  const SplitIcon = splitMeta.icon
+
   // ─── Render ────────────────────────────────────────────────────────────
   return (
     <>
-      {/* ════════ MIDDLE COLUMN — Conversation list ════════ */}
-      <div className="hidden md:flex w-72 shrink-0 flex-col border-r border-gray-200/50 bg-white/50">
+      {/* ════════ MIDDLE COLUMN — Conversation list (rounded) ════════ */}
+      <div className="hidden md:flex w-72 shrink-0 flex-col bg-secondary/50 rounded-r-2xl">
         {/* New chat + Search */}
         <div className="p-3 space-y-2 shrink-0">
           <button
             onClick={startNewChat}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 transition-colors"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-linear-to-r from-blue-600 to-blue-500 px-3 py-2.5 text-sm font-medium text-white hover:from-blue-700 hover:to-blue-600 shadow-sm transition-all"
           >
             <Plus className="size-4" />
             New Chat
           </button>
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-gray-400" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
             <input
               type="text"
               placeholder="Search chats…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-lg border border-gray-200/60 bg-white/80 py-1.5 pl-8 pr-3 text-sm text-gray-700 placeholder:text-gray-400 focus:border-gray-300 focus:outline-none transition-colors"
+              className="w-full rounded-xl border border-border/60 bg-white/70 py-2 pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none transition-colors"
             />
           </div>
         </div>
 
         {/* Conversation list */}
-        <div className="flex-1 overflow-y-auto min-h-0 px-2 pb-2">
+        <div className="flex-1 overflow-y-auto min-h-0 px-2 pb-2 scrollbar-thin">
           {filteredConversations.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center px-4">
-              <MessageSquare className="size-8 text-gray-300 mb-2" />
-              <p className="text-xs text-gray-400">
+              <MessageSquare className="size-8 text-muted-foreground/40 mb-2" />
+              <p className="text-xs text-muted-foreground">
                 {searchQuery ? 'No chats match your search' : 'No conversations yet'}
               </p>
             </div>
@@ -418,32 +444,32 @@ function ChatPage() {
                   <button
                     key={c._id}
                     onClick={() => navigate({ to: '/chat', search: { id: c._id } })}
-                    className={`group w-full text-left rounded-lg px-2.5 py-2 transition-all ${
+                    className={`group w-full text-left rounded-xl px-2.5 py-2.5 transition-all ${
                       isActive
-                        ? 'bg-white shadow-sm border border-gray-200/60'
-                        : 'hover:bg-white/70'
+                        ? 'bg-background shadow-sm border border-border/60'
+                        : 'hover:bg-background/60'
                     }`}
                   >
                     <div className="flex items-start gap-2">
                       <span className={`mt-1.5 size-2 shrink-0 rounded-full ${meta.dotColor}`} />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="truncate text-[13px] font-medium text-gray-800">
+                          <span className="truncate text-[13px] font-medium text-foreground">
                             {c.title || 'Untitled'}
                           </span>
-                          <span className="text-[10px] text-gray-400 shrink-0">
+                          <span className="text-[10px] text-muted-foreground shrink-0">
                             {formatTimeAgo(c.updatedAt)}
                           </span>
                         </div>
                         {c.lastMessage && (
-                          <p className="truncate text-[11px] text-gray-400 mt-0.5">
+                          <p className="truncate text-[11px] text-muted-foreground mt-0.5">
                             {c.lastMessage}
                           </p>
                         )}
                       </div>
                       <button
                         onClick={(e) => deleteConversation(c._id, e)}
-                        className="mt-0.5 opacity-0 group-hover:opacity-100 p-0.5 text-gray-300 hover:text-red-500 transition-all"
+                        className="mt-0.5 opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/40 hover:text-destructive transition-all"
                       >
                         <Trash2 className="size-3" />
                       </button>
@@ -457,58 +483,58 @@ function ChatPage() {
       </div>
 
       {/* ════════ RIGHT COLUMN — Chat area ════════ */}
-      <div className="relative flex flex-1 flex-col overflow-hidden bg-[#FAFAF8]">
-        {/* ─── Top bar: Channel split button ─────────────────────────── */}
-        <div className="flex items-center justify-between shrink-0 px-4 py-2.5 border-b border-gray-200/40">
+      <div className="relative flex flex-1 flex-col overflow-hidden bg-background">
+        {/* ─── Top bar: Title + Channel split button ──────────────── */}
+        <div className="flex items-center justify-between shrink-0 px-4 py-2.5 border-b border-border/40">
           <div className="flex items-center gap-2">
             {conversationId && (
-              <span className="text-sm font-medium text-gray-700 truncate max-w-60">
+              <span className="font-heading text-sm font-semibold text-foreground truncate max-w-60">
                 {conversations.find(c => c._id === conversationId)?.title || 'Chat'}
               </span>
             )}
           </div>
 
-          {/* Channel split button */}
+          {/* Channel split button — shows active channel with blinking dot */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 rounded-lg border border-gray-200/60 bg-white px-3 py-1.5 text-sm hover:border-gray-300/60 hover:shadow-sm transition-all">
-                {channelStatus.whatsapp ? (
-                  <CheckCircle2 className="size-3.5 text-emerald-500" />
-                ) : (
-                  <Circle className="size-3.5 text-gray-300" />
-                )}
-                <span className="text-gray-700 font-medium">Channels</span>
-                <ChevronDown className="size-3 text-gray-400" />
+              <button className="flex items-center gap-2 rounded-xl border border-border/60 bg-card px-3 py-1.5 text-sm hover:border-border hover:shadow-sm transition-all">
+                <span className="relative flex size-2">
+                  <span className={`absolute inline-flex size-full animate-ping rounded-full ${splitMeta.dotColor} opacity-75`} />
+                  <span className={`relative inline-flex size-2 rounded-full ${splitMeta.dotColor}`} />
+                </span>
+                <SplitIcon className="size-3.5 text-muted-foreground" />
+                <span className="text-foreground font-medium">{splitMeta.label}</span>
+                <ChevronDown className="size-3 text-muted-foreground" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
               <div className="px-2 py-1.5">
-                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Connected Channels</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Channels</p>
               </div>
               {Object.entries(CHANNEL_META).map(([key, meta]) => {
                 const connected = channelStatus[key] ?? false
                 const Icon = meta.icon
                 return (
                   <DropdownMenuItem key={key} className="gap-3 py-2.5" onSelect={(e) => e.preventDefault()}>
-                    <div className={`flex size-8 items-center justify-center rounded-lg ${connected ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                    <div className={`flex size-8 items-center justify-center rounded-xl ${meta.bgColor}`}>
                       <Icon className="size-4" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-medium">{meta.label}</p>
-                      <p className="text-[11px] text-gray-400">
+                      <p className="text-sm font-medium text-foreground">{meta.label}</p>
+                      <p className="text-[11px] text-muted-foreground">
                         {connected ? 'Connected' : 'Not connected'}
                       </p>
                     </div>
                     {connected ? (
                       <Wifi className="size-3.5 text-emerald-500" />
                     ) : (
-                      <WifiOff className="size-3.5 text-gray-300" />
+                      <WifiOff className="size-3.5 text-muted-foreground/40" />
                     )}
                   </DropdownMenuItem>
                 )
               })}
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="gap-2 text-xs text-gray-500 justify-center">
+              <DropdownMenuItem className="gap-2 text-xs text-muted-foreground justify-center">
                 Manage in Settings
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -518,89 +544,87 @@ function ChatPage() {
         {/* ─── Messages area ─────────────────────────────────────────── */}
         <div
           ref={messagesContainerRef}
-          className="flex-1 overflow-y-auto min-h-0 overscroll-contain"
+          className="flex-1 overflow-y-auto min-h-0 overscroll-contain scrollbar-thin"
         >
           <div className="mx-auto max-w-2xl px-4 py-6">
             {/* ─── Empty state — bento grid welcome ────────────────── */}
             {messages.length === 0 && !conversationId && (
               <div className="flex flex-col items-center justify-center min-h-[60vh]">
-                <div className="mb-5 flex size-12 items-center justify-center rounded-2xl bg-white border border-gray-200/60 shadow-sm">
-                  <Sparkles className="size-6 text-gray-800" />
+                <div className="mb-5 flex size-12 items-center justify-center rounded-2xl bg-linear-to-br from-blue-50 to-indigo-50 border border-blue-200/40 shadow-sm">
+                  <Sparkles className="size-6 text-blue-600" />
                 </div>
-                <h1 className="font-heading text-xl font-bold tracking-tight text-gray-900">
+                <h1 className="font-heading text-xl font-bold tracking-tight text-foreground">
                   What can I help with?
                 </h1>
-                <p className="mt-1.5 text-sm text-gray-400 max-w-xs text-center">
+                <p className="mt-1.5 text-sm text-muted-foreground max-w-xs text-center">
                   Chat, automate, or manage — everything from one place.
                 </p>
 
                 {/* Bento suggestion grid */}
                 <div className="mt-8 w-full max-w-lg">
                   <div className="grid grid-cols-2 gap-2.5">
-                    {/* Large card */}
                     <button
                       onClick={() => { setInput('What can you automate for me?'); textareaRef.current?.focus() }}
-                      className="col-span-2 flex items-center gap-4 rounded-2xl border border-gray-200/60 bg-white p-4 text-left hover:border-gray-300/60 hover:shadow-sm transition-all"
+                      className="col-span-2 flex items-center gap-4 rounded-2xl border border-border/60 bg-card p-4 text-left hover:border-border hover:shadow-sm transition-all"
                     >
-                      <div className="flex size-10 items-center justify-center rounded-xl bg-amber-50 text-amber-600 shrink-0">
+                      <div className="flex size-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 shrink-0">
                         <Zap className="size-5" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-800">What can you automate?</p>
-                        <p className="text-[12px] text-gray-400 mt-0.5">See all available automations and integrations</p>
+                        <p className="text-sm font-medium text-foreground">What can you automate?</p>
+                        <p className="text-[12px] text-muted-foreground mt-0.5">See all available automations and integrations</p>
                       </div>
                     </button>
 
-                    {/* Smaller cards */}
                     <button
                       onClick={() => { setInput('Check my connected channels'); textareaRef.current?.focus() }}
-                      className="flex flex-col gap-3 rounded-2xl border border-gray-200/60 bg-white p-4 text-left hover:border-gray-300/60 hover:shadow-sm transition-all"
+                      className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card p-4 text-left hover:border-border hover:shadow-sm transition-all"
                     >
                       <div className="flex size-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
                         <MessageSquare className="size-4" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-800">Check channels</p>
-                        <p className="text-[11px] text-gray-400">WhatsApp, Telegram status</p>
+                        <p className="text-sm font-medium text-foreground">Check channels</p>
+                        <p className="text-[11px] text-muted-foreground">WhatsApp, Telegram status</p>
                       </div>
                     </button>
 
                     <button
                       onClick={() => { setInput('Help me set up WhatsApp'); textareaRef.current?.focus() }}
-                      className="flex flex-col gap-3 rounded-2xl border border-gray-200/60 bg-white p-4 text-left hover:border-gray-300/60 hover:shadow-sm transition-all"
+                      className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card p-4 text-left hover:border-border hover:shadow-sm transition-all"
                     >
                       <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
                         <Globe className="size-4" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-800">Setup WhatsApp</p>
-                        <p className="text-[11px] text-gray-400">Connect your number</p>
+                        <p className="text-sm font-medium text-foreground">Setup WhatsApp</p>
+                        <p className="text-[11px] text-muted-foreground">Connect your number</p>
                       </div>
                     </button>
 
                     <button
                       onClick={() => { setInput('What models are available?'); textareaRef.current?.focus() }}
-                      className="flex flex-col gap-3 rounded-2xl border border-gray-200/60 bg-white p-4 text-left hover:border-gray-300/60 hover:shadow-sm transition-all"
+                      className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card p-4 text-left hover:border-border hover:shadow-sm transition-all"
                     >
                       <div className="flex size-9 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
                         <Lightbulb className="size-4" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-800">AI Models</p>
-                        <p className="text-[11px] text-gray-400">Browse available models</p>
+                        <p className="text-sm font-medium text-foreground">AI Models</p>
+                        <p className="text-[11px] text-muted-foreground">Browse available models</p>
                       </div>
                     </button>
 
                     <button
                       onClick={() => { setInput('Create a marketing plan for my product'); textareaRef.current?.focus() }}
-                      className="flex flex-col gap-3 rounded-2xl border border-gray-200/60 bg-white p-4 text-left hover:border-gray-300/60 hover:shadow-sm transition-all"
+                      className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card p-4 text-left hover:border-border hover:shadow-sm transition-all"
                     >
                       <div className="flex size-9 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
                         <Sparkles className="size-4" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-800">Marketing plan</p>
-                        <p className="text-[11px] text-gray-400">AI-powered strategy</p>
+                        <p className="text-sm font-medium text-foreground">Marketing plan</p>
+                        <p className="text-[11px] text-muted-foreground">AI-powered strategy</p>
                       </div>
                     </button>
                   </div>
@@ -611,13 +635,13 @@ function ChatPage() {
             {/* Empty conversation */}
             {messages.length === 0 && conversationId && (
               <div className="flex flex-col items-center justify-center min-h-[40vh]">
-                <p className="text-sm text-gray-400">No messages yet.</p>
+                <p className="text-sm text-muted-foreground">No messages yet.</p>
               </div>
             )}
 
             {/* Channel read-only notice */}
             {isChannelConversation && conversationId && (
-              <div className="mb-4 flex items-center gap-2 rounded-xl bg-amber-50/80 border border-amber-200/40 px-3.5 py-2 text-xs text-amber-700">
+              <div className="mb-4 flex items-center gap-2 rounded-xl bg-blue-50/80 border border-blue-200/40 px-3.5 py-2 text-xs text-blue-700">
                 <Globe className="size-3.5 shrink-0" />
                 Viewing {CHANNEL_META[activeChannel]?.label} conversation — replies are sent via {CHANNEL_META[activeChannel]?.label}
               </div>
@@ -629,7 +653,7 @@ function ChatPage() {
                 if (msg.role === 'system') {
                   return (
                     <div key={i} className="flex justify-center py-1">
-                      <span className="text-[11px] text-gray-400 bg-gray-100/60 rounded-full px-3 py-1">
+                      <span className="text-[11px] text-muted-foreground bg-muted/60 rounded-full px-3 py-1">
                         {msg.content}
                       </span>
                     </div>
@@ -640,14 +664,14 @@ function ChatPage() {
                 return (
                   <div key={i} className={`flex gap-3 ${isUser ? 'justify-end' : ''}`}>
                     {!isUser && (
-                      <div className="size-7 shrink-0 mt-0.5 rounded-lg bg-white border border-gray-200/60 flex items-center justify-center shadow-sm">
-                        <Sparkles className="size-3.5 text-gray-700" />
+                      <div className="size-7 shrink-0 mt-0.5 rounded-lg bg-linear-to-br from-blue-50 to-indigo-50 border border-blue-200/40 flex items-center justify-center">
+                        <Sparkles className="size-3.5 text-blue-600" />
                       </div>
                     )}
                     <div
                       className={`relative group max-w-[85%] ${
                         isUser
-                          ? 'rounded-2xl rounded-br-md bg-gray-900 text-white px-4 py-2.5'
+                          ? 'rounded-2xl rounded-br-md bg-linear-to-br from-blue-600 to-blue-500 text-white px-4 py-2.5 shadow-sm'
                           : 'pt-0.5'
                       }`}
                     >
@@ -656,7 +680,7 @@ function ChatPage() {
                           {msg.content}
                         </div>
                       ) : (
-                        <div className="prose prose-sm max-w-none text-gray-800 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 prose-p:my-1.5 prose-pre:my-2.5 prose-pre:rounded-xl prose-pre:bg-gray-900 prose-pre:text-gray-100 prose-code:before:content-none prose-code:after:content-none prose-code:bg-gray-100 prose-code:text-gray-800 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-xs prose-headings:text-gray-900 prose-headings:font-heading wrap-break-word leading-relaxed">
+                        <div className="prose prose-sm max-w-none text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 prose-p:my-1.5 prose-pre:my-2.5 prose-pre:rounded-xl prose-pre:bg-muted prose-pre:text-foreground prose-code:before:content-none prose-code:after:content-none prose-code:bg-muted prose-code:text-foreground prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-xs prose-headings:text-foreground prose-headings:font-heading wrap-break-word leading-relaxed">
                           <Markdown remarkPlugins={[remarkGfm]}>
                             {msg.content || '…'}
                           </Markdown>
@@ -664,7 +688,7 @@ function ChatPage() {
                       )}
                       {msg.content && !isUser && <CopyButton text={msg.content} />}
                       {msg.createdAt && (
-                        <span className={`block mt-1 text-[10px] ${isUser ? 'text-white/50' : 'text-gray-400'}`}>
+                        <span className={`block mt-1 text-[10px] ${isUser ? 'text-white/60' : 'text-muted-foreground'}`}>
                           {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       )}
@@ -676,13 +700,13 @@ function ChatPage() {
               {/* Typing indicator */}
               {isLoading && messages[messages.length - 1]?.role === 'user' && (
                 <div className="flex gap-3">
-                  <div className="size-7 shrink-0 mt-0.5 rounded-lg bg-white border border-gray-200/60 flex items-center justify-center shadow-sm">
-                    <Sparkles className="size-3.5 text-gray-700" />
+                  <div className="size-7 shrink-0 mt-0.5 rounded-lg bg-linear-to-br from-blue-50 to-indigo-50 border border-blue-200/40 flex items-center justify-center">
+                    <Sparkles className="size-3.5 text-blue-600" />
                   </div>
                   <div className="flex items-center gap-1 px-3 py-2">
-                    <span className="size-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:0ms]" />
-                    <span className="size-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:150ms]" />
-                    <span className="size-1.5 rounded-full bg-gray-400 animate-bounce [animation-delay:300ms]" />
+                    <span className="size-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:0ms]" />
+                    <span className="size-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:150ms]" />
+                    <span className="size-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:300ms]" />
                   </div>
                 </div>
               )}
@@ -694,22 +718,37 @@ function ChatPage() {
 
         {/* Scroll to bottom */}
         {showScrollBtn && (
-          <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10">
+          <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-10">
             <Button
               onClick={() => scrollToBottom()}
               size="icon"
               variant="outline"
-              className="rounded-full size-8 shadow-md border-gray-200/60 bg-white/90 hover:bg-white"
+              className="rounded-full size-8 shadow-md border-border/60 bg-card/90 hover:bg-card text-muted-foreground"
             >
               <ChevronDown className="size-3.5" />
             </Button>
           </div>
         )}
 
-        {/* ─── Input Area ─────────────────────────────────────────────── */}
-        <div className="shrink-0 px-4 pb-4 pt-2">
+        {/* ─── Fixed Input Area (WhatsApp-like - always at bottom) ───── */}
+        <div className="shrink-0 border-t border-border/30 bg-card/80 backdrop-blur-sm px-4 py-3">
           <div className="mx-auto max-w-2xl">
-            <div className="relative flex items-end rounded-2xl border border-gray-200/60 bg-white shadow-sm focus-within:border-gray-300 focus-within:shadow-md transition-all">
+            <div className="relative flex items-end rounded-3xl border border-border/60 bg-card shadow-sm focus-within:border-blue-300/60 focus-within:shadow-md transition-all">
+              {/* File upload button */}
+              <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={handleFileClick}
+                    disabled={isChannelConversation}
+                    className="absolute left-3 bottom-3 p-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-40 transition-all"
+                  >
+                    <Paperclip className="size-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Attach file</TooltipContent>
+              </Tooltip>
+
               <Textarea
                 ref={textareaRef}
                 value={input}
@@ -717,36 +756,34 @@ function ChatPage() {
                 onKeyDown={handleKeyDown}
                 placeholder={isChannelConversation ? `Viewing ${CHANNEL_META[activeChannel]?.label} conversation` : 'Message Brilion…'}
                 rows={1}
-                className="min-h-12 max-h-40 resize-none border-0 bg-transparent pr-12 pl-4 py-3 text-sm placeholder:text-gray-400 focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="min-h-14 max-h-40 resize-none border-0 bg-transparent pr-14 pl-12 py-4 text-sm text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
                 disabled={isLoading || isChannelConversation}
               />
-              <div className="absolute right-2 bottom-2">
+              <div className="absolute right-3 bottom-3">
                 {isLoading ? (
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Button
+                      <button
                         onClick={handleAbort}
-                        size="icon"
-                        className="size-8 rounded-xl bg-gray-900 hover:bg-gray-800"
+                        className="flex size-8 items-center justify-center rounded-xl bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
                       >
-                        <StopCircle className="size-4 text-white" />
-                      </Button>
+                        <StopCircle className="size-4" />
+                      </button>
                     </TooltipTrigger>
                     <TooltipContent>Stop generating</TooltipContent>
                   </Tooltip>
                 ) : (
-                  <Button
+                  <button
                     onClick={handleSend}
                     disabled={!input.trim() || isChannelConversation}
-                    size="icon"
-                    className="size-8 rounded-xl bg-gray-900 hover:bg-gray-800 disabled:bg-gray-200 disabled:text-gray-400"
+                    className="flex size-8 items-center justify-center rounded-xl bg-linear-to-br from-blue-600 to-blue-500 text-white shadow-sm hover:from-blue-700 hover:to-blue-600 disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none transition-all"
                   >
                     <ArrowUp className="size-4" />
-                  </Button>
+                  </button>
                 )}
               </div>
             </div>
-            <p className="mt-2 text-center text-[11px] text-gray-400">
+            <p className="mt-2 text-center text-[11px] text-muted-foreground">
               Brilion can make mistakes. Verify important information.
             </p>
           </div>

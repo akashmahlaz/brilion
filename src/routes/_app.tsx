@@ -1,5 +1,5 @@
 import { createFileRoute, Link, Outlet, redirect, useRouter } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import {
   MessageSquare,
   Globe2,
@@ -9,6 +9,8 @@ import {
   Settings,
   Sparkles,
   LogOut,
+  PanelLeftClose,
+  PanelLeft,
 } from 'lucide-react'
 import { useSession, signOut } from '#/lib/auth-client'
 import { apiFetch } from '#/lib/api'
@@ -46,7 +48,6 @@ export const Route = createFileRoute('/_app')({
   component: AppLayout,
 })
 
-// ─── Sidebar sections ────────────────────────────────────────────────────────
 const SECTIONS = [
   { id: 'chat', icon: MessageSquare, label: 'Chats', to: '/chat' as const },
   { id: 'google', icon: Globe2, label: 'Google', to: '/chat' as const, soon: true },
@@ -60,8 +61,8 @@ function AppLayout() {
   const pathname = router.state.location.pathname
   const { data: session } = useSession()
   const user = session?.user
+  const [expanded, setExpanded] = useState(false)
 
-  // Determine active section
   const isSettings = pathname.startsWith('/settings') || pathname.startsWith('/channels') ||
     pathname.startsWith('/agents') || pathname.startsWith('/config') ||
     pathname.startsWith('/skills') || pathname.startsWith('/cron') ||
@@ -71,16 +72,38 @@ function AppLayout() {
   const activeSection = isSettings ? 'settings' : 'chat'
 
   return (
-    <div className="flex h-dvh bg-[#F8F7F3]">
-      {/* ─── Icon Sidebar (thin, ~60px) ────────────────────────────── */}
-      <nav className="flex w-15 shrink-0 flex-col items-center border-r border-gray-200/50 bg-[#F8F7F3] py-3">
-        {/* Logo */}
-        <Link to="/chat" className="mb-4 flex size-9 items-center justify-center rounded-xl bg-gray-900 shadow-sm">
-          <Sparkles className="size-4 text-white" />
-        </Link>
+    <div className="flex h-dvh bg-background">
+      {/* ─── Main Sidebar — expandable, rounded ────────────────── */}
+      <nav
+        className={`flex shrink-0 flex-col border-r border-border/50 bg-secondary/50 rounded-r-2xl transition-all duration-200 ease-out ${
+          expanded ? 'w-48' : 'w-15'
+        }`}
+      >
+        {/* Top: Logo + expand toggle */}
+        <div className={`flex items-center shrink-0 py-3 ${expanded ? 'px-3 justify-between' : 'justify-center'}`}>
+          <Link to="/chat" className="flex items-center gap-2.5">
+            <div className="flex size-9 items-center justify-center rounded-xl bg-linear-to-br from-blue-600 to-blue-500 shadow-sm">
+              <Sparkles className="size-4 text-white" />
+            </div>
+            {expanded && <span className="font-heading text-sm font-bold text-foreground">Brilion</span>}
+          </Link>
+          {expanded && (
+            <button onClick={() => setExpanded(false)} className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-background/60 transition-colors">
+              <PanelLeftClose className="size-4" />
+            </button>
+          )}
+        </div>
+
+        {!expanded && (
+          <div className="flex justify-center mb-1">
+            <button onClick={() => setExpanded(true)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-background/60 transition-colors">
+              <PanelLeft className="size-4" />
+            </button>
+          </div>
+        )}
 
         {/* Section icons */}
-        <div className="flex flex-1 flex-col items-center gap-1">
+        <div className={`flex flex-1 flex-col gap-1 ${expanded ? 'px-2' : 'items-center'}`}>
           {SECTIONS.map((s) => {
             const isActive = activeSection === s.id
             return (
@@ -88,81 +111,102 @@ function AppLayout() {
                 <TooltipTrigger asChild>
                   <Link
                     to={s.to}
-                    className={`relative flex size-10 items-center justify-center rounded-xl transition-all ${
+                    className={`relative flex items-center gap-2.5 rounded-xl transition-all ${
+                      expanded ? 'px-2.5 py-2' : 'size-10 justify-center'
+                    } ${
                       isActive
-                        ? 'bg-white text-gray-900 shadow-sm border border-gray-200/60'
+                        ? 'bg-background text-foreground shadow-sm border border-border/60'
                         : s.soon
-                          ? 'text-gray-300 cursor-default'
-                          : 'text-gray-400 hover:text-gray-700 hover:bg-white/60'
+                          ? 'text-muted-foreground/40 cursor-default'
+                          : 'text-muted-foreground hover:text-foreground hover:bg-background/60'
                     }`}
                     onClick={s.soon ? (e) => e.preventDefault() : undefined}
                   >
-                    <s.icon className="size-4.5" />
+                    <s.icon className="size-4.5 shrink-0" />
+                    {expanded && (
+                      <span className={`text-sm ${isActive ? 'font-medium' : ''}`}>{s.label}</span>
+                    )}
                     {s.soon && (
-                      <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-amber-400 border border-[#F8F7F3]" />
+                      <span className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-blue-400 border-2 border-secondary" />
                     )}
                   </Link>
                 </TooltipTrigger>
-                <TooltipContent side="right" sideOffset={8}>
-                  {s.label}{s.soon ? ' (Coming soon)' : ''}
-                </TooltipContent>
+                {!expanded && (
+                  <TooltipContent side="right" sideOffset={8}>
+                    {s.label}{s.soon ? ' (Coming soon)' : ''}
+                  </TooltipContent>
+                )}
               </Tooltip>
             )
           })}
         </div>
 
         {/* Bottom: Settings + User avatar */}
-        <div className="flex flex-col items-center gap-2 mt-auto">
+        <div className={`flex flex-col gap-2 mt-auto pb-3 ${expanded ? 'px-2' : 'items-center'}`}>
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
               <Link
                 to="/settings"
-                className={`flex size-10 items-center justify-center rounded-xl transition-all ${
+                className={`flex items-center gap-2.5 rounded-xl transition-all ${
+                  expanded ? 'px-2.5 py-2' : 'size-10 justify-center'
+                } ${
                   isSettings
-                    ? 'bg-white text-gray-900 shadow-sm border border-gray-200/60'
-                    : 'text-gray-400 hover:text-gray-700 hover:bg-white/60'
+                    ? 'bg-background text-foreground shadow-sm border border-border/60'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-background/60'
                 }`}
               >
-                <Settings className="size-4.5" />
+                <Settings className="size-4.5 shrink-0" />
+                {expanded && <span className="text-sm">Settings</span>}
               </Link>
             </TooltipTrigger>
-            <TooltipContent side="right" sideOffset={8}>Settings</TooltipContent>
+            {!expanded && (
+              <TooltipContent side="right" sideOffset={8}>Settings</TooltipContent>
+            )}
           </Tooltip>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex size-9 items-center justify-center rounded-full ring-2 ring-gray-200/60 hover:ring-gray-300/60 transition-all">
-                <Avatar className="size-8">
-                  {user?.image && <AvatarImage src={user.image} alt={user.name || ''} />}
-                  <AvatarFallback className="bg-gray-200 text-gray-600 text-xs font-medium">
-                    {user?.name?.charAt(0)?.toUpperCase() || '?'}
-                  </AvatarFallback>
-                </Avatar>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent side="right" align="end" sideOffset={8} className="w-48">
-              <div className="px-2 py-1.5">
-                <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
-                <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild>
-                <Link to="/settings" className="gap-2">
-                  <Settings className="size-3.5" /> Settings
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="gap-2 text-red-600 focus:text-red-600"
-                onClick={async () => {
-                  await signOut()
-                  window.location.href = '/login'
-                }}
-              >
-                <LogOut className="size-3.5" /> Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Avatar with gap */}
+          <div className="pt-3 mt-1 border-t border-border/30">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className={`flex items-center gap-2.5 rounded-xl p-1.5 hover:bg-background/60 transition-all ${expanded ? 'w-full' : ''}`}>
+                  <Avatar className="size-8 ring-2 ring-border/40">
+                    {user?.image && <AvatarImage src={user.image} alt={user.name || ''} />}
+                    <AvatarFallback className="bg-blue-50 text-blue-600 text-xs font-semibold">
+                      {user?.name?.charAt(0)?.toUpperCase() || '?'}
+                    </AvatarFallback>
+                  </Avatar>
+                  {expanded && (
+                    <div className="flex-1 min-w-0 text-left">
+                      <p className="text-xs font-medium text-foreground truncate">{user?.name || 'User'}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{user?.email}</p>
+                    </div>
+                  )}
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="right" align="end" sideOffset={8} className="w-48">
+                <div className="px-2 py-1.5">
+                  <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem asChild>
+                  <Link to="/settings" className="gap-2">
+                    <Settings className="size-3.5" /> Settings
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="gap-2 text-destructive focus:text-destructive"
+                  onClick={async () => {
+                    await signOut()
+                    window.location.href = '/login'
+                  }}
+                >
+                  <LogOut className="size-3.5" /> Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
       </nav>
 
