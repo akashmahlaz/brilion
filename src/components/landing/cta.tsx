@@ -1,17 +1,28 @@
 import { motion } from 'framer-motion'
 import { ArrowRight } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
+import { MorphingText } from '#/components/ui/morphing-text'
+
+const MORPHING_WORDS = [
+  'marketing',
+  'trading',
+  'scheduling',
+  'coding',
+  'content',
+  'support',
+]
 
 export function CTA() {
   return (
-    <section className="relative py-24 sm:py-32 overflow-hidden">
-      {/* Background */}
-      <div className="absolute inset-0 bg-gray-900" />
+    <section className="relative py-28 sm:py-36 overflow-hidden">
+      {/* Warm background matching page */}
+      <div className="absolute inset-0 bg-[#F8F7F3]" />
+      {/* Subtle radial accent */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'radial-gradient(ellipse at 50% 0%, rgba(59,130,246,0.12) 0%, transparent 60%)',
+            'radial-gradient(ellipse 800px 500px at 50% 50%, rgba(168,85,247,0.04) 0%, transparent 70%)',
         }}
       />
 
@@ -21,27 +32,27 @@ export function CTA() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-80px' }}
           transition={{ duration: 0.7 }}
+          className="space-y-8"
         >
-          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-[3px] mb-6">
-            Get started today
-          </p>
-
-          <h2 className="font-heading text-[36px] sm:text-[48px] lg:text-[56px] font-extrabold text-white leading-[1.1] tracking-tight">
-            Stop switching apps.
+          <h2 className="font-heading text-[36px] sm:text-[48px] lg:text-[56px] font-extrabold text-gray-900 leading-[1.1] tracking-tight">
+            Automate your
+            <MorphingText
+              texts={MORPHING_WORDS}
+              className="inline-block font-heading text-[36px] sm:text-[48px] lg:text-[56px] font-extrabold text-gray-900 leading-[1.1] tracking-tight"
+            />
             <br />
-            <span className="text-gray-500">Start automating.</span>
+            <span className="text-gray-400">with one message.</span>
           </h2>
 
-          <p className="mt-6 text-[17px] text-gray-500 leading-relaxed max-w-lg mx-auto">
-            Connect your WhatsApp. Link your tools.
-            <br />
-            Send one message. Watch it all happen.
+          <p className="text-[17px] text-gray-500 leading-relaxed max-w-lg mx-auto">
+            Connect WhatsApp, link your tools, and let Brilion handle the rest.
+            Start free. No credit card required.
           </p>
 
-          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
             <Link
               to="/signup"
-              className="group relative px-8 py-4 bg-white text-gray-900 text-[15px] font-semibold rounded-full overflow-hidden transition-all duration-300 hover:shadow-[0_0_40px_rgba(255,255,255,0.15)] active:scale-[0.97]"
+              className="group relative px-8 py-4 bg-gray-900 text-white text-[15px] font-semibold rounded-full overflow-hidden transition-all duration-300 hover:bg-gray-800 hover:shadow-lg active:scale-[0.97]"
             >
               <span className="relative z-10 flex items-center gap-2">
                 Start for Free
@@ -50,15 +61,11 @@ export function CTA() {
             </Link>
             <a
               href="#how-it-works"
-              className="px-8 py-4 border border-gray-700 text-gray-400 text-[15px] font-semibold rounded-full hover:border-gray-500 hover:text-gray-300 transition-all duration-200"
+              className="px-8 py-4 border border-gray-200 text-gray-600 text-[15px] font-semibold rounded-full hover:border-gray-300 hover:text-gray-900 transition-all duration-200"
             >
-              See how it works
+              Watch demo
             </a>
           </div>
-
-          <p className="mt-8 text-xs text-gray-600">
-            Free forever on Starter · No credit card required
-          </p>
         </motion.div>
       </div>
     </section>
