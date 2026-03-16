@@ -71,7 +71,7 @@ function useChannelStatus() {
 
 // OpenClaw-style navigation — exact tab order
 const navItems = [
-  { title: "Overview", url: "/", icon: LayoutDashboard },
+  { title: "Overview", url: "/overview", icon: LayoutDashboard },
   { title: "Chat", url: "/chat", icon: MessageSquare },
   { title: "Channels", url: "/channels", icon: Radio },
   { title: "Sessions", url: "/sessions", icon: Users },

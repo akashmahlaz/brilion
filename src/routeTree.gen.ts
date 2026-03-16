@@ -10,10 +10,9 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as McpRouteImport } from './routes/mcp'
-import { Route as HomeRouteImport } from './routes/home'
 import { Route as AuthRouteImport } from './routes/_auth'
 import { Route as AppRouteImport } from './routes/_app'
-import { Route as AppIndexRouteImport } from './routes/_app.index'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiWorkspaceRouteImport } from './routes/api/workspace'
 import { Route as ApiWhatsappRouteImport } from './routes/api/whatsapp'
 import { Route as ApiTelegramRouteImport } from './routes/api/telegram'
@@ -30,6 +29,7 @@ import { Route as AppUsageRouteImport } from './routes/_app.usage'
 import { Route as AppSkillsRouteImport } from './routes/_app.skills'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppSessionsRouteImport } from './routes/_app.sessions'
+import { Route as AppOverviewRouteImport } from './routes/_app.overview'
 import { Route as AppNodesRouteImport } from './routes/_app.nodes'
 import { Route as AppLogsRouteImport } from './routes/_app.logs'
 import { Route as AppDebugRouteImport } from './routes/_app.debug'
@@ -48,11 +48,6 @@ const McpRoute = McpRouteImport.update({
   path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
-const HomeRoute = HomeRouteImport.update({
-  id: '/home',
-  path: '/home',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/_auth',
   getParentRoute: () => rootRouteImport,
@@ -61,10 +56,10 @@ const AppRoute = AppRouteImport.update({
   id: '/_app',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppIndexRoute = AppIndexRouteImport.update({
+const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => AppRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiWorkspaceRoute = ApiWorkspaceRouteImport.update({
   id: '/api/workspace',
@@ -146,6 +141,11 @@ const AppSessionsRoute = AppSessionsRouteImport.update({
   path: '/sessions',
   getParentRoute: () => AppRoute,
 } as any)
+const AppOverviewRoute = AppOverviewRouteImport.update({
+  id: '/overview',
+  path: '/overview',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppNodesRoute = AppNodesRouteImport.update({
   id: '/nodes',
   path: '/nodes',
@@ -208,8 +208,7 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof AppIndexRoute
-  '/home': typeof HomeRoute
+  '/': typeof IndexRoute
   '/mcp': typeof McpRoute
   '/agents': typeof AppAgentsRoute
   '/channels': typeof AppChannelsRoute
@@ -219,6 +218,7 @@ export interface FileRoutesByFullPath {
   '/debug': typeof AppDebugRoute
   '/logs': typeof AppLogsRoute
   '/nodes': typeof AppNodesRoute
+  '/overview': typeof AppOverviewRoute
   '/sessions': typeof AppSessionsRoute
   '/settings': typeof AppSettingsRoute
   '/skills': typeof AppSkillsRoute
@@ -241,8 +241,7 @@ export interface FileRoutesByFullPath {
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof AppIndexRoute
-  '/home': typeof HomeRoute
+  '/': typeof IndexRoute
   '/mcp': typeof McpRoute
   '/agents': typeof AppAgentsRoute
   '/channels': typeof AppChannelsRoute
@@ -252,6 +251,7 @@ export interface FileRoutesByTo {
   '/debug': typeof AppDebugRoute
   '/logs': typeof AppLogsRoute
   '/nodes': typeof AppNodesRoute
+  '/overview': typeof AppOverviewRoute
   '/sessions': typeof AppSessionsRoute
   '/settings': typeof AppSettingsRoute
   '/skills': typeof AppSkillsRoute
@@ -275,9 +275,9 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
   '/_app': typeof AppRouteWithChildren
   '/_auth': typeof AuthRouteWithChildren
-  '/home': typeof HomeRoute
   '/mcp': typeof McpRoute
   '/_app/agents': typeof AppAgentsRoute
   '/_app/channels': typeof AppChannelsRoute
@@ -287,6 +287,7 @@ export interface FileRoutesById {
   '/_app/debug': typeof AppDebugRoute
   '/_app/logs': typeof AppLogsRoute
   '/_app/nodes': typeof AppNodesRoute
+  '/_app/overview': typeof AppOverviewRoute
   '/_app/sessions': typeof AppSessionsRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/skills': typeof AppSkillsRoute
@@ -303,7 +304,6 @@ export interface FileRoutesById {
   '/api/telegram': typeof ApiTelegramRoute
   '/api/whatsapp': typeof ApiWhatsappRoute
   '/api/workspace': typeof ApiWorkspaceRoute
-  '/_app/': typeof AppIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
@@ -313,7 +313,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/home'
     | '/mcp'
     | '/agents'
     | '/channels'
@@ -323,6 +322,7 @@ export interface FileRouteTypes {
     | '/debug'
     | '/logs'
     | '/nodes'
+    | '/overview'
     | '/sessions'
     | '/settings'
     | '/skills'
@@ -346,7 +346,6 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/home'
     | '/mcp'
     | '/agents'
     | '/channels'
@@ -356,6 +355,7 @@ export interface FileRouteTypes {
     | '/debug'
     | '/logs'
     | '/nodes'
+    | '/overview'
     | '/sessions'
     | '/settings'
     | '/skills'
@@ -378,9 +378,9 @@ export interface FileRouteTypes {
     | '/api/trpc/$'
   id:
     | '__root__'
+    | '/'
     | '/_app'
     | '/_auth'
-    | '/home'
     | '/mcp'
     | '/_app/agents'
     | '/_app/channels'
@@ -390,6 +390,7 @@ export interface FileRouteTypes {
     | '/_app/debug'
     | '/_app/logs'
     | '/_app/nodes'
+    | '/_app/overview'
     | '/_app/sessions'
     | '/_app/settings'
     | '/_app/skills'
@@ -406,7 +407,6 @@ export interface FileRouteTypes {
     | '/api/telegram'
     | '/api/whatsapp'
     | '/api/workspace'
-    | '/_app/'
     | '/api/auth/$'
     | '/api/auth/register'
     | '/api/rpc/$'
@@ -414,9 +414,9 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
   AuthRoute: typeof AuthRouteWithChildren
-  HomeRoute: typeof HomeRoute
   McpRoute: typeof McpRoute
   ApiSplatRoute: typeof ApiSplatRoute
   ApiChatRoute: typeof ApiChatRoute
@@ -443,13 +443,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/home': {
-      id: '/home'
-      path: '/home'
-      fullPath: '/home'
-      preLoaderRoute: typeof HomeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_auth': {
       id: '/_auth'
       path: ''
@@ -464,12 +457,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_app/': {
-      id: '/_app/'
+    '/': {
+      id: '/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof AppIndexRouteImport
-      parentRoute: typeof AppRoute
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/workspace': {
       id: '/api/workspace'
@@ -583,6 +576,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSessionsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/overview': {
+      id: '/_app/overview'
+      path: '/overview'
+      fullPath: '/overview'
+      preLoaderRoute: typeof AppOverviewRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/nodes': {
       id: '/_app/nodes'
       path: '/nodes'
@@ -679,11 +679,11 @@ interface AppRouteChildren {
   AppDebugRoute: typeof AppDebugRoute
   AppLogsRoute: typeof AppLogsRoute
   AppNodesRoute: typeof AppNodesRoute
+  AppOverviewRoute: typeof AppOverviewRoute
   AppSessionsRoute: typeof AppSessionsRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppSkillsRoute: typeof AppSkillsRoute
   AppUsageRoute: typeof AppUsageRoute
-  AppIndexRoute: typeof AppIndexRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -695,11 +695,11 @@ const AppRouteChildren: AppRouteChildren = {
   AppDebugRoute: AppDebugRoute,
   AppLogsRoute: AppLogsRoute,
   AppNodesRoute: AppNodesRoute,
+  AppOverviewRoute: AppOverviewRoute,
   AppSessionsRoute: AppSessionsRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppSkillsRoute: AppSkillsRoute,
   AppUsageRoute: AppUsageRoute,
-  AppIndexRoute: AppIndexRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
@@ -717,9 +717,9 @@ const AuthRouteChildren: AuthRouteChildren = {
 const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
   AuthRoute: AuthRouteWithChildren,
-  HomeRoute: HomeRoute,
   McpRoute: McpRoute,
   ApiSplatRoute: ApiSplatRoute,
   ApiChatRoute: ApiChatRoute,

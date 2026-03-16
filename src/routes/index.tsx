@@ -13,7 +13,7 @@ import { FAQ } from '#/components/landing/faq'
 import { CTA } from '#/components/landing/cta'
 import { Footer } from '#/components/landing/footer'
 
-export const Route = createFileRoute('/home')({
+export const Route = createFileRoute('/')({
   component: LandingPage,
   head: () => ({
     meta: [

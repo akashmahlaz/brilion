@@ -1,4 +1,5 @@
 import Google from "@auth/core/providers/google";
+import GitHub from "@auth/core/providers/github";
 import LinkedIn from "@auth/core/providers/linkedin";
 import Credentials from "@auth/core/providers/credentials";
 import { MongoDBAdapter } from "@auth/mongodb-adapter";
@@ -23,6 +24,10 @@ export const authConfig: StartAuthJSConfig = {
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    }),
+    GitHub({
+      clientId: process.env.GITHUB_CLIENT_ID!,
+      clientSecret: process.env.GITHUB_CLIENT_SECRET!,
     }),
     LinkedIn({
       clientId: process.env.LINKEDIN_CLIENT_ID!,

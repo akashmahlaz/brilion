@@ -23,7 +23,7 @@ import {
 } from '#/components/ui/card'
 import { apiFetch } from '#/lib/api'
 
-export const Route = createFileRoute('/_app/')({
+export const Route = createFileRoute('/_app/overview')({
   component: DashboardPage,
 })
 

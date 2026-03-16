@@ -62,7 +62,7 @@ export function Footer() {
         <div className="grid grid-cols-2 gap-10 md:grid-cols-6 lg:gap-12">
           {/* Brand column */}
           <div className="col-span-2 space-y-5">
-            <Link to="/home" className="inline-block">
+            <Link to="/" className="inline-block">
               <img src="/BRILION.svg" alt="Brilion" className="h-7" />
             </Link>
             <p className="text-[14px] text-gray-500 leading-relaxed max-w-xs">
