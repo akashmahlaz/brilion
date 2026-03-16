@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { ArrowRight } from 'lucide-react'
+import { Highlighter } from '#/components/ui/highlighter'
 import { Link } from '@tanstack/react-router'
 
 export function CTA() {
@@ -29,7 +30,9 @@ export function CTA() {
           <h2 className="font-heading text-[36px] sm:text-[48px] lg:text-[56px] font-extrabold text-white leading-[1.1] tracking-tight">
             Stop switching apps.
             <br />
-            <span className="text-gray-500">Start automating.</span>
+            <Highlighter action="underline" color="#3b82f6" strokeWidth={2.5} animationDuration={800} isView>
+              <span className="text-gray-500">Start automating.</span>
+            </Highlighter>
           </h2>
 
           <p className="mt-6 text-[17px] text-gray-500 leading-relaxed max-w-lg mx-auto">

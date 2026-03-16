@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { Check, ArrowRight } from 'lucide-react'
+import { Highlighter } from '#/components/ui/highlighter'
 import { Link } from '@tanstack/react-router'
 
 interface Plan {
@@ -78,7 +79,9 @@ export function Pricing() {
             Pricing
           </p>
           <h2 className="font-heading text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 tracking-tight leading-[1.15]">
-            Simple pricing,
+            <Highlighter action="underline" color="#3b82f6" strokeWidth={2} animationDuration={800} isView>
+              Simple pricing,
+            </Highlighter>
             <br />
             <span className="text-gray-400">no hidden fees.</span>
           </h2>
