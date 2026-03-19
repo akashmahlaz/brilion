@@ -354,7 +354,7 @@ function ChatPage() {
     try {
       await apiFetch(`/api/chat?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
       if (conversationId === id) {
-        navigate({ to: '/chat', search: {} })
+        navigate({ to: '/chat', search: { id: undefined } })
       }
       loadConversations()
     } catch {
@@ -363,7 +363,7 @@ function ChatPage() {
   }
 
   function startNewChat() {
-    navigate({ to: '/chat', search: {} })
+    navigate({ to: '/chat', search: { id: undefined } })
     setConversationId(null)
     setMessages([])
     setActiveChannel('web')
