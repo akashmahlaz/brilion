@@ -77,7 +77,7 @@ function CopyButton({ text }: { text: string }) {
             setCopied(true)
             setTimeout(() => setCopied(false), 2000)
           }}
-          className="opacity-0 group-hover:opacity-100 absolute -bottom-3 right-2 p-1 rounded-lg bg-white/90 border border-border/60 text-muted-foreground hover:text-foreground shadow-sm transition-all"
+          className="opacity-0 group-hover:opacity-100 absolute -bottom-3 right-2 p-1 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground shadow-sm transition-all"
         >
           {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
         </button>
@@ -404,12 +404,12 @@ function ChatPage() {
   return (
     <>
       {/* ════════ MIDDLE COLUMN — Conversation list (rounded) ════════ */}
-      <div className="hidden md:flex w-72 shrink-0 flex-col bg-secondary/50 rounded-r-2xl">
+      <div className="hidden md:flex w-72 shrink-0 flex-col bg-secondary border-r border-border">
         {/* New chat + Search */}
         <div className="p-3 space-y-2 shrink-0">
           <button
             onClick={startNewChat}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-linear-to-r from-blue-600 to-blue-500 px-3 py-2.5 text-sm font-medium text-white hover:from-blue-700 hover:to-blue-600 shadow-sm transition-all"
+            className="flex w-full items-center justify-center gap-2 rounded-full bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors active:scale-[0.98]"
           >
             <Plus className="size-4" />
             New Chat
@@ -421,7 +421,7 @@ function ChatPage() {
               placeholder="Search chats…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-xl border border-border/60 bg-white/70 py-2 pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none transition-colors"
+              className="w-full rounded-xl border border-border bg-card py-2 pl-8 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-ring focus:outline-none transition-colors"
             />
           </div>
         </div>
@@ -485,7 +485,7 @@ function ChatPage() {
       {/* ════════ RIGHT COLUMN — Chat area ════════ */}
       <div className="relative flex flex-1 flex-col overflow-hidden bg-background">
         {/* ─── Top bar: Title + Channel split button ──────────────── */}
-        <div className="flex items-center justify-between shrink-0 px-4 py-2.5 border-b border-border/40">
+        <div className="flex items-center justify-between shrink-0 px-5 py-3 border-b border-border">
           <div className="flex items-center gap-2">
             {conversationId && (
               <span className="font-heading text-sm font-semibold text-foreground truncate max-w-60">
@@ -497,7 +497,7 @@ function ChatPage() {
           {/* Channel split button — shows active channel with blinking dot */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 rounded-xl border border-border/60 bg-card px-3 py-1.5 text-sm hover:border-border hover:shadow-sm transition-all">
+              <button className="flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-sm hover:border-ring/40 hover:shadow-sm transition-all">
                 <span className="relative flex size-2">
                   <span className={`absolute inline-flex size-full animate-ping rounded-full ${splitMeta.dotColor} opacity-75`} />
                   <span className={`relative inline-flex size-2 rounded-full ${splitMeta.dotColor}`} />
@@ -550,81 +550,81 @@ function ChatPage() {
             {/* ─── Empty state — bento grid welcome ────────────────── */}
             {messages.length === 0 && !conversationId && (
               <div className="flex flex-col items-center justify-center min-h-[60vh]">
-                <div className="mb-5 flex size-12 items-center justify-center rounded-2xl bg-linear-to-br from-blue-50 to-indigo-50 border border-blue-200/40 shadow-sm">
-                  <Sparkles className="size-6 text-blue-600" />
+                <div className="mb-6 flex size-14 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 shadow-sm">
+                  <Sparkles className="size-7 text-primary" />
                 </div>
-                <h1 className="font-heading text-xl font-bold tracking-tight text-foreground">
+                <h1 className="font-heading text-[28px] sm:text-[36px] font-extrabold tracking-[-0.035em] text-foreground leading-[1.1]">
                   What can I help with?
                 </h1>
-                <p className="mt-1.5 text-sm text-muted-foreground max-w-xs text-center">
+                <p className="mt-2.5 text-[15px] text-muted-foreground max-w-sm text-center leading-relaxed">
                   Chat, automate, or manage — everything from one place.
                 </p>
 
                 {/* Bento suggestion grid */}
-                <div className="mt-8 w-full max-w-lg">
-                  <div className="grid grid-cols-2 gap-2.5">
+                <div className="mt-10 w-full max-w-lg">
+                  <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={() => { setInput('What can you automate for me?'); textareaRef.current?.focus() }}
-                      className="col-span-2 flex items-center gap-4 rounded-2xl border border-border/60 bg-card p-4 text-left hover:border-border hover:shadow-sm transition-all"
+                      className="col-span-2 flex items-center gap-4 rounded-2xl border border-border bg-card p-5 text-left hover:border-ring/30 hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.2)] transition-all duration-300"
                     >
-                      <div className="flex size-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 shrink-0">
+                      <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
                         <Zap className="size-5" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-foreground">What can you automate?</p>
+                        <p className="text-[14px] font-semibold text-foreground">What can you automate?</p>
                         <p className="text-[12px] text-muted-foreground mt-0.5">See all available automations and integrations</p>
                       </div>
                     </button>
 
                     <button
                       onClick={() => { setInput('Check my connected channels'); textareaRef.current?.focus() }}
-                      className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card p-4 text-left hover:border-border hover:shadow-sm transition-all"
+                      className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 text-left hover:border-ring/30 hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.2)] transition-all duration-300"
                     >
-                      <div className="flex size-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                        <MessageSquare className="size-4" />
+                      <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                        <MessageSquare className="size-4.5" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-foreground">Check channels</p>
-                        <p className="text-[11px] text-muted-foreground">WhatsApp, Telegram status</p>
+                        <p className="text-[14px] font-semibold text-foreground">Check channels</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">WhatsApp, Telegram status</p>
                       </div>
                     </button>
 
                     <button
                       onClick={() => { setInput('Help me set up WhatsApp'); textareaRef.current?.focus() }}
-                      className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card p-4 text-left hover:border-border hover:shadow-sm transition-all"
+                      className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 text-left hover:border-ring/30 hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.2)] transition-all duration-300"
                     >
-                      <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                        <Globe className="size-4" />
+                      <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-500">
+                        <Globe className="size-4.5" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-foreground">Setup WhatsApp</p>
-                        <p className="text-[11px] text-muted-foreground">Connect your number</p>
+                        <p className="text-[14px] font-semibold text-foreground">Setup WhatsApp</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">Connect your number</p>
                       </div>
                     </button>
 
                     <button
                       onClick={() => { setInput('What models are available?'); textareaRef.current?.focus() }}
-                      className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card p-4 text-left hover:border-border hover:shadow-sm transition-all"
+                      className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 text-left hover:border-ring/30 hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.2)] transition-all duration-300"
                     >
-                      <div className="flex size-9 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
-                        <Lightbulb className="size-4" />
+                      <div className="flex size-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-500">
+                        <Lightbulb className="size-4.5" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-foreground">AI Models</p>
-                        <p className="text-[11px] text-muted-foreground">Browse available models</p>
+                        <p className="text-[14px] font-semibold text-foreground">AI Models</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">Browse available models</p>
                       </div>
                     </button>
 
                     <button
                       onClick={() => { setInput('Create a marketing plan for my product'); textareaRef.current?.focus() }}
-                      className="flex flex-col gap-3 rounded-2xl border border-border/60 bg-card p-4 text-left hover:border-border hover:shadow-sm transition-all"
+                      className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5 text-left hover:border-ring/30 hover:shadow-[0_8px_30px_rgba(0,0,0,0.04)] dark:hover:shadow-[0_8px_30px_rgba(0,0,0,0.2)] transition-all duration-300"
                     >
-                      <div className="flex size-9 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
-                        <Sparkles className="size-4" />
+                      <div className="flex size-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500">
+                        <Sparkles className="size-4.5" />
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-foreground">Marketing plan</p>
-                        <p className="text-[11px] text-muted-foreground">AI-powered strategy</p>
+                        <p className="text-[14px] font-semibold text-foreground">Marketing plan</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">AI-powered strategy</p>
                       </div>
                     </button>
                   </div>
@@ -664,14 +664,14 @@ function ChatPage() {
                 return (
                   <div key={i} className={`flex gap-3 ${isUser ? 'justify-end' : ''}`}>
                     {!isUser && (
-                      <div className="size-7 shrink-0 mt-0.5 rounded-lg bg-linear-to-br from-blue-50 to-indigo-50 border border-blue-200/40 flex items-center justify-center">
-                        <Sparkles className="size-3.5 text-blue-600" />
+                      <div className="size-7 shrink-0 mt-0.5 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+                        <Sparkles className="size-3.5 text-primary" />
                       </div>
                     )}
                     <div
                       className={`relative group max-w-[85%] ${
                         isUser
-                          ? 'rounded-2xl rounded-br-md bg-linear-to-br from-blue-600 to-blue-500 text-white px-4 py-2.5 shadow-sm'
+                          ? 'rounded-2xl rounded-br-md bg-foreground text-background px-4 py-2.5 shadow-sm'
                           : 'pt-0.5'
                       }`}
                     >
@@ -688,7 +688,7 @@ function ChatPage() {
                       )}
                       {msg.content && !isUser && <CopyButton text={msg.content} />}
                       {msg.createdAt && (
-                        <span className={`block mt-1 text-[10px] ${isUser ? 'text-white/60' : 'text-muted-foreground'}`}>
+                        <span className={`block mt-1 text-[10px] ${isUser ? 'text-background/60' : 'text-muted-foreground'}`}>
                           {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       )}
@@ -700,8 +700,8 @@ function ChatPage() {
               {/* Typing indicator */}
               {isLoading && messages[messages.length - 1]?.role === 'user' && (
                 <div className="flex gap-3">
-                  <div className="size-7 shrink-0 mt-0.5 rounded-lg bg-linear-to-br from-blue-50 to-indigo-50 border border-blue-200/40 flex items-center justify-center">
-                    <Sparkles className="size-3.5 text-blue-600" />
+                  <div className="size-7 shrink-0 mt-0.5 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
+                    <Sparkles className="size-3.5 text-primary" />
                   </div>
                   <div className="flex items-center gap-1 px-3 py-2">
                     <span className="size-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:0ms]" />
@@ -731,9 +731,9 @@ function ChatPage() {
         )}
 
         {/* ─── Fixed Input Area (WhatsApp-like - always at bottom) ───── */}
-        <div className="shrink-0 border-t border-border/30 bg-card/80 backdrop-blur-sm px-4 py-3">
+        <div className="shrink-0 border-t border-border bg-background/80 backdrop-blur-xl px-4 py-3">
           <div className="mx-auto max-w-2xl">
-            <div className="relative flex items-end rounded-3xl border border-border/60 bg-card shadow-sm focus-within:border-blue-300/60 focus-within:shadow-md transition-all">
+              <div className="relative flex items-end rounded-2xl border border-border bg-card shadow-sm focus-within:border-ring/40 focus-within:shadow-[0_0_20px_rgba(59,130,246,0.06)] transition-all">
               {/* File upload button */}
               <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
               <Tooltip>
@@ -776,7 +776,7 @@ function ChatPage() {
                   <button
                     onClick={handleSend}
                     disabled={!input.trim() || isChannelConversation}
-                    className="flex size-8 items-center justify-center rounded-xl bg-linear-to-br from-blue-600 to-blue-500 text-white shadow-sm hover:from-blue-700 hover:to-blue-600 disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none transition-all"
+                    className="flex size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none transition-all"
                   >
                     <ArrowUp className="size-4" />
                   </button>

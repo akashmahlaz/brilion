@@ -265,7 +265,7 @@ function DebugPage() {
                       >
                         <Copy className="size-3.5" />
                       </Button>
-                      <pre className="bg-[#0d1117] text-gray-300 rounded-lg p-4 text-xs font-mono overflow-auto max-h-96">
+                      <pre className="bg-[#0d1117] text-[#c9d1d9] rounded-lg p-4 text-xs font-mono overflow-auto max-h-96">
                         {rpcResult}
                       </pre>
                     </div>
@@ -358,7 +358,7 @@ function DebugPage() {
                     <CardTitle className="text-base">Raw Health Data</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <pre className="bg-[#0d1117] text-gray-300 rounded-lg p-4 text-xs font-mono overflow-auto">
+                    <pre className="bg-[#0d1117] text-[#c9d1d9] rounded-lg p-4 text-xs font-mono overflow-auto">
                       {JSON.stringify(health, null, 2)}
                     </pre>
                   </CardContent>

@@ -41,7 +41,7 @@ const LEVEL_COLORS: Record<LogLevel, string> = {
   info: 'text-blue-400',
   warn: 'text-yellow-400',
   error: 'text-red-400',
-  debug: 'text-gray-400',
+  debug: 'text-muted-foreground',
 }
 
 
@@ -252,7 +252,7 @@ function LogsPage() {
                       key={log.id}
                       className="flex gap-3 py-0.5 hover:bg-white/5 px-2 rounded"
                     >
-                      <span className="text-gray-500 shrink-0 w-[85px]">
+                      <span className="text-muted-foreground shrink-0 w-[85px]">
                         {formatTime(log.timestamp)}
                       </span>
                       <span
@@ -263,13 +263,13 @@ function LogsPage() {
                       <span className="text-purple-400 shrink-0 w-[80px] truncate">
                         {log.source}
                       </span>
-                      <span className="text-gray-300">{log.message}</span>
+                      <span className="text-[#c9d1d9]">{log.message}</span>
                     </div>
                   ))}
                   <div ref={logEndRef} />
                 </div>
                 {filteredLogs.length === 0 && (
-                  <div className="flex items-center justify-center h-full text-gray-500">
+                  <div className="flex items-center justify-center h-full text-muted-foreground">
                     <ScrollText className="size-8 mr-2" />
                     No logs matching filters
                   </div>

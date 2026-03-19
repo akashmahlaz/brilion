@@ -95,17 +95,17 @@ function SettingsPage() {
   return (
     <div className="flex flex-1 overflow-hidden">
       {/* Settings navigation */}
-      <nav className="hidden md:flex w-56 shrink-0 flex-col border-r border-gray-200/40 bg-white/40 overflow-y-auto">
+      <nav className="hidden md:flex w-56 shrink-0 flex-col border-r border-border bg-secondary overflow-y-auto">
         <div className="p-4">
-          <h2 className="font-heading text-sm font-bold text-gray-900 tracking-tight">Settings</h2>
-          <p className="text-[11px] text-gray-400 mt-0.5">Manage your workspace</p>
+          <h2 className="font-heading text-sm font-bold text-foreground tracking-tight">Settings</h2>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Manage your workspace</p>
         </div>
         <div className="flex flex-col gap-0.5 px-2 pb-4">
           {SETTINGS_NAV.map((item, i) => {
             if ('separator' in item && item.separator) {
               return (
                 <div key={i} className="pt-3 pb-1 px-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     {item.label}
                   </span>
                 </div>
@@ -120,8 +120,8 @@ function SettingsPage() {
                 to={item.to}
                 className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] transition-colors ${
                   isActive
-                    ? 'bg-gray-900 text-white font-medium'
-                    : 'text-gray-600 hover:bg-gray-100/80 hover:text-gray-900'
+                    ? 'bg-primary/8 text-primary font-medium'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                 }`}
               >
                 {Icon && <Icon className="size-3.5 shrink-0" />}

@@ -33,8 +33,8 @@ function ChannelsPage() {
     <div className="flex flex-1 flex-col overflow-y-auto">
       <div className="flex flex-col gap-4 py-6 md:gap-6 md:py-8">
         <div className="px-4 lg:px-6 space-y-1.5">
-          <h2 className="font-heading text-[28px] font-extrabold text-gray-900 tracking-tight">Channels</h2>
-          <p className="text-[15px] text-gray-500">
+          <h2 className="font-heading text-[28px] font-extrabold text-foreground tracking-tight">Channels</h2>
+          <p className="text-[15px] text-muted-foreground">
             Connect messaging platforms to your AI agent.
           </p>
         </div>
@@ -232,7 +232,7 @@ function WhatsAppCard() {
                 <p className="text-sm text-muted-foreground">
                   Scan with WhatsApp on your phone
                 </p>
-                <div className="rounded-xl bg-white p-3">
+                <div className="rounded-xl bg-background p-3">
                   <img
                     src={qrSession.qrDataUrl}
                     alt="WhatsApp QR Code"

@@ -5,22 +5,17 @@ import { Button } from '#/components/ui/button'
 type ThemeMode = 'light' | 'dark' | 'auto'
 
 function getInitialMode(): ThemeMode {
-  if (typeof window === 'undefined') return 'auto'
+  if (typeof window === 'undefined') return 'light'
   const stored = window.localStorage.getItem('theme')
-  if (stored === 'light' || stored === 'dark' || stored === 'auto') return stored
-  return 'auto'
+  if (stored === 'light' || stored === 'dark') return stored
+  return 'light'
 }
 
 function applyThemeMode(mode: ThemeMode) {
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-  const resolved = mode === 'auto' ? (prefersDark ? 'dark' : 'light') : mode
+  const resolved = mode === 'auto' ? 'light' : mode
   document.documentElement.classList.remove('light', 'dark')
   document.documentElement.classList.add(resolved)
-  if (mode === 'auto') {
-    document.documentElement.removeAttribute('data-theme')
-  } else {
-    document.documentElement.setAttribute('data-theme', mode)
-  }
+  document.documentElement.setAttribute('data-theme', resolved)
   document.documentElement.style.colorScheme = resolved
 }
 
