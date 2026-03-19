@@ -17,21 +17,29 @@ import {
   MessageCircle,
   Send,
   Wifi,
-  WifiOff,
   Paperclip,
+  Settings2,
+  QrCode,
+  Power,
+  X,
+  File as FileIcon,
+  Loader2,
+  Phone,
+  Users,
+  Shield,
+  ChevronRight,
 } from 'lucide-react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Button } from '#/components/ui/button'
 import { Textarea } from '#/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '#/components/ui/tooltip'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '#/components/ui/dropdown-menu'
+import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
+import { Badge } from '#/components/ui/badge'
+import { MagicCard } from '#/components/ui/magic-card'
+import { BorderBeam } from '#/components/ui/border-beam'
+import { BlurFade } from '#/components/ui/blur-fade'
+import { Ripple } from '#/components/ui/ripple'
 import { toast } from 'sonner'
 import { apiFetch } from '#/lib/api'
 
@@ -59,10 +67,19 @@ export const Route = createFileRoute('/_app/chat')({
 })
 
 // ─── Channel config ──────────────────────────────────────────────────────────
-const CHANNEL_META: Record<string, { label: string; icon: typeof Globe; dotColor: string; bgColor: string }> = {
-  web: { label: 'Web Chat', icon: Globe, dotColor: 'bg-emerald-500', bgColor: 'bg-emerald-50 text-emerald-600' },
-  whatsapp: { label: 'WhatsApp', icon: MessageCircle, dotColor: 'bg-emerald-500', bgColor: 'bg-emerald-50 text-emerald-600' },
-  telegram: { label: 'Telegram', icon: Send, dotColor: 'bg-sky-500', bgColor: 'bg-sky-50 text-sky-600' },
+const CHANNEL_META: Record<string, { label: string; icon: typeof Globe; dotColor: string; bgColor: string; description: string }> = {
+  whatsapp: { label: 'WhatsApp', icon: MessageCircle, dotColor: 'bg-emerald-500', bgColor: 'bg-emerald-50 text-emerald-600', description: 'End-to-end encrypted messaging' },
+  web: { label: 'Web Chat', icon: Globe, dotColor: 'bg-blue-500', bgColor: 'bg-blue-50 text-blue-600', description: 'Always available in browser' },
+  telegram: { label: 'Telegram', icon: Send, dotColor: 'bg-sky-500', bgColor: 'bg-sky-50 text-sky-600', description: 'Bot-based messaging' },
+}
+
+// ─── File upload types ───────────────────────────────────────────────────────
+interface AttachedFile {
+  file: File
+  preview?: string
+  uploading?: boolean
+  url?: string
+  error?: string
 }
 
 // ─── Copy button ─────────────────────────────────────────────────────────────
@@ -125,20 +142,27 @@ function ChatPage() {
     web: true, whatsapp: false, telegram: false,
   })
 
+  // WhatsApp connection flow state
+  const [waQrSession, setWaQrSession] = useState<{ sessionId: string; qrDataUrl: string | null; message: string } | null>(null)
+  const [waConnecting, setWaConnecting] = useState(false)
+  const [waSettings, setWaSettings] = useState<{ numberType: 'personal' | 'dedicated' | null; accessMode: 'all' | 'specific' | null; allowedNumbers: string }>({ numberType: null, accessMode: null, allowedNumbers: '' })
+  const [channelPanelOpen, setChannelPanelOpen] = useState(false)
+  const [channelPanelView, setChannelPanelView] = useState<'list' | 'whatsapp-connect' | 'whatsapp-settings' | 'telegram-connect'>('list')
+
+  // File upload state
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
+
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
-  // Determine the most recently active connected channel
-  const activeConnectedChannel = (() => {
-    const connected = Object.entries(channelStatus).filter(([, v]) => v)
-    if (connected.length === 0) return 'web'
-    // If whatsapp/telegram connected, show that; otherwise web
+  // Determine the primary channel to show (WhatsApp first priority)
+  const primaryChannel = (() => {
     if (channelStatus.whatsapp) return 'whatsapp'
     if (channelStatus.telegram) return 'telegram'
-    return 'web'
+    return 'whatsapp' // Show WhatsApp even when not connected — it's the primary CTA
   })()
 
   // ─── Scroll helpers ──────────────────────────────────────────────────────
@@ -304,28 +328,135 @@ function ChatPage() {
   }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    // For now, just show the filename — actual upload can be wired up later
-    setInput(prev => prev ? `${prev}\n[File: ${file.name}]` : `[File: ${file.name}]`)
+    const files = Array.from(e.target.files || [])
+    if (!files.length) return
+
+    for (const file of files) {
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(`${file.name} is too large (max 10 MB)`)
+        continue
+      }
+      const preview = file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined
+      const entry: AttachedFile = { file, preview, uploading: true }
+      setAttachedFiles(prev => [...prev, entry])
+
+      // Upload immediately
+      const formData = new FormData()
+      formData.append('file', file)
+      apiFetch('/api/upload', { method: 'POST', body: formData })
+        .then(async (res) => {
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: 'Upload failed' }))
+            throw new Error(err.error || 'Upload failed')
+          }
+          const data = await res.json()
+          setAttachedFiles(prev => prev.map(f =>
+            f.file === file ? { ...f, uploading: false, url: data.url } : f
+          ))
+        })
+        .catch((err) => {
+          setAttachedFiles(prev => prev.map(f =>
+            f.file === file ? { ...f, uploading: false, error: err.message } : f
+          ))
+          toast.error(`Failed to upload ${file.name}`)
+        })
+    }
     e.target.value = ''
     textareaRef.current?.focus()
+  }
+
+  function removeAttachedFile(file: File) {
+    setAttachedFiles(prev => {
+      const entry = prev.find(f => f.file === file)
+      if (entry?.preview) URL.revokeObjectURL(entry.preview)
+      return prev.filter(f => f.file !== file)
+    })
+  }
+
+  // ─── WhatsApp connect flow ─────────────────────────────────────────────
+  async function startWhatsAppConnect() {
+    setWaConnecting(true)
+    setChannelPanelView('whatsapp-connect')
+    try {
+      const res = await apiFetch('/api/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'login' }),
+      })
+      const data = await res.json()
+      setWaQrSession(data)
+
+      if (data.sessionId) {
+        const interval = setInterval(async () => {
+          try {
+            const pollRes = await apiFetch(`/api/whatsapp?action=login&sessionId=${data.sessionId}`)
+            const pollData = await pollRes.json()
+            setWaQrSession(prev => prev ? { ...prev, ...pollData } : prev)
+            if (pollData.status === 'connected') {
+              clearInterval(interval)
+              toast.success('WhatsApp connected!')
+              setChannelPanelView('whatsapp-settings')
+              await loadChannelStatus()
+            }
+            if (pollData.status === 'failed' || pollData.status === 'timeout') {
+              clearInterval(interval)
+              setWaConnecting(false)
+            }
+          } catch { clearInterval(interval) }
+        }, 2000)
+        setTimeout(() => clearInterval(interval), 180000)
+      }
+    } catch (err) {
+      toast.error(`Failed: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setWaConnecting(false)
+    }
+  }
+
+  async function disconnectWhatsApp() {
+    await apiFetch('/api/whatsapp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'disconnect' }),
+    })
+    toast.success('WhatsApp disconnected')
+    setWaQrSession(null)
+    setChannelPanelView('list')
+    await loadChannelStatus()
   }
 
   // ─── Send message ──────────────────────────────────────────────────────
   const handleSend = useCallback(async () => {
     const text = input.trim()
-    if (!text || isLoading) return
+    const hasFiles = attachedFiles.some(f => f.url)
+    if ((!text && !hasFiles) || isLoading) return
+
+    // Check if any files are still uploading
+    if (attachedFiles.some(f => f.uploading)) {
+      toast.error('Please wait for files to finish uploading')
+      return
+    }
 
     if (activeChannel !== 'web') {
       toast.error('You can only send messages from the web chat.')
       return
     }
 
-    const userMessage: Message = { role: 'user', content: text }
+    // Build message content with file attachments
+    let content = text
+    const uploadedFiles = attachedFiles.filter(f => f.url)
+    if (uploadedFiles.length > 0) {
+      const fileSection = uploadedFiles
+        .map(f => `[${f.file.type.startsWith('image/') ? 'Image' : 'File'}: ${f.file.name}](${f.url})`)
+        .join('\n')
+      content = content ? `${content}\n\n${fileSection}` : fileSection
+    }
+
+    const userMessage: Message = { role: 'user', content }
     const newMessages = [...messages, userMessage]
     setMessages(newMessages)
     setInput('')
+    setAttachedFiles([])
     setIsLoading(true)
     setIsNearBottom(true)
     setShowScrollBtn(false)
@@ -377,7 +508,7 @@ function ChatPage() {
       setIsLoading(false)
       requestAnimationFrame(() => textareaRef.current?.focus())
     }
-  }, [input, isLoading, messages, conversationId, activeChannel])
+  }, [input, isLoading, messages, conversationId, activeChannel, attachedFiles])
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -396,9 +527,10 @@ function ChatPage() {
       )
     : conversations
 
-  // Active channel for split button display
-  const splitMeta = CHANNEL_META[activeConnectedChannel] || CHANNEL_META.web
-  const SplitIcon = splitMeta.icon
+  // Active channel for display
+  const primaryMeta = CHANNEL_META[primaryChannel] || CHANNEL_META.whatsapp
+  const PrimaryIcon = primaryMeta.icon
+  const connectedCount = Object.values(channelStatus).filter(Boolean).length
 
   // ─── Render ────────────────────────────────────────────────────────────
   return (
@@ -484,7 +616,7 @@ function ChatPage() {
 
       {/* ════════ RIGHT COLUMN — Chat area ════════ */}
       <div className="relative flex flex-1 flex-col overflow-hidden bg-background">
-        {/* ─── Top bar: Title + Channel split button ──────────────── */}
+        {/* ─── Top bar: Title + Channel hub ──────────────── */}
         <div className="flex items-center justify-between shrink-0 px-5 py-3 border-b border-border">
           <div className="flex items-center gap-2">
             {conversationId && (
@@ -494,51 +626,417 @@ function ChatPage() {
             )}
           </div>
 
-          {/* Channel split button — shows active channel with blinking dot */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 rounded-full border border-border bg-card px-3.5 py-1.5 text-sm hover:border-ring/40 hover:shadow-sm transition-all">
-                <span className="relative flex size-2">
-                  <span className={`absolute inline-flex size-full animate-ping rounded-full ${splitMeta.dotColor} opacity-75`} />
-                  <span className={`relative inline-flex size-2 rounded-full ${splitMeta.dotColor}`} />
-                </span>
-                <SplitIcon className="size-3.5 text-muted-foreground" />
-                <span className="text-foreground font-medium">{splitMeta.label}</span>
-                <ChevronDown className="size-3 text-muted-foreground" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
-              <div className="px-2 py-1.5">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Channels</p>
-              </div>
-              {Object.entries(CHANNEL_META).map(([key, meta]) => {
-                const connected = channelStatus[key] ?? false
-                const Icon = meta.icon
-                return (
-                  <DropdownMenuItem key={key} className="gap-3 py-2.5" onSelect={(e) => e.preventDefault()}>
-                    <div className={`flex size-8 items-center justify-center rounded-xl ${meta.bgColor}`}>
-                      <Icon className="size-4" />
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-foreground">{meta.label}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {connected ? 'Connected' : 'Not connected'}
-                      </p>
-                    </div>
-                    {connected ? (
-                      <Wifi className="size-3.5 text-emerald-500" />
+          {/* ═══ Channel Hub — Premium Popover ═══ */}
+          <Popover open={channelPanelOpen} onOpenChange={(open) => {
+            setChannelPanelOpen(open)
+            if (open) setChannelPanelView('list')
+          }}>
+            <PopoverTrigger asChild>
+              <button className="relative flex items-center gap-2.5 rounded-full border border-border bg-card pl-3.5 pr-4 py-2 text-sm hover:border-primary/30 hover:shadow-[0_2px_12px_rgba(0,0,0,0.06)] transition-all duration-300 group overflow-hidden">
+                {/* Subtle glow on hover */}
+                <span className="absolute inset-0 bg-linear-to-r from-emerald-500/5 via-transparent to-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                <span className="relative flex items-center gap-2.5">
+                  {/* Status dot */}
+                  <span className="relative flex size-2.5">
+                    {channelStatus.whatsapp ? (
+                      <>
+                        <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                        <span className="relative inline-flex size-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20" />
+                      </>
                     ) : (
-                      <WifiOff className="size-3.5 text-muted-foreground/40" />
+                      <span className="relative inline-flex size-2.5 rounded-full bg-amber-400 ring-2 ring-amber-400/20" />
                     )}
-                  </DropdownMenuItem>
-                )
-              })}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="gap-2 text-xs text-muted-foreground justify-center">
-                Manage in Settings
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                  </span>
+                  <PrimaryIcon className="size-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                  <span className="text-foreground font-semibold tracking-tight">
+                    {channelStatus.whatsapp ? 'WhatsApp' : 'Connect'}
+                  </span>
+                  <span className="h-3.5 w-px bg-border" />
+                  <span className="text-[10px] font-bold text-muted-foreground tabular-nums">
+                    {connectedCount}/{Object.keys(CHANNEL_META).length}
+                  </span>
+                  <ChevronDown className="size-3 text-muted-foreground group-hover:text-foreground transition-colors" />
+                </span>
+              </button>
+            </PopoverTrigger>
+
+            <PopoverContent align="end" sideOffset={8} className="w-85 p-0 rounded-2xl border-border/80 shadow-[0_16px_70px_-12px_rgba(0,0,0,0.12)] overflow-hidden">
+
+              {/* ═══════════ CHANNEL LIST VIEW ═══════════ */}
+              {channelPanelView === 'list' && (
+                <div>
+                  <div className="px-4 pt-4 pb-3">
+                    <h3 className="font-heading text-[15px] font-bold text-foreground tracking-tight">Channels</h3>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">Connect platforms to Brilion AI</p>
+                  </div>
+
+                  <div className="px-2 pb-2 space-y-1">
+                    {Object.entries(CHANNEL_META).map(([key, meta], idx) => {
+                      const connected = channelStatus[key] ?? false
+                      const Icon = meta.icon
+                      const isWeb = key === 'web'
+                      return (
+                        <BlurFade key={key} delay={0.05 * idx} direction="up">
+                          <button
+                            onClick={() => {
+                              if (isWeb) return
+                              if (key === 'whatsapp') {
+                                connected ? setChannelPanelView('whatsapp-settings') : startWhatsAppConnect()
+                              } else if (key === 'telegram') {
+                                setChannelPanelView('telegram-connect')
+                              }
+                            }}
+                            className={`relative flex items-center gap-3 w-full rounded-xl px-3 py-3 text-left transition-all duration-200 overflow-hidden ${
+                              isWeb
+                                ? 'cursor-default'
+                                : connected
+                                  ? 'hover:bg-emerald-500/4 cursor-pointer'
+                                  : 'hover:bg-accent cursor-pointer'
+                            }`}
+                          >
+                            {/* Channel icon */}
+                            <div className={`relative flex size-10 items-center justify-center rounded-xl ${meta.bgColor} shrink-0`}>
+                              <Icon className="size-4.5" />
+                              {connected && !isWeb && (
+                                <span className="absolute -right-0.5 -bottom-0.5 size-3 rounded-full bg-emerald-500 border-2 border-card" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-[13px] font-semibold text-foreground">{meta.label}</p>
+                                {isWeb && (
+                                  <span className="text-[9px] font-semibold text-blue-600 bg-blue-50 rounded-full px-1.5 py-0.5">ALWAYS ON</span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">
+                                {connected ? meta.description : (isWeb ? meta.description : 'Tap to connect')}
+                              </p>
+                            </div>
+                            {connected && !isWeb ? (
+                              <div className="flex flex-col items-end gap-0.5">
+                                <span className="text-[10px] font-bold text-emerald-600">Live</span>
+                                <span className="text-[9px] text-muted-foreground">Connected</span>
+                              </div>
+                            ) : isWeb ? (
+                              <Wifi className="size-4 text-blue-500/70" />
+                            ) : (
+                              <div className="flex items-center gap-1 text-[11px] text-primary font-medium">
+                                Setup
+                                <ChevronRight className="size-3" />
+                              </div>
+                            )}
+                            {/* Active channel border beam */}
+                            {connected && !isWeb && <BorderBeam size={40} duration={3} colorFrom="#25D366" colorTo="#128C7E" borderWidth={1.5} />}
+                          </button>
+                        </BlurFade>
+                      )
+                    })}
+                  </div>
+
+                  <div className="border-t border-border px-4 py-2.5 flex items-center justify-between">
+                    <p className="text-[10px] text-muted-foreground">
+                      <span className="font-semibold text-foreground">{connectedCount}</span> of {Object.keys(CHANNEL_META).length} active
+                    </p>
+                    <button
+                      onClick={() => { setChannelPanelOpen(false); window.location.href = '/channels' }}
+                      className="text-[10px] text-primary font-medium hover:underline"
+                    >
+                      Manage all →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ═══════════ WHATSAPP QR CONNECT VIEW ═══════════ */}
+              {channelPanelView === 'whatsapp-connect' && (
+                <div>
+                  <div className="flex items-center gap-2.5 px-4 pt-4 pb-3">
+                    <button onClick={() => setChannelPanelView('list')} className="p-1 rounded-lg hover:bg-accent transition-colors">
+                      <ChevronDown className="size-3.5 rotate-90 text-muted-foreground" />
+                    </button>
+                    <div>
+                      <h3 className="font-heading text-[15px] font-bold text-foreground tracking-tight">Connect WhatsApp</h3>
+                      <p className="text-[11px] text-muted-foreground">Link your WhatsApp account</p>
+                    </div>
+                  </div>
+                  <div className="px-4 pb-4">
+                    {waQrSession?.qrDataUrl ? (
+                      <BlurFade delay={0.1} direction="up">
+                        <div className="flex flex-col items-center gap-4">
+                          <div className="relative rounded-2xl bg-white p-4 shadow-sm border border-border overflow-hidden">
+                            <img src={waQrSession.qrDataUrl} alt="WhatsApp QR" className="size-52" />
+                            <BorderBeam size={80} duration={4} colorFrom="#25D366" colorTo="#075E54" />
+                          </div>
+                          <div className="text-center space-y-1.5">
+                            <p className="text-[13px] text-foreground font-semibold">Scan with WhatsApp</p>
+                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                              <span className="size-5 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 text-[10px] font-bold">1</span>
+                              Open WhatsApp
+                              <span className="size-5 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 text-[10px] font-bold">2</span>
+                              Linked Devices
+                              <span className="size-5 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 text-[10px] font-bold">3</span>
+                              Scan
+                            </div>
+                          </div>
+                        </div>
+                      </BlurFade>
+                    ) : waConnecting ? (
+                      <div className="relative flex flex-col items-center justify-center py-10 overflow-hidden">
+                        <Ripple mainCircleSize={80} numCircles={4} mainCircleOpacity={0.12} />
+                        <div className="relative z-10 flex flex-col items-center gap-3">
+                          <div className="flex size-14 items-center justify-center rounded-2xl bg-emerald-50 border border-emerald-100">
+                            <Loader2 className="size-6 text-emerald-600 animate-spin" />
+                          </div>
+                          <p className="text-[12px] text-muted-foreground font-medium">Generating QR code…</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-4 py-6">
+                        <div className="relative overflow-hidden flex size-14 items-center justify-center rounded-2xl bg-emerald-50 border border-emerald-100">
+                          <QrCode className="size-6 text-emerald-600" />
+                        </div>
+                        <div className="text-center">
+                          <p className="text-[13px] text-foreground font-medium">Ready to connect</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">{waQrSession?.message || 'Generate a QR code to link your WhatsApp'}</p>
+                        </div>
+                        <Button size="sm" onClick={startWhatsAppConnect} className="rounded-xl px-5">
+                          <QrCode className="size-3.5 mr-1.5" />
+                          Generate QR Code
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ═══════════ WHATSAPP SETTINGS VIEW ═══════════ */}
+              {channelPanelView === 'whatsapp-settings' && (
+                <div>
+                  {/* Header with connected status */}
+                  <div className="relative px-4 pt-4 pb-3 overflow-hidden">
+                    <div className="absolute inset-0 bg-linear-to-br from-emerald-500/4 to-transparent" />
+                    <div className="relative flex items-center gap-2.5">
+                      <button onClick={() => setChannelPanelView('list')} className="p-1 rounded-lg hover:bg-accent transition-colors">
+                        <ChevronDown className="size-3.5 rotate-90 text-muted-foreground" />
+                      </button>
+                      <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-50">
+                        <MessageCircle className="size-4 text-emerald-600" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-heading text-[15px] font-bold text-foreground tracking-tight">WhatsApp</h3>
+                          <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-50 rounded-full px-2 py-0.5">
+                            <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Connected
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">Receiving messages • End-to-end encrypted</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="px-4 pb-4 space-y-4">
+                    {/* ── Number type ── */}
+                    <BlurFade delay={0.05} direction="up">
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground/70 uppercase tracking-wider">
+                          <Phone className="size-3" />
+                          Number type
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {([
+                            { value: 'personal' as const, label: 'Personal', desc: 'Your daily number', icon: Phone },
+                            { value: 'dedicated' as const, label: 'Dedicated', desc: 'Separate for Brilion', icon: Shield },
+                          ] as const).map(opt => {
+                            const active = waSettings.numberType === opt.value
+                            return (
+                              <MagicCard
+                                key={opt.value}
+                                mode="gradient"
+                                gradientColor={active ? 'rgba(37, 211, 102, 0.08)' : 'rgba(0,0,0,0.03)'}
+                                gradientSize={150}
+                                className="p-0! bg-transparent! cursor-pointer"
+                              >
+                                <button
+                                  onClick={() => setWaSettings(s => ({ ...s, numberType: opt.value }))}
+                                  className={`relative w-full rounded-xl border px-3 py-3 text-left transition-all duration-200 overflow-hidden ${
+                                    active
+                                      ? 'border-emerald-500/50 bg-emerald-500/6'
+                                      : 'border-border hover:border-primary/20'
+                                  }`}
+                                >
+                                  <div className="flex items-start gap-2.5">
+                                    <div className={`flex size-7 items-center justify-center rounded-lg shrink-0 ${
+                                      active ? 'bg-emerald-500/15 text-emerald-600' : 'bg-muted text-muted-foreground'
+                                    }`}>
+                                      <opt.icon className="size-3.5" />
+                                    </div>
+                                    <div>
+                                      <p className={`text-[12px] font-semibold ${active ? 'text-emerald-700' : 'text-foreground'}`}>{opt.label}</p>
+                                      <p className="text-[10px] text-muted-foreground mt-0.5">{opt.desc}</p>
+                                    </div>
+                                  </div>
+                                  {active && (
+                                    <span className="absolute top-2 right-2 size-4 rounded-full bg-emerald-500 flex items-center justify-center">
+                                      <Check className="size-2.5 text-white" />
+                                    </span>
+                                  )}
+                                  {active && <BorderBeam size={30} duration={3} colorFrom="#25D366" colorTo="#128C7E" borderWidth={1} />}
+                                </button>
+                              </MagicCard>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </BlurFade>
+
+                    {/* ── Access mode ── */}
+                    <BlurFade delay={0.1} direction="up">
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-1.5 text-[11px] font-semibold text-foreground/70 uppercase tracking-wider">
+                          <Users className="size-3" />
+                          Who can message AI?
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {([
+                            { value: 'all' as const, label: 'Everyone', desc: 'All contacts can chat', icon: Users },
+                            { value: 'specific' as const, label: 'Specific only', desc: 'Whitelist numbers', icon: Shield },
+                          ] as const).map(opt => {
+                            const active = waSettings.accessMode === opt.value
+                            return (
+                              <MagicCard
+                                key={opt.value}
+                                mode="gradient"
+                                gradientColor={active ? 'rgba(37, 211, 102, 0.08)' : 'rgba(0,0,0,0.03)'}
+                                gradientSize={150}
+                                className="p-0! bg-transparent! cursor-pointer"
+                              >
+                                <button
+                                  onClick={() => setWaSettings(s => ({ ...s, accessMode: opt.value }))}
+                                  className={`relative w-full rounded-xl border px-3 py-3 text-left transition-all duration-200 overflow-hidden ${
+                                    active
+                                      ? 'border-emerald-500/50 bg-emerald-500/6'
+                                      : 'border-border hover:border-primary/20'
+                                  }`}
+                                >
+                                  <div className="flex items-start gap-2.5">
+                                    <div className={`flex size-7 items-center justify-center rounded-lg shrink-0 ${
+                                      active ? 'bg-emerald-500/15 text-emerald-600' : 'bg-muted text-muted-foreground'
+                                    }`}>
+                                      <opt.icon className="size-3.5" />
+                                    </div>
+                                    <div>
+                                      <p className={`text-[12px] font-semibold ${active ? 'text-emerald-700' : 'text-foreground'}`}>{opt.label}</p>
+                                      <p className="text-[10px] text-muted-foreground mt-0.5">{opt.desc}</p>
+                                    </div>
+                                  </div>
+                                  {active && (
+                                    <span className="absolute top-2 right-2 size-4 rounded-full bg-emerald-500 flex items-center justify-center">
+                                      <Check className="size-2.5 text-white" />
+                                    </span>
+                                  )}
+                                  {active && <BorderBeam size={30} duration={3} colorFrom="#25D366" colorTo="#128C7E" borderWidth={1} />}
+                                </button>
+                              </MagicCard>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </BlurFade>
+
+                    {/* ── Allowed numbers (conditional) ── */}
+                    {waSettings.accessMode === 'specific' && (
+                      <BlurFade delay={0.15} direction="up">
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-semibold text-foreground/70 uppercase tracking-wider">
+                            Allowed phone numbers
+                          </label>
+                          <div className="relative">
+                            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+                            <input
+                              type="text"
+                              placeholder="+91 98765 43210, +1 555 0123"
+                              value={waSettings.allowedNumbers}
+                              onChange={(e) => setWaSettings(s => ({ ...s, allowedNumbers: e.target.value }))}
+                              className="w-full rounded-xl border border-border bg-card py-2.5 pl-9 pr-3 text-[12px] text-foreground placeholder:text-muted-foreground focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 focus:outline-none transition-all"
+                            />
+                          </div>
+                          <p className="text-[10px] text-muted-foreground">Separate with commas. Only these numbers can interact with your AI.</p>
+                        </div>
+                      </BlurFade>
+                    )}
+
+                    {/* ── Actions ── */}
+                    <BlurFade delay={waSettings.accessMode === 'specific' ? 0.2 : 0.15} direction="up">
+                      <div className="flex items-center gap-2 pt-1">
+                        <Button
+                          size="sm"
+                          className="flex-1 rounded-xl text-[12px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                          onClick={() => {
+                            toast.success('WhatsApp settings saved')
+                            setChannelPanelOpen(false)
+                          }}
+                          disabled={!waSettings.numberType || !waSettings.accessMode}
+                        >
+                          <Check className="size-3 mr-1.5" />
+                          Save settings
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="rounded-xl text-[12px] text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={disconnectWhatsApp}
+                        >
+                          <Power className="size-3 mr-1" />
+                          Disconnect
+                        </Button>
+                      </div>
+                    </BlurFade>
+                  </div>
+                </div>
+              )}
+
+              {/* ═══════════ TELEGRAM CONNECT VIEW ═══════════ */}
+              {channelPanelView === 'telegram-connect' && (
+                <div>
+                  <div className="flex items-center gap-2.5 px-4 pt-4 pb-3">
+                    <button onClick={() => setChannelPanelView('list')} className="p-1 rounded-lg hover:bg-accent transition-colors">
+                      <ChevronDown className="size-3.5 rotate-90 text-muted-foreground" />
+                    </button>
+                    <div>
+                      <h3 className="font-heading text-[15px] font-bold text-foreground tracking-tight">Connect Telegram</h3>
+                      <p className="text-[11px] text-muted-foreground">Set up your Telegram bot</p>
+                    </div>
+                  </div>
+                  <div className="px-4 pb-4">
+                    <BlurFade delay={0.1} direction="up">
+                      <div className="flex flex-col items-center gap-4 py-4">
+                        <div className="flex size-14 items-center justify-center rounded-2xl bg-sky-50 border border-sky-100">
+                          <Send className="size-6 text-sky-600" />
+                        </div>
+                        <p className="text-[12px] text-muted-foreground text-center max-w-55">
+                          Set up Telegram with your bot token in Channel Settings
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-xl text-[12px]"
+                          onClick={() => {
+                            setChannelPanelOpen(false)
+                            window.location.href = '/channels'
+                          }}
+                        >
+                          <Settings2 className="size-3 mr-1.5" />
+                          Open Channel Settings
+                        </Button>
+                      </div>
+                    </BlurFade>
+                  </div>
+                </div>
+              )}
+
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* ─── Messages area ─────────────────────────────────────────── */}
@@ -733,9 +1231,39 @@ function ChatPage() {
         {/* ─── Fixed Input Area (WhatsApp-like - always at bottom) ───── */}
         <div className="shrink-0 border-t border-border bg-background/80 backdrop-blur-xl px-4 py-3">
           <div className="mx-auto max-w-2xl">
+            {/* Attached file previews */}
+            {attachedFiles.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2.5">
+                {attachedFiles.map((af, i) => (
+                  <div key={i} className="relative group flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-[12px]">
+                    {af.preview ? (
+                      <img src={af.preview} alt="" className="size-8 rounded-lg object-cover" />
+                    ) : (
+                      <div className="flex size-8 items-center justify-center rounded-lg bg-muted">
+                        <FileIcon className="size-3.5 text-muted-foreground" />
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="truncate text-foreground font-medium max-w-32">{af.file.name}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {af.uploading ? 'Uploading…' : af.error ? af.error : `${(af.file.size / 1024).toFixed(0)} KB`}
+                      </p>
+                    </div>
+                    {af.uploading && <Loader2 className="size-3.5 text-primary animate-spin shrink-0" />}
+                    <button
+                      onClick={() => removeAttachedFile(af.file)}
+                      className="absolute -top-1.5 -right-1.5 size-4 rounded-full bg-foreground text-background flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <X className="size-2.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
               <div className="relative flex items-end rounded-2xl border border-border bg-card shadow-sm focus-within:border-ring/40 focus-within:shadow-[0_0_20px_rgba(59,130,246,0.06)] transition-all">
               {/* File upload button */}
-              <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange} />
+              <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} accept="image/*,.pdf,.txt,.csv,.md,.json,.doc,.docx,.xls,.xlsx" />
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
