@@ -170,7 +170,7 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
   });
 
   // Register message listener
-  sock.ev.on("messages.upsert", (update) => {
+  sock.ev.on("messages.upsert", async (update) => {
     log("========== messages.upsert ==========");
     log("User:", userId);
     log("Message count:", update.messages.length);

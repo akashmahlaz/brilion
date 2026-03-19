@@ -50,10 +50,10 @@ export const Route = createFileRoute('/_app')({
 
 const SECTIONS = [
   { id: 'chat', icon: MessageSquare, label: 'Chats', to: '/chat' as const },
-  { id: 'google', icon: Globe2, label: 'Google', to: '/chat' as const, soon: true },
-  { id: 'social', icon: Share2, label: 'Social', to: '/chat' as const, soon: true },
-  { id: 'trading', icon: TrendingUp, label: 'Trading', to: '/chat' as const, soon: true },
-  { id: 'coding', icon: Code2, label: 'Coding', to: '/chat' as const, soon: true },
+  { id: 'google', icon: Globe2, label: 'Google', to: '/google' as const },
+  { id: 'social', icon: Share2, label: 'Social', to: '/social' as const },
+  { id: 'trading', icon: TrendingUp, label: 'Trading', to: '/trading' as const },
+  { id: 'coding', icon: Code2, label: 'Coding', to: '/coding' as const },
 ] as const
 
 function AppLayout() {
@@ -69,7 +69,17 @@ function AppLayout() {
     pathname.startsWith('/nodes') || pathname.startsWith('/logs') ||
     pathname.startsWith('/usage') || pathname.startsWith('/debug') ||
     pathname.startsWith('/sessions')
-  const activeSection = isSettings ? 'settings' : 'chat'
+  const activeSection = isSettings
+    ? 'settings'
+    : pathname.startsWith('/google')
+      ? 'google'
+      : pathname.startsWith('/social')
+        ? 'social'
+        : pathname.startsWith('/trading')
+          ? 'trading'
+          : pathname.startsWith('/coding')
+            ? 'coding'
+            : 'chat'
 
   return (
     <div className="flex h-dvh bg-background">
@@ -116,27 +126,18 @@ function AppLayout() {
                     } ${
                       isActive
                         ? 'bg-primary/8 text-primary'
-                        : s.soon
-                          ? 'text-muted-foreground/40 cursor-default'
-                          : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-accent'
                     }`}
-                    onClick={s.soon ? (e) => e.preventDefault() : undefined}
                   >
                     <s.icon className="size-4.5 shrink-0" />
                     {expanded && (
                       <span className={`text-[13px] ${isActive ? 'font-semibold' : 'font-medium'}`}>{s.label}</span>
                     )}
-                    {s.soon && !expanded && (
-                      <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-primary/60" />
-                    )}
-                    {s.soon && expanded && (
-                      <span className="ml-auto text-[10px] font-medium text-muted-foreground bg-accent rounded-full px-1.5 py-0.5">Soon</span>
-                    )}
                   </Link>
                 </TooltipTrigger>
                 {!expanded && (
                   <TooltipContent side="right" sideOffset={8} className="font-medium">
-                    {s.label}{s.soon ? ' — Coming soon' : ''}
+                    {s.label}
                   </TooltipContent>
                 )}
               </Tooltip>

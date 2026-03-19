@@ -27,15 +27,19 @@ import { Route as ApiSplatRouteImport } from './routes/api.$'
 import { Route as AuthSignupRouteImport } from './routes/_auth.signup'
 import { Route as AuthLoginRouteImport } from './routes/_auth.login'
 import { Route as AppUsageRouteImport } from './routes/_app.usage'
+import { Route as AppTradingRouteImport } from './routes/_app.trading'
+import { Route as AppSocialRouteImport } from './routes/_app.social'
 import { Route as AppSkillsRouteImport } from './routes/_app.skills'
 import { Route as AppSettingsRouteImport } from './routes/_app.settings'
 import { Route as AppSessionsRouteImport } from './routes/_app.sessions'
 import { Route as AppOverviewRouteImport } from './routes/_app.overview'
 import { Route as AppNodesRouteImport } from './routes/_app.nodes'
 import { Route as AppLogsRouteImport } from './routes/_app.logs'
+import { Route as AppGoogleRouteImport } from './routes/_app.google'
 import { Route as AppDebugRouteImport } from './routes/_app.debug'
 import { Route as AppCronRouteImport } from './routes/_app.cron'
 import { Route as AppConfigRouteImport } from './routes/_app.config'
+import { Route as AppCodingRouteImport } from './routes/_app.coding'
 import { Route as AppChatRouteImport } from './routes/_app.chat'
 import { Route as AppChannelsRouteImport } from './routes/_app.channels'
 import { Route as AppAgentsRouteImport } from './routes/_app.agents'
@@ -132,6 +136,16 @@ const AppUsageRoute = AppUsageRouteImport.update({
   path: '/usage',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTradingRoute = AppTradingRouteImport.update({
+  id: '/trading',
+  path: '/trading',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSocialRoute = AppSocialRouteImport.update({
+  id: '/social',
+  path: '/social',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppSkillsRoute = AppSkillsRouteImport.update({
   id: '/skills',
   path: '/skills',
@@ -162,6 +176,11 @@ const AppLogsRoute = AppLogsRouteImport.update({
   path: '/logs',
   getParentRoute: () => AppRoute,
 } as any)
+const AppGoogleRoute = AppGoogleRouteImport.update({
+  id: '/google',
+  path: '/google',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppDebugRoute = AppDebugRouteImport.update({
   id: '/debug',
   path: '/debug',
@@ -175,6 +194,11 @@ const AppCronRoute = AppCronRouteImport.update({
 const AppConfigRoute = AppConfigRouteImport.update({
   id: '/config',
   path: '/config',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppCodingRoute = AppCodingRouteImport.update({
+  id: '/coding',
+  path: '/coding',
   getParentRoute: () => AppRoute,
 } as any)
 const AppChatRoute = AppChatRouteImport.update({
@@ -219,15 +243,19 @@ export interface FileRoutesByFullPath {
   '/agents': typeof AppAgentsRoute
   '/channels': typeof AppChannelsRoute
   '/chat': typeof AppChatRoute
+  '/coding': typeof AppCodingRoute
   '/config': typeof AppConfigRoute
   '/cron': typeof AppCronRoute
   '/debug': typeof AppDebugRoute
+  '/google': typeof AppGoogleRoute
   '/logs': typeof AppLogsRoute
   '/nodes': typeof AppNodesRoute
   '/overview': typeof AppOverviewRoute
   '/sessions': typeof AppSessionsRoute
   '/settings': typeof AppSettingsRoute
   '/skills': typeof AppSkillsRoute
+  '/social': typeof AppSocialRoute
+  '/trading': typeof AppTradingRoute
   '/usage': typeof AppUsageRoute
   '/login': typeof AuthLoginRoute
   '/signup': typeof AuthSignupRoute
@@ -253,15 +281,19 @@ export interface FileRoutesByTo {
   '/agents': typeof AppAgentsRoute
   '/channels': typeof AppChannelsRoute
   '/chat': typeof AppChatRoute
+  '/coding': typeof AppCodingRoute
   '/config': typeof AppConfigRoute
   '/cron': typeof AppCronRoute
   '/debug': typeof AppDebugRoute
+  '/google': typeof AppGoogleRoute
   '/logs': typeof AppLogsRoute
   '/nodes': typeof AppNodesRoute
   '/overview': typeof AppOverviewRoute
   '/sessions': typeof AppSessionsRoute
   '/settings': typeof AppSettingsRoute
   '/skills': typeof AppSkillsRoute
+  '/social': typeof AppSocialRoute
+  '/trading': typeof AppTradingRoute
   '/usage': typeof AppUsageRoute
   '/login': typeof AuthLoginRoute
   '/signup': typeof AuthSignupRoute
@@ -290,15 +322,19 @@ export interface FileRoutesById {
   '/_app/agents': typeof AppAgentsRoute
   '/_app/channels': typeof AppChannelsRoute
   '/_app/chat': typeof AppChatRoute
+  '/_app/coding': typeof AppCodingRoute
   '/_app/config': typeof AppConfigRoute
   '/_app/cron': typeof AppCronRoute
   '/_app/debug': typeof AppDebugRoute
+  '/_app/google': typeof AppGoogleRoute
   '/_app/logs': typeof AppLogsRoute
   '/_app/nodes': typeof AppNodesRoute
   '/_app/overview': typeof AppOverviewRoute
   '/_app/sessions': typeof AppSessionsRoute
   '/_app/settings': typeof AppSettingsRoute
   '/_app/skills': typeof AppSkillsRoute
+  '/_app/social': typeof AppSocialRoute
+  '/_app/trading': typeof AppTradingRoute
   '/_app/usage': typeof AppUsageRoute
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/signup': typeof AuthSignupRoute
@@ -326,15 +362,19 @@ export interface FileRouteTypes {
     | '/agents'
     | '/channels'
     | '/chat'
+    | '/coding'
     | '/config'
     | '/cron'
     | '/debug'
+    | '/google'
     | '/logs'
     | '/nodes'
     | '/overview'
     | '/sessions'
     | '/settings'
     | '/skills'
+    | '/social'
+    | '/trading'
     | '/usage'
     | '/login'
     | '/signup'
@@ -360,15 +400,19 @@ export interface FileRouteTypes {
     | '/agents'
     | '/channels'
     | '/chat'
+    | '/coding'
     | '/config'
     | '/cron'
     | '/debug'
+    | '/google'
     | '/logs'
     | '/nodes'
     | '/overview'
     | '/sessions'
     | '/settings'
     | '/skills'
+    | '/social'
+    | '/trading'
     | '/usage'
     | '/login'
     | '/signup'
@@ -396,15 +440,19 @@ export interface FileRouteTypes {
     | '/_app/agents'
     | '/_app/channels'
     | '/_app/chat'
+    | '/_app/coding'
     | '/_app/config'
     | '/_app/cron'
     | '/_app/debug'
+    | '/_app/google'
     | '/_app/logs'
     | '/_app/nodes'
     | '/_app/overview'
     | '/_app/sessions'
     | '/_app/settings'
     | '/_app/skills'
+    | '/_app/social'
+    | '/_app/trading'
     | '/_app/usage'
     | '/_auth/login'
     | '/_auth/signup'
@@ -575,6 +623,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppUsageRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/trading': {
+      id: '/_app/trading'
+      path: '/trading'
+      fullPath: '/trading'
+      preLoaderRoute: typeof AppTradingRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/social': {
+      id: '/_app/social'
+      path: '/social'
+      fullPath: '/social'
+      preLoaderRoute: typeof AppSocialRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/skills': {
       id: '/_app/skills'
       path: '/skills'
@@ -617,6 +679,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppLogsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/google': {
+      id: '/_app/google'
+      path: '/google'
+      fullPath: '/google'
+      preLoaderRoute: typeof AppGoogleRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/_app/debug': {
       id: '/_app/debug'
       path: '/debug'
@@ -636,6 +705,13 @@ declare module '@tanstack/react-router' {
       path: '/config'
       fullPath: '/config'
       preLoaderRoute: typeof AppConfigRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/coding': {
+      id: '/_app/coding'
+      path: '/coding'
+      fullPath: '/coding'
+      preLoaderRoute: typeof AppCodingRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/chat': {
@@ -694,15 +770,19 @@ interface AppRouteChildren {
   AppAgentsRoute: typeof AppAgentsRoute
   AppChannelsRoute: typeof AppChannelsRoute
   AppChatRoute: typeof AppChatRoute
+  AppCodingRoute: typeof AppCodingRoute
   AppConfigRoute: typeof AppConfigRoute
   AppCronRoute: typeof AppCronRoute
   AppDebugRoute: typeof AppDebugRoute
+  AppGoogleRoute: typeof AppGoogleRoute
   AppLogsRoute: typeof AppLogsRoute
   AppNodesRoute: typeof AppNodesRoute
   AppOverviewRoute: typeof AppOverviewRoute
   AppSessionsRoute: typeof AppSessionsRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppSkillsRoute: typeof AppSkillsRoute
+  AppSocialRoute: typeof AppSocialRoute
+  AppTradingRoute: typeof AppTradingRoute
   AppUsageRoute: typeof AppUsageRoute
 }
 
@@ -710,15 +790,19 @@ const AppRouteChildren: AppRouteChildren = {
   AppAgentsRoute: AppAgentsRoute,
   AppChannelsRoute: AppChannelsRoute,
   AppChatRoute: AppChatRoute,
+  AppCodingRoute: AppCodingRoute,
   AppConfigRoute: AppConfigRoute,
   AppCronRoute: AppCronRoute,
   AppDebugRoute: AppDebugRoute,
+  AppGoogleRoute: AppGoogleRoute,
   AppLogsRoute: AppLogsRoute,
   AppNodesRoute: AppNodesRoute,
   AppOverviewRoute: AppOverviewRoute,
   AppSessionsRoute: AppSessionsRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppSkillsRoute: AppSkillsRoute,
+  AppSocialRoute: AppSocialRoute,
+  AppTradingRoute: AppTradingRoute,
   AppUsageRoute: AppUsageRoute,
 }
 

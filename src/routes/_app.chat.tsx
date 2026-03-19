@@ -35,7 +35,6 @@ import { Button } from '#/components/ui/button'
 import { Textarea } from '#/components/ui/textarea'
 import { Tooltip, TooltipContent, TooltipTrigger } from '#/components/ui/tooltip'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
-import { Badge } from '#/components/ui/badge'
 import { MagicCard } from '#/components/ui/magic-card'
 import { BorderBeam } from '#/components/ui/border-beam'
 import { BlurFade } from '#/components/ui/blur-fade'
@@ -355,7 +354,7 @@ function ChatPage() {
     try {
       await apiFetch(`/api/chat?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
       if (conversationId === id) {
-        navigate({ to: '/chat' })
+        navigate({ to: '/chat', search: {} })
       }
       loadConversations()
     } catch {
@@ -364,7 +363,7 @@ function ChatPage() {
   }
 
   function startNewChat() {
-    navigate({ to: '/chat' })
+    navigate({ to: '/chat', search: {} })
     setConversationId(null)
     setMessages([])
     setActiveChannel('web')
@@ -1227,7 +1226,7 @@ function ChatPage() {
                     <div
                       className={`relative group max-w-[85%] ${
                         isUser
-                          ? 'rounded-2xl rounded-br-md bg-foreground text-background px-4 py-2.5 shadow-sm'
+                          ? 'rounded-2xl rounded-br-md bg-primary text-primary-foreground px-4 py-2.5 shadow-sm'
                           : 'pt-0.5'
                       }`}
                     >
@@ -1250,7 +1249,7 @@ function ChatPage() {
                                       </a>
                                     ) : (
                                       <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer"
-                                        className="flex items-center gap-2 rounded-lg bg-background/10 px-3 py-2 text-xs hover:bg-background/20 transition-colors">
+                                        className="flex items-center gap-2 rounded-lg bg-primary-foreground/10 px-3 py-2 text-xs hover:bg-primary-foreground/20 transition-colors">
                                         <FileIcon className="size-4" />
                                         <span className="truncate max-w-40">{att.name}</span>
                                       </a>
@@ -1279,7 +1278,7 @@ function ChatPage() {
                       )}
                       {msg.content && !isUser && <CopyButton text={msg.content} />}
                       {msg.createdAt && (
-                        <span className={`block mt-1 text-[10px] ${isUser ? 'text-background/60' : 'text-muted-foreground'}`}>
+                        <span className={`block mt-1 text-[10px] ${isUser ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
                           {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       )}
