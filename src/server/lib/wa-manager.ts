@@ -186,8 +186,17 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
       log("  messageType:", msg.message ? Object.keys(msg.message).join(", ") : "null");
       
       if (msg.key.fromMe) {
-        log("  SKIPPED: fromMe=true");
-        continue;
+        // Allow self-chat: user messaging their own WhatsApp number
+        // Normalize JIDs by stripping device suffix (e.g. "123:5@s.whatsapp.net" → "123@s.whatsapp.net")
+        const normalizeJid = (jid: string) => jid.replace(/:\d+@/, "@");
+        const ownJid = conn.jid ? normalizeJid(conn.jid) : "";
+        const remoteJid = msg.key.remoteJid ? normalizeJid(msg.key.remoteJid) : "";
+        const isSelfChat = ownJid && remoteJid === ownJid;
+        if (!isSelfChat) {
+          log("  SKIPPED: fromMe=true (not self-chat)");
+          continue;
+        }
+        log("  ALLOWED: self-chat message (fromMe=true, remoteJid matches own JID)");
       }
       
       const text =

@@ -38,25 +38,142 @@ export const Route = createFileRoute('/_app/config')({
 
 interface ConfigField {
   key: string
-  value: string
-  type: 'string' | 'number' | 'boolean' | 'select'
+  type: 'string' | 'number' | 'boolean' | 'select' | 'array'
   label: string
   description: string
   tag: string
   options?: string[]
 }
 
-const CONFIG_TAGS = ['all', 'general', 'model', 'channels', 'safety', 'advanced'] as const
+const CONFIG_TAGS = ['all', 'general', 'model', 'channels', 'advanced'] as const
+
+/** Read a nested value from an object using dot-notation path */
+function getNestedValue(obj: Record<string, any>, path: string): any {
+  return path.split('.').reduce((curr: any, key) => curr?.[key], obj)
+}
+
+/** Immutably set a nested value using dot-notation path */
+function setNestedValue(obj: Record<string, any>, path: string, value: any): Record<string, any> {
+  const clone = JSON.parse(JSON.stringify(obj))
+  const keys = path.split('.')
+  let cursor: any = clone
+  for (let i = 0; i < keys.length - 1; i++) {
+    if (cursor[keys[i]] == null || typeof cursor[keys[i]] !== 'object') {
+      cursor[keys[i]] = {}
+    }
+    cursor = cursor[keys[i]]
+  }
+  cursor[keys[keys.length - 1]] = value
+  return clone
+}
+
+// Schema-mapped config fields — keys match exact MongoDB paths
+const CONFIG_FIELDS: ConfigField[] = [
+  {
+    key: 'agents.defaults.model.primary',
+    type: 'select',
+    label: 'Default Model',
+    description: 'Primary AI model for all conversations (format: provider/model-id)',
+    tag: 'model',
+    options: [
+      'github/gpt-4o',
+      'github/gpt-4.1',
+      'github/gpt-4.1-mini',
+      'github-copilot/gpt-4o',
+      'github-copilot/claude-sonnet-4-20250514',
+      'github-copilot/gemini-2.0-flash',
+      'anthropic/claude-opus-4-5',
+      'anthropic/claude-sonnet-4-5',
+      'openai/gpt-4o',
+      'openai/gpt-4.1',
+      'openai/o3',
+      'google/gemini-2.5-pro',
+      'google/gemini-2.5-flash',
+      'mistral/mistral-large-latest',
+      'xai/grok-3',
+      'openrouter/meta-llama/llama-3.3-70b-instruct',
+    ],
+  },
+  {
+    key: 'systemPrompt',
+    type: 'string',
+    label: 'System Prompt',
+    description: 'Base system prompt injected into every conversation',
+    tag: 'general',
+  },
+  // WhatsApp
+  {
+    key: 'channels.whatsapp.enabled',
+    type: 'boolean',
+    label: 'WhatsApp — Enabled',
+    description: 'Allow incoming messages through WhatsApp',
+    tag: 'channels',
+  },
+  {
+    key: 'channels.whatsapp.dmPolicy',
+    type: 'select',
+    label: 'WhatsApp — DM Policy',
+    description: 'Who can send the AI a direct message on WhatsApp',
+    tag: 'channels',
+    options: ['open', 'pairing', 'allowlist', 'disabled'],
+  },
+  {
+    key: 'channels.whatsapp.selfChatMode',
+    type: 'boolean',
+    label: 'WhatsApp — Self-Chat Mode',
+    description: 'AI replies when you message your own WhatsApp number',
+    tag: 'channels',
+  },
+  {
+    key: 'channels.whatsapp.allowFrom',
+    type: 'array',
+    label: 'WhatsApp — Allowed Senders',
+    description: 'Comma-separated phone numbers allowed to message (use * for everyone)',
+    tag: 'channels',
+  },
+  {
+    key: 'channels.whatsapp.groupPolicy',
+    type: 'select',
+    label: 'WhatsApp — Group Policy',
+    description: 'How the AI behaves in WhatsApp group chats',
+    tag: 'channels',
+    options: ['open', 'allowlist', 'disabled'],
+  },
+  // Telegram
+  {
+    key: 'channels.telegram.enabled',
+    type: 'boolean',
+    label: 'Telegram — Enabled',
+    description: 'Allow incoming messages through Telegram',
+    tag: 'channels',
+  },
+  {
+    key: 'channels.telegram.dmPolicy',
+    type: 'select',
+    label: 'Telegram — DM Policy',
+    description: 'Who can send the AI a direct message on Telegram',
+    tag: 'channels',
+    options: ['open', 'pairing', 'allowlist', 'disabled'],
+  },
+  // Advanced
+  {
+    key: 'agents.defaults.maxConcurrent',
+    type: 'number',
+    label: 'Max Concurrent Requests',
+    description: 'Maximum simultaneous AI requests',
+    tag: 'advanced',
+  },
+]
 
 function ConfigPage() {
-  const [config, setConfig] = useState<Record<string, unknown>>({})
+  const [config, setConfig] = useState<Record<string, any>>({})
   const [rawJson, setRawJson] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [activeTag, setActiveTag] = useState<string>('all')
   const [searchFilter, setSearchFilter] = useState('')
 
-  async function loadConfig() {
+  async function fetchConfig() {
     setLoading(true)
     try {
       const res = await apiFetch('/api/config')
@@ -72,96 +189,14 @@ function ConfigPage() {
   }
 
   useEffect(() => {
-    loadConfig()
+    fetchConfig()
   }, [])
 
-  // Build config fields from the loaded config — schema-driven like OpenClaw
-  const configFields: ConfigField[] = [
-    {
-      key: 'model',
-      value: String(config.model || ''),
-      type: 'select',
-      label: 'Default Model',
-      description: 'The default AI model for all conversations',
-      tag: 'model',
-      options: [
-        'anthropic/claude-opus-4-6',
-        'anthropic/claude-sonnet-4',
-        'openai/gpt-4o',
-        'openai/o3',
-        'google/gemini-2.5-pro',
-        'mistral/mistral-large-latest',
-        'xai/grok-3',
-      ],
-    },
-    {
-      key: 'provider',
-      value: String(config.provider || ''),
-      type: 'select',
-      label: 'Default Provider',
-      description: 'Primary AI provider',
-      tag: 'model',
-      options: ['anthropic', 'openai', 'google', 'mistral', 'xai'],
-    },
-    {
-      key: 'systemPrompt',
-      value: String(config.systemPrompt || ''),
-      type: 'string',
-      label: 'System Prompt',
-      description: 'The base system prompt for all agents',
-      tag: 'general',
-    },
-    {
-      key: 'maxTokens',
-      value: String(config.maxTokens || '4096'),
-      type: 'number',
-      label: 'Max Tokens',
-      description: 'Maximum response token limit',
-      tag: 'model',
-    },
-    {
-      key: 'temperature',
-      value: String(config.temperature || '0.7'),
-      type: 'number',
-      label: 'Temperature',
-      description: 'Sampling temperature (0-2)',
-      tag: 'model',
-    },
-    {
-      key: 'whatsappEnabled',
-      value: String(config.whatsappEnabled ?? true),
-      type: 'boolean',
-      label: 'WhatsApp Channel',
-      description: 'Enable WhatsApp messaging channel',
-      tag: 'channels',
-    },
-    {
-      key: 'telegramEnabled',
-      value: String(config.telegramEnabled ?? true),
-      type: 'boolean',
-      label: 'Telegram Channel',
-      description: 'Enable Telegram messaging channel',
-      tag: 'channels',
-    },
-    {
-      key: 'safetyFilter',
-      value: String(config.safetyFilter ?? true),
-      type: 'boolean',
-      label: 'Safety Filter',
-      description: 'Enable content safety filtering on responses',
-      tag: 'safety',
-    },
-    {
-      key: 'debugMode',
-      value: String(config.debugMode ?? false),
-      type: 'boolean',
-      label: 'Debug Mode',
-      description: 'Enable verbose debug logging',
-      tag: 'advanced',
-    },
-  ]
+  function updateField(key: string, value: string | boolean | number | string[]) {
+    setConfig((prev) => setNestedValue(prev, key, value))
+  }
 
-  const filteredFields = configFields.filter((f) => {
+  const filteredFields = CONFIG_FIELDS.filter((f) => {
     const tagMatch = activeTag === 'all' || f.tag === activeTag
     const searchMatch =
       !searchFilter ||
@@ -173,16 +208,18 @@ function ConfigPage() {
   async function handleSave() {
     setSaving(true)
     try {
-      const res = await apiFetch('/api/config', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
-      })
-      if (res.ok) {
-        toast.success('Configuration saved')
-      } else {
-        toast.error('Failed to save configuration')
+      // Use PATCH with path/value for each field to avoid overwriting unrelated config
+      for (const field of CONFIG_FIELDS) {
+        const value = getNestedValue(config, field.key)
+        if (value !== undefined) {
+          await apiFetch('/api/config', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ path: field.key, value }),
+          })
+        }
       }
+      toast.success('Configuration saved')
     } catch {
       toast.error('Failed to save configuration')
     }
@@ -193,25 +230,111 @@ function ConfigPage() {
     setSaving(true)
     try {
       const parsed = JSON.parse(rawJson)
+      // Strip Mongoose metadata before sending
+      const { _id, __v, createdAt, updatedAt, userId, ...updates } = parsed
+      void _id; void __v; void createdAt; void updatedAt; void userId
       const res = await apiFetch('/api/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(parsed),
+        body: JSON.stringify(updates),
       })
       if (res.ok) {
-        setConfig(parsed)
+        const saved = await res.json()
+        setConfig(saved)
+        setRawJson(JSON.stringify(saved, null, 2))
         toast.success('Configuration saved from JSON')
       } else {
         toast.error('Failed to save')
       }
     } catch {
-      toast.error('Invalid JSON')
+      toast.error('Invalid JSON — check syntax and try again')
     }
     setSaving(false)
   }
 
-  function updateField(key: string, value: string | boolean | number) {
-    setConfig((prev) => ({ ...prev, [key]: value }))
+  function renderField(field: ConfigField) {
+    const raw = getNestedValue(config, field.key)
+
+    if (field.type === 'boolean') {
+      return (
+        <Switch
+          id={field.key}
+          checked={raw === true}
+          onCheckedChange={(checked) => updateField(field.key, checked)}
+        />
+      )
+    }
+
+    if (field.type === 'select' && field.options) {
+      return (
+        <Select value={String(raw ?? '')} onValueChange={(v) => updateField(field.key, v)}>
+          <SelectTrigger className="max-w-sm">
+            <SelectValue placeholder="Select..." />
+          </SelectTrigger>
+          <SelectContent>
+            {field.options.map((opt) => (
+              <SelectItem key={opt} value={opt}>
+                {opt}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )
+    }
+
+    if (field.type === 'array') {
+      const display = Array.isArray(raw) ? raw.join(', ') : String(raw ?? '*')
+      return (
+        <Input
+          id={field.key}
+          value={display}
+          placeholder="*, +1234567890, +9876543210"
+          onChange={(e) =>
+            updateField(
+              field.key,
+              e.target.value
+                .split(',')
+                .map((s) => s.trim())
+                .filter(Boolean),
+            )
+          }
+        />
+      )
+    }
+
+    if (field.type === 'number') {
+      return (
+        <Input
+          id={field.key}
+          type="number"
+          value={String(raw ?? '')}
+          onChange={(e) => updateField(field.key, Number(e.target.value))}
+          className="max-w-50"
+        />
+      )
+    }
+
+    // string — detect system prompt for textarea
+    if (field.key === 'systemPrompt') {
+      return (
+        <Textarea
+          id={field.key}
+          value={String(raw ?? '')}
+          onChange={(e) => updateField(field.key, e.target.value)}
+          rows={5}
+          className="font-mono text-xs"
+          placeholder="You are a helpful AI assistant..."
+        />
+      )
+    }
+
+    return (
+      <Input
+        id={field.key}
+        value={String(raw ?? '')}
+        onChange={(e) => updateField(field.key, e.target.value)}
+      />
+    )
   }
 
   return (
@@ -222,11 +345,11 @@ function ConfigPage() {
             <div>
               <h1 className="text-2xl font-heading font-semibold">Config</h1>
               <p className="text-sm text-muted-foreground">
-                Schema-driven configuration editor with form and raw JSON views.
+                Schema-driven configuration editor. Field keys map directly to the database schema.
               </p>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={loadConfig} disabled={loading}>
+              <Button variant="outline" size="sm" onClick={fetchConfig} disabled={loading}>
                 <RefreshCw className={`size-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
@@ -245,7 +368,7 @@ function ConfigPage() {
               </TabsTrigger>
             </TabsList>
 
-            {/* Form View — OpenClaw style with tag filters */}
+            {/* Form View */}
             <TabsContent value="form" className="space-y-4">
               <div className="flex items-center gap-3">
                 <div className="relative flex-1 max-w-sm">
@@ -257,7 +380,7 @@ function ConfigPage() {
                     className="pl-9"
                   />
                 </div>
-                <div className="flex gap-1.5">
+                <div className="flex gap-1.5 flex-wrap">
                   {CONFIG_TAGS.map((tag) => (
                     <Badge
                       key={tag}
@@ -274,65 +397,28 @@ function ConfigPage() {
 
               <Card>
                 <CardContent className="pt-6 space-y-6">
+                  {filteredFields.length === 0 && (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      No fields match your filter.
+                    </p>
+                  )}
                   {filteredFields.map((field) => (
                     <div key={field.key} className="grid gap-2">
                       <div className="flex items-center justify-between">
                         <Label htmlFor={field.key} className="text-sm font-medium">
                           {field.label}
                         </Label>
-                        <Badge variant="outline" className="text-[10px] capitalize">
+                        <Badge variant="outline" className="text-[10px] capitalize font-mono">
                           {field.tag}
                         </Badge>
                       </div>
                       <p className="text-xs text-muted-foreground">{field.description}</p>
-                      {field.type === 'string' && field.key === 'systemPrompt' ? (
-                        <Textarea
-                          id={field.key}
-                          value={String(config[field.key] || '')}
-                          onChange={(e) => updateField(field.key, e.target.value)}
-                          rows={4}
-                          className="font-mono text-xs"
-                        />
-                      ) : field.type === 'string' ? (
-                        <Input
-                          id={field.key}
-                          value={String(config[field.key] || '')}
-                          onChange={(e) => updateField(field.key, e.target.value)}
-                        />
-                      ) : field.type === 'number' ? (
-                        <Input
-                          id={field.key}
-                          type="number"
-                          value={String(config[field.key] || '')}
-                          onChange={(e) => updateField(field.key, Number(e.target.value))}
-                          className="max-w-[200px]"
-                        />
-                      ) : field.type === 'boolean' ? (
-                        <Switch
-                          id={field.key}
-                          checked={config[field.key] === true || config[field.key] === 'true'}
-                          onCheckedChange={(checked) => updateField(field.key, checked)}
-                        />
-                      ) : field.type === 'select' && field.options ? (
-                        <Select
-                          value={String(config[field.key] || '')}
-                          onValueChange={(v) => updateField(field.key, v)}
-                        >
-                          <SelectTrigger className="max-w-sm">
-                            <SelectValue placeholder="Select..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {field.options.map((opt) => (
-                              <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      ) : null}
+                      {renderField(field)}
                     </div>
                   ))}
 
                   <div className="flex justify-end pt-4 border-t">
-                    <Button onClick={handleSave} disabled={saving}>
+                    <Button onClick={handleSave} disabled={saving || loading}>
                       <Save className="size-4 mr-2" />
                       {saving ? 'Saving...' : 'Save Configuration'}
                     </Button>
@@ -347,14 +433,15 @@ function ConfigPage() {
                 <CardHeader>
                   <CardTitle className="text-base">Raw Configuration</CardTitle>
                   <CardDescription>
-                    Edit the configuration as raw JSON. Changes are applied on save.
+                    Direct JSON editor. Only edit if you know the exact schema paths. Invalid
+                    changes can break AI replies.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <Textarea
                     value={rawJson}
                     onChange={(e) => setRawJson(e.target.value)}
-                    rows={24}
+                    rows={28}
                     className="font-mono text-xs"
                   />
                   <div className="flex justify-end mt-4">

@@ -19,8 +19,11 @@ export const Route = createFileRoute("/api/config")({
         await connectDB();
         const userId = (session.user as any).id;
         const body = await request.json();
+        // Strip immutable Mongoose fields before assigning to prevent _id / userId conflicts
+        const { _id, __v, createdAt, updatedAt, userId: _bodyUserId, ...updates } = body;
+        void _id; void __v; void createdAt; void updatedAt; void _bodyUserId;
         const config = await loadConfig(userId);
-        Object.assign(config, body);
+        Object.assign(config, updates);
         await saveConfig(config);
         return Response.json(config);
       },
