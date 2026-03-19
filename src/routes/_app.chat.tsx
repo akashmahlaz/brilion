@@ -43,6 +43,23 @@ import { Ripple } from '#/components/ui/ripple'
 import { toast } from 'sonner'
 import { apiFetch } from '#/lib/api'
 
+// ─── Parse message content — separate text from image/file attachments ───
+const ATTACHMENT_RE = /\[(Image|File):\s*([^\]]+)\]\(([^)]+)\)/g
+
+interface ParsedContent {
+  text: string
+  attachments: { type: 'image' | 'file'; name: string; url: string }[]
+}
+
+function parseMessageContent(content: string): ParsedContent {
+  const attachments: ParsedContent['attachments'] = []
+  const text = content.replace(ATTACHMENT_RE, (_, type, name, url) => {
+    attachments.push({ type: type.toLowerCase() as 'image' | 'file', name: name.trim(), url })
+    return ''
+  }).trim()
+  return { text, attachments }
+}
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface Message {
   role: 'user' | 'assistant' | 'system'
@@ -258,6 +275,44 @@ function ChatPage() {
     } catch { /* ignore */ }
   }
 
+  async function loadWaOnboarding() {
+    try {
+      const res = await apiFetch('/api/whatsapp?action=onboarding')
+      if (!res.ok) return
+      const data = await res.json()
+      setWaSettings({
+        numberType: data.phoneType || null,
+        accessMode: data.dmPolicy === 'allowlist' ? 'specific' : data.dmPolicy === 'open' ? 'all' : null,
+        allowedNumbers: (data.allowFrom || []).filter((n: string) => n !== '*').join(', '),
+      })
+    } catch { /* ignore */ }
+  }
+
+  async function saveWaSettings() {
+    try {
+      const dmPolicy = waSettings.accessMode === 'specific' ? 'allowlist' : waSettings.accessMode === 'all' ? 'open' : 'pairing'
+      const allowFrom = waSettings.accessMode === 'specific'
+        ? waSettings.allowedNumbers.split(',').map(n => n.trim()).filter(Boolean)
+        : ['*']
+
+      const res = await apiFetch('/api/whatsapp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'onboarding',
+          phoneType: waSettings.numberType,
+          dmPolicy,
+          allowFrom,
+        }),
+      })
+      if (!res.ok) throw new Error('Failed to save')
+      toast.success('WhatsApp settings saved')
+      setChannelPanelOpen(false)
+    } catch {
+      toast.error('Failed to save WhatsApp settings')
+    }
+  }
+
   async function loadConversation(id: string) {
     try {
       const res = await apiFetch(`/api/chat?id=${encodeURIComponent(id)}`)
@@ -395,6 +450,7 @@ function ChatPage() {
             if (pollData.status === 'connected') {
               clearInterval(interval)
               toast.success('WhatsApp connected!')
+              loadWaOnboarding()
               setChannelPanelView('whatsapp-settings')
               await loadChannelStatus()
             }
@@ -681,7 +737,12 @@ function ChatPage() {
                             onClick={() => {
                               if (isWeb) return
                               if (key === 'whatsapp') {
-                                connected ? setChannelPanelView('whatsapp-settings') : startWhatsAppConnect()
+                                if (connected) {
+                                  loadWaOnboarding()
+                                  setChannelPanelView('whatsapp-settings')
+                                } else {
+                                  startWhatsAppConnect()
+                                }
                               } else if (key === 'telegram') {
                                 setChannelPanelView('telegram-connect')
                               }
@@ -972,10 +1033,7 @@ function ChatPage() {
                         <Button
                           size="sm"
                           className="flex-1 rounded-xl text-[12px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-                          onClick={() => {
-                            toast.success('WhatsApp settings saved')
-                            setChannelPanelOpen(false)
-                          }}
+                          onClick={saveWaSettings}
                           disabled={!waSettings.numberType || !waSettings.accessMode}
                         >
                           <Check className="size-3 mr-1.5" />
@@ -1174,12 +1232,47 @@ function ChatPage() {
                       }`}
                     >
                       {isUser ? (
-                        <div className="text-sm leading-relaxed whitespace-pre-wrap wrap-break-word">
-                          {msg.content}
-                        </div>
+                        (() => {
+                          const { text, attachments } = parseMessageContent(msg.content)
+                          return (
+                            <div className="text-sm leading-relaxed">
+                              {text && <p className="whitespace-pre-wrap wrap-break-word">{text}</p>}
+                              {attachments.length > 0 && (
+                                <div className={`flex flex-wrap gap-2 ${text ? 'mt-2' : ''}`}>
+                                  {attachments.map((att, ai) =>
+                                    att.type === 'image' ? (
+                                      <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="block">
+                                        <img
+                                          src={att.url}
+                                          alt={att.name}
+                                          className="max-w-60 max-h-48 rounded-lg object-cover border border-background/20"
+                                        />
+                                      </a>
+                                    ) : (
+                                      <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer"
+                                        className="flex items-center gap-2 rounded-lg bg-background/10 px-3 py-2 text-xs hover:bg-background/20 transition-colors">
+                                        <FileIcon className="size-4" />
+                                        <span className="truncate max-w-40">{att.name}</span>
+                                      </a>
+                                    )
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })()
                       ) : (
                         <div className="prose prose-sm max-w-none text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 prose-p:my-1.5 prose-pre:my-2.5 prose-pre:rounded-xl prose-pre:bg-muted prose-pre:text-foreground prose-code:before:content-none prose-code:after:content-none prose-code:bg-muted prose-code:text-foreground prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-xs prose-headings:text-foreground prose-headings:font-heading wrap-break-word leading-relaxed">
-                          <Markdown remarkPlugins={[remarkGfm]}>
+                          <Markdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              img: ({ src, alt, ...props }) => (
+                                <a href={src} target="_blank" rel="noopener noreferrer" className="block my-2">
+                                  <img src={src} alt={alt || ''} {...props} className="max-w-80 max-h-60 rounded-lg object-cover border border-border" loading="lazy" />
+                                </a>
+                              ),
+                            }}
+                          >
                             {msg.content || '…'}
                           </Markdown>
                         </div>

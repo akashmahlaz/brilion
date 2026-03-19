@@ -4,15 +4,92 @@ import { connectDB } from "#/server/db";
 import { requireAuth } from "#/server/middleware";
 import { Conversation } from "#/server/models/conversation";
 import { getAgentConfig } from "#/server/lib/agent";
+import path from "node:path";
+import fs from "node:fs/promises";
+
+const UPLOAD_DIR = path.resolve("uploads");
+const ATTACHMENT_RE = /\[(Image|File):\s*([^\]]+)\]\(([^)]+)\)/g;
+
+/** Read uploaded image from disk and return as base64 data URL */
+async function readUploadedImage(url: string): Promise<{ data: string; mimeType: string } | null> {
+  try {
+    // url looks like: /api/upload?file=userId/filename
+    const parsed = new URL(url, "http://localhost");
+    const filePart = parsed.searchParams.get("file");
+    if (!filePart) return null;
+
+    // Sanitize path to prevent traversal
+    const safePath = path.normalize(filePart).replace(/^(\.\.[/\\])+/, "");
+    const filePath = path.join(UPLOAD_DIR, safePath);
+    if (!filePath.startsWith(UPLOAD_DIR)) return null;
+
+    const buffer = await fs.readFile(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeMap: Record<string, string> = {
+      ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+      ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
+    };
+    const mimeType = mimeMap[ext] || "image/png";
+    return { data: buffer.toString("base64"), mimeType };
+  } catch {
+    return null;
+  }
+}
+
+/** Transform messages to multimodal format — converts [Image: name](url) to actual image parts */
+async function transformMessages(messages: any[]): Promise<any[]> {
+  const result = [];
+  for (const msg of messages) {
+    if (msg.role !== "user" || typeof msg.content !== "string" || !ATTACHMENT_RE.test(msg.content)) {
+      result.push(msg);
+      continue;
+    }
+
+    // Reset regex
+    ATTACHMENT_RE.lastIndex = 0;
+    const parts: any[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = ATTACHMENT_RE.exec(msg.content)) !== null) {
+      const [full, type, _name, url] = match;
+      // Add preceding text
+      const before = msg.content.slice(lastIndex, match.index).trim();
+      if (before) parts.push({ type: "text", text: before });
+
+      if (type === "Image") {
+        const img = await readUploadedImage(url);
+        if (img) {
+          parts.push({ type: "image", image: img.data, mimeType: img.mimeType });
+        } else {
+          parts.push({ type: "text", text: `[Image attached: ${_name}]` });
+        }
+      } else {
+        parts.push({ type: "text", text: `[File attached: ${_name}]` });
+      }
+      lastIndex = match.index + full.length;
+    }
+
+    // Remaining text
+    const remaining = msg.content.slice(lastIndex).trim();
+    if (remaining) parts.push({ type: "text", text: remaining });
+
+    // If no parts extracted, keep original
+    result.push(parts.length > 0 ? { ...msg, content: parts } : msg);
+  }
+  return result;
+}
 
 /**
  * Generate a short title from the first user message using a simple heuristic.
  * Takes first ~60 chars, trims to last complete word.
  */
 function generateTitle(text: string): string {
-  const cleaned = text.replace(/\n+/g, " ").trim();
-  if (cleaned.length <= 50) return cleaned;
-  const truncated = cleaned.slice(0, 50);
+  // Strip attachment markdown for cleaner titles
+  const cleaned = text.replace(ATTACHMENT_RE, "").replace(/\n+/g, " ").trim();
+  const final = cleaned || "Image conversation";
+  if (final.length <= 50) return final;
+  const truncated = final.slice(0, 50);
   const lastSpace = truncated.lastIndexOf(" ");
   return (lastSpace > 20 ? truncated.slice(0, lastSpace) : truncated) + "…";
 }
@@ -36,10 +113,13 @@ export const Route = createFileRoute("/api/chat")({
             ).resolveModel(modelSpec, userId)
           : undefined;
 
+        // Transform messages — convert [Image: name](url) to actual multimodal image parts
+        const aiMessages = await transformMessages(messages);
+
         const result = streamText({
           ...agentConfig,
           ...(modelOverride ? { model: modelOverride } : {}),
-          messages,
+          messages: aiMessages,
         });
 
         // Save conversation in background (web chat only — channel messages saved by router)
