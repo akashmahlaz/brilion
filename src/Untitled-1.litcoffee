@@ -9,7 +9,7 @@ And brilion will memorize all.
 4. Traders 
 5. Coding
 6. Real Estate
-7. Teachers, Professional like govt jobs
+7. Teachers, Professional like govt jobs 
 8. Law Firms - Lawyers, Judis
 9. Doctors 
 10. Founders
