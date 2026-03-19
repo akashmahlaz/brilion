@@ -2,6 +2,7 @@ import makeWASocket, {
   makeCacheableSignalKeyStore,
   DisconnectReason,
   fetchLatestBaileysVersion,
+  downloadMediaMessage,
 } from "@whiskeysockets/baileys";
 import type { ConnectionState } from "@whiskeysockets/baileys";
 import QRCode from "qrcode";
@@ -28,7 +29,7 @@ interface LoginSession {
   restartAttempted: boolean;
 }
 
-type MessageHandler = (userId: string, msg: { jid: string; text: string; pushName?: string }) => void;
+type MessageHandler = (userId: string, msg: { jid: string; text: string; pushName?: string; imageBase64?: string; imageMime?: string }) => void;
 
 const connections = new Map<string, UserConnection>();
 const loginSessions = new Map<string, LoginSession>();
@@ -191,12 +192,31 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
       
       const text =
         msg.message?.conversation ||
-        msg.message?.extendedTextMessage?.text;
+        msg.message?.extendedTextMessage?.text ||
+        msg.message?.imageMessage?.caption ||
+        "";
       
+      // Check for image message
+      const imageMsg = msg.message?.imageMessage;
+      let imageBase64: string | undefined;
+      let imageMime: string | undefined;
+
+      if (imageMsg) {
+        try {
+          log("  Downloading image media...");
+          const buffer = await downloadMediaMessage(msg, "buffer", {});
+          imageBase64 = Buffer.from(buffer as Buffer).toString("base64");
+          imageMime = imageMsg.mimetype || "image/jpeg";
+          log("  Image downloaded:", Math.round((imageBase64.length * 3) / 4 / 1024), "KB", imageMime);
+        } catch (e) {
+          logErr("  Failed to download image:", e);
+        }
+      }
+
       log("  Extracted text:", text ? `"${text.substring(0, 100)}"` : "null/empty");
       
-      if (!text) {
-        log("  SKIPPED: no text content");
+      if (!text && !imageBase64) {
+        log("  SKIPPED: no text or image content");
         log("  Full message object keys:", msg.message ? Object.keys(msg.message).join(", ") : "null");
         continue;
       }
@@ -212,8 +232,10 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
         try {
           messageHandlers[i](userId, {
             jid: msg.key.remoteJid,
-            text,
+            text: text || (imageBase64 ? "[User sent an image]" : ""),
             pushName: msg.pushName || undefined,
+            imageBase64,
+            imageMime,
           });
           log("  Handler", i, "called successfully");
         } catch (e) {

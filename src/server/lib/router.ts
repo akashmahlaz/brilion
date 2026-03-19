@@ -20,6 +20,8 @@ interface IncomingMessage {
   senderName?: string;
   text: string;
   foreignId?: string;
+  imageBase64?: string;
+  imageMime?: string;
 }
 
 interface ChannelConfig {
@@ -240,7 +242,18 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
     role: m.role,
     content: m.content,
   }));
-  history.push({ role: "user" as const, content: msg.text });
+
+  // Build the current user message — multimodal if image attached
+  if (msg.imageBase64 && msg.imageMime) {
+    const parts: any[] = [];
+    if (msg.text && msg.text !== "[User sent an image]") {
+      parts.push({ type: "text", text: msg.text });
+    }
+    parts.push({ type: "image", image: msg.imageBase64, mimeType: msg.imageMime });
+    history.push({ role: "user" as const, content: parts });
+  } else {
+    history.push({ role: "user" as const, content: msg.text });
+  }
   log("Message history length:", history.length);
 
   // Get agent config (model + tools + system prompt)
@@ -354,6 +367,8 @@ export async function initMessageRouter(userId: string): Promise<void> {
       senderId: msg.jid,
       senderName: msg.pushName,
       text: msg.text,
+      imageBase64: msg.imageBase64,
+      imageMime: msg.imageMime,
     }).then((reply) => {
       log("  routeMessage() completed. Reply length:", reply?.length);
     }).catch((err) => {
