@@ -27,6 +27,9 @@ RUN addgroup -S brilion && adduser -S brilion -G brilion
 # Copy only the build output (self-contained Nitro server)
 COPY --from=build /app/.output ./.output
 
+# Copy node_modules for externalized packages (baileys, grammy, sharp, pino, etc.)
+COPY --from=deps /app/node_modules ./node_modules
+
 # Create uploads directory with proper permissions
 RUN mkdir -p /app/uploads && chown -R brilion:brilion /app
 
