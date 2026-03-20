@@ -186,10 +186,36 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   // Check channel permissions
   const channelCfg = config.channels?.[msg.channel] as ChannelConfig | undefined;
   log("Channel config:", JSON.stringify(channelCfg));
-  
-  if (channelCfg && !isAllowed(msg.senderId, channelCfg)) {
+
+  // Self-chat check: if sender JID matches the owner's WhatsApp JID, honour selfChatMode
+  if (msg.channel === "whatsapp" && config.channels?.whatsapp) {
+    const { isWhatsAppConnected: _isConn } = await import("../channels/whatsapp");
+    const { getOwnerJid } = await import("./wa-manager");
+    const ownerJid = getOwnerJid(ownerId);
+    if (ownerJid) {
+      const normalizeJid = (jid: string) => jid.replace(/:\d+@/, "@");
+      const isSelfChat = normalizeJid(msg.senderId) === normalizeJid(ownerJid);
+      if (isSelfChat) {
+        const selfChatEnabled = config.channels.whatsapp.selfChatMode !== false;
+        log("Self-chat detected. selfChatMode:", selfChatEnabled);
+        if (!selfChatEnabled) {
+          log("BLOCKED: selfChatMode is disabled");
+          return "[blocked] Self-chat mode is disabled.";
+        }
+        // Self-chat is allowed — skip the normal isAllowed check
+        log("Self-chat ALLOWED — skipping DM policy check");
+      } else if (channelCfg && !isAllowed(msg.senderId, channelCfg)) {
+        log("BLOCKED: sender not allowed:", msg.senderId);
+        await sendWhatsAppMessage(ownerId, msg.senderId, "[blocked] Sender not allowed by DM policy.");
+        return "[blocked] Sender not allowed by DM policy.";
+      }
+    } else if (channelCfg && !isAllowed(msg.senderId, channelCfg)) {
+      log("BLOCKED: sender not allowed:", msg.senderId);
+      await sendWhatsAppMessage(ownerId, msg.senderId, "[blocked] Sender not allowed by DM policy.");
+      return "[blocked] Sender not allowed by DM policy.";
+    }
+  } else if (channelCfg && !isAllowed(msg.senderId, channelCfg)) {
     log("BLOCKED: sender not allowed:", msg.senderId);
-    // Still send the blocked message back so user knows
     if (msg.channel === "whatsapp") {
       await sendWhatsAppMessage(ownerId, msg.senderId, "[blocked] Sender not allowed by DM policy.");
     }

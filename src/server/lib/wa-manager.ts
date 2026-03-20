@@ -341,6 +341,10 @@ export function getStatus(userId: string): string {
   return connections.get(userId)?.status || "disconnected";
 }
 
+export function getOwnerJid(userId: string): string | null {
+  return connections.get(userId)?.jid || null;
+}
+
 export async function send(userId: string, jid: string, text: string) {
   log("========== send() ==========");
   log("userId:", userId, "jid:", jid, "text length:", text.length);

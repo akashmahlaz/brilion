@@ -16,7 +16,7 @@ import {
 export function createMetaTools(userId: string) {
   const readOwnConfig = tool({
     description:
-      "Read the agent's current configuration including model, channels, skills, auth profiles, and workspace info.",
+      "Read the agent's current configuration including model, channels (with DM policies, allowed senders, self-chat mode), skills, auth profiles, and workspace info.",
     inputSchema: z.object({}),
     execute: async () => {
       const config = await loadConfig(userId);
@@ -29,11 +29,20 @@ export function createMetaTools(userId: string) {
             whatsapp: {
               enabled: config.channels.whatsapp.enabled,
               dmPolicy: config.channels.whatsapp.dmPolicy,
+              selfChatMode: config.channels.whatsapp.selfChatMode,
+              allowFrom: config.channels.whatsapp.allowFrom,
+              groupPolicy: config.channels.whatsapp.groupPolicy,
+              groupAllowFrom: config.channels.whatsapp.groupAllowFrom,
               onboarded: config.channels.whatsapp.onboarded,
             },
-            telegram: { enabled: config.channels.telegram.enabled },
+            telegram: {
+              enabled: config.channels.telegram.enabled,
+              dmPolicy: config.channels.telegram.dmPolicy,
+              allowFrom: config.channels.telegram.allowFrom,
+              groupPolicy: config.channels.telegram.groupPolicy,
+              groupAllowFrom: config.channels.telegram.groupAllowFrom,
+            },
           },
-          gateway: { port: config.gateway.port, mode: config.gateway.mode },
           skillCount: Object.keys(config.skills.entries).length,
         },
         authProfiles: profiles,
@@ -72,6 +81,56 @@ export function createMetaTools(userId: string) {
       config.channels[channel].enabled = enabled;
       await saveConfig(config);
       return { status: "ok", channel, enabled };
+    },
+  });
+
+  const updateChannelPermissions = tool({
+    description:
+      `Update who the AI is allowed to reply to on a messaging channel. ` +
+      `Use this when the user asks to restrict, open, or change message permissions. ` +
+      `dmPolicy values: "open" (reply to everyone), "allowlist" (only listed numbers), "disabled" (reply to nobody). ` +
+      `allowFrom is an array of phone numbers (e.g. ["+919876543210"]). Use ["*"] for everyone. ` +
+      `selfChatMode controls whether the AI replies when the owner messages their own WhatsApp number.`,
+    inputSchema: z.object({
+      channel: z.enum(["whatsapp", "telegram"]).describe("Channel name"),
+      dmPolicy: z
+        .enum(["open", "pairing", "allowlist", "disabled"])
+        .optional()
+        .describe("DM policy — who can message"),
+      allowFrom: z
+        .array(z.string())
+        .optional()
+        .describe('Array of allowed phone numbers / usernames. ["*"] = everyone'),
+      selfChatMode: z
+        .boolean()
+        .optional()
+        .describe("Whether the AI replies to the owner's self-chat on WhatsApp"),
+      groupPolicy: z
+        .enum(["open", "allowlist", "disabled"])
+        .optional()
+        .describe("Group chat policy"),
+      groupAllowFrom: z
+        .array(z.string())
+        .optional()
+        .describe("Allowed group senders"),
+    }),
+    execute: async ({ channel, dmPolicy, allowFrom, selfChatMode, groupPolicy, groupAllowFrom }) => {
+      const config = await loadConfig(userId);
+      const ch = config.channels[channel];
+      if (dmPolicy !== undefined) ch.dmPolicy = dmPolicy;
+      if (allowFrom !== undefined) ch.allowFrom = allowFrom;
+      if (selfChatMode !== undefined && channel === "whatsapp") ch.selfChatMode = selfChatMode;
+      if (groupPolicy !== undefined) ch.groupPolicy = groupPolicy;
+      if (groupAllowFrom !== undefined) ch.groupAllowFrom = groupAllowFrom;
+      await saveConfig(config);
+      return {
+        status: "ok",
+        channel,
+        dmPolicy: ch.dmPolicy,
+        allowFrom: ch.allowFrom,
+        selfChatMode: (ch as any).selfChatMode,
+        groupPolicy: ch.groupPolicy,
+      };
     },
   });
 
@@ -194,6 +253,7 @@ export function createMetaTools(userId: string) {
     read_own_config: readOwnConfig,
     update_model: updateModel,
     toggle_channel: toggleChannel,
+    update_channel_permissions: updateChannelPermissions,
     update_system_prompt: updateSystemPrompt,
     set_api_key: setApiKey,
     read_workspace_file: readWorkspaceFileT,

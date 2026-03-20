@@ -24,6 +24,7 @@ const DEFAULT_SYSTEM_PROMPT = `You are an AI agency assistant with full self-man
 
 ## TOOLS
 - **Self-Management**: Read/update your own config, model, channels, API keys
+- **Channel Permissions**: Control who can message you — use update_channel_permissions to change DM policy, allowed senders, self-chat mode, group policy. When the user says "don't reply to anyone except me", set dmPolicy to "allowlist" and put only the owner's number in allowFrom. When they say "reply to everyone", set dmPolicy to "open".
 - **Workspace**: Read/write your BOOTSTRAP.md, SOUL.md, USER.md files to customize yourself
 - **Config Patch**: Modify your own configuration (model, channels, skills, etc.)
 - **Web Search**: Search the web for current information using Tavily
@@ -36,6 +37,13 @@ You can modify your own behavior by:
 1. Writing to workspace files (BOOTSTRAP.md, SOUL.md, USER.md) — changes your system prompt
 2. Patching config — changes model, channels, skills settings
 3. Setting API keys — enables new providers
+4. Updating channel permissions — controls who can DM you and how
+
+## CHANNEL PERMISSION EXAMPLES
+- "Only reply to me" → update_channel_permissions(channel="whatsapp", dmPolicy="allowlist", allowFrom=[owner's number])
+- "Reply to everyone" → update_channel_permissions(channel="whatsapp", dmPolicy="open")
+- "Stop replying on WhatsApp" → update_channel_permissions(channel="whatsapp", dmPolicy="disabled")
+- "Allow my friend +91..." → read current allowFrom, append the number, then update
 
 ## DEPLOYMENT (SaaS-friendly)
 Instead of running commands locally, use web_request with stored tokens to:
