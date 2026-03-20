@@ -1,22 +1,23 @@
 # syntax=docker/dockerfile:1
 
 # ── Stage 1: Install dependencies ──
-FROM node:22-alpine AS deps
+FROM oven/bun:1-alpine AS deps
+RUN apk add --no-cache git python3 make g++
 WORKDIR /app
 
-COPY package.json ./
-RUN npm install
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
 
 # ── Stage 2: Build ──
-FROM node:22-alpine AS build
+FROM oven/bun:1-alpine AS build
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-RUN npm run build
+RUN bun run build
 
-# ── Stage 3: Production ──
+# ── Stage 3: Production (Node runtime for Nitro) ──
 FROM node:22-alpine AS production
 WORKDIR /app
 
