@@ -13,7 +13,7 @@
     "s": "git status",
     "git": "git add . ;  git commit -m 'command commit' ; git push",
     "build": "vite build",
-    "start": "node .output/server/index.mjs",
+    "start": "bun .output/server/index.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "lint": "eslint",

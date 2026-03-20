@@ -17,8 +17,8 @@ COPY . .
 
 RUN bun run build
 
-# ── Stage 3: Production (Node runtime for Nitro) ──
-FROM node:22-alpine AS production
+# ── Stage 3: Production (Bun runtime — matches build preset) ──
+FROM oven/bun:1-alpine AS production
 WORKDIR /app
 
 # Create non-root user
@@ -35,4 +35,4 @@ USER brilion
 # Railway injects PORT; Nitro reads it automatically
 EXPOSE 3000
 
-CMD ["node", ".output/server/index.mjs"]
+CMD ["bun", ".output/server/index.mjs"]
