@@ -4,22 +4,17 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+COPY package.json ./
+RUN npm install
 
 # ── Stage 2: Build ──
 FROM node:22-alpine AS build
 WORKDIR /app
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
-
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-RUN pnpm run build
+RUN npm run build
 
 # ── Stage 3: Production ──
 FROM node:22-alpine AS production
@@ -30,7 +25,6 @@ RUN addgroup -S brilion && adduser -S brilion -G brilion
 
 # Copy only the build output (self-contained Nitro server)
 COPY --from=build /app/.output ./.output
-COPY --from=build /app/package.json ./
 
 # Create uploads directory with proper permissions
 RUN mkdir -p /app/uploads && chown -R brilion:brilion /app
