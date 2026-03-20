@@ -1,0 +1,35 @@
+# =============================================================================
+# AWS App Runner — Service Configuration
+# =============================================================================
+# This file is used when deploying from SOURCE (GitHub repo directly).
+# For IMAGE-based deploys (ECR), App Runner is configured via the console.
+#
+# Source-based deploy NOTE: App Runner source runtime supports Node.js only
+# (not Bun). Use the ECR image-based approach instead (see .github/workflows/deploy.yml).
+#
+# If you do want to test source-based (slower, Node runtime):
+#   - Connect GitHub repo in App Runner console
+#   - App Runner picks up this file automatically
+# =============================================================================
+
+version: 1.0
+
+build:
+  commands:
+    pre-build:
+      - npm install -g bun
+    build:
+      - bun install --frozen-lockfile
+      - bun run build
+  env:
+    - name: NODE_ENV
+      value: production
+
+run:
+  command: bun .output/server/index.mjs
+  network:
+    port: 3000
+    env: PORT
+  env:
+    - name: NODE_ENV
+      value: production

@@ -1,0 +1,71 @@
+{
+  "family": "brilion",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskRole",
+
+  "containerDefinitions": [
+    {
+      "name": "brilion",
+      "image": "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/brilion:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 3000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "NODE_ENV", "value": "production" }
+      ],
+      "secrets": [
+        { "name": "MONGODB_URI",                     "valueFrom": "arn:aws:ssm:us-east-1:ACCOUNT_ID:parameter/brilion/MONGODB_URI" },
+        { "name": "AUTH_SECRET",                     "valueFrom": "arn:aws:ssm:us-east-1:ACCOUNT_ID:parameter/brilion/AUTH_SECRET" },
+        { "name": "AUTH_URL",                        "valueFrom": "arn:aws:ssm:us-east-1:ACCOUNT_ID:parameter/brilion/AUTH_URL" },
+        { "name": "FRONTEND_URL",                    "valueFrom": "arn:aws:ssm:us-east-1:ACCOUNT_ID:parameter/brilion/FRONTEND_URL" },
+        { "name": "GOOGLE_CLIENT_ID",                "valueFrom": "arn:aws:ssm:us-east-1:ACCOUNT_ID:parameter/brilion/GOOGLE_CLIENT_ID" },
+        { "name": "GOOGLE_CLIENT_SECRET",            "valueFrom": "arn:aws:ssm:us-east-1:ACCOUNT_ID:parameter/brilion/GOOGLE_CLIENT_SECRET" },
+        { "name": "ANTHROPIC_API_KEY",               "valueFrom": "arn:aws:ssm:us-east-1:ACCOUNT_ID:parameter/brilion/ANTHROPIC_API_KEY" },
+        { "name": "OPENAI_API_KEY",                  "valueFrom": "arn:aws:ssm:us-east-1:ACCOUNT_ID:parameter/brilion/OPENAI_API_KEY" },
+        { "name": "TELEGRAM_BOT_TOKEN",              "valueFrom": "arn:aws:ssm:us-east-1:ACCOUNT_ID:parameter/brilion/TELEGRAM_BOT_TOKEN" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/brilion",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      },
+      "healthCheck": {
+        "command": ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      },
+      "mountPoints": [
+        {
+          "sourceVolume": "uploads",
+          "containerPath": "/app/uploads",
+          "readOnly": false
+        }
+      ]
+    }
+  ],
+
+  "volumes": [
+    {
+      "name": "uploads",
+      "efsVolumeConfiguration": {
+        "fileSystemId": "fs-XXXXXXXX",
+        "rootDirectory": "/brilion/uploads",
+        "transitEncryption": "ENABLED"
+      }
+    }
+  ]
+}
