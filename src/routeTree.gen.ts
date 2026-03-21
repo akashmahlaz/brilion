@@ -15,13 +15,16 @@ import { Route as AppRouteImport } from './routes/_app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiWorkspaceRouteImport } from './routes/api/workspace'
 import { Route as ApiWhatsappRouteImport } from './routes/api/whatsapp'
+import { Route as ApiUsageRouteImport } from './routes/api/usage'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
 import { Route as ApiTelegramRouteImport } from './routes/api/telegram'
 import { Route as ApiSkillsRouteImport } from './routes/api/skills'
 import { Route as ApiPairingRouteImport } from './routes/api/pairing'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
+import { Route as ApiLogsRouteImport } from './routes/api/logs'
 import { Route as ApiKeysRouteImport } from './routes/api/keys'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiCronRouteImport } from './routes/api/cron'
 import { Route as ApiConfigRouteImport } from './routes/api/config'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
 import { Route as ApiSplatRouteImport } from './routes/api.$'
@@ -77,6 +80,11 @@ const ApiWhatsappRoute = ApiWhatsappRouteImport.update({
   path: '/api/whatsapp',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiUsageRoute = ApiUsageRouteImport.update({
+  id: '/api/usage',
+  path: '/api/usage',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiUploadRoute = ApiUploadRouteImport.update({
   id: '/api/upload',
   path: '/api/upload',
@@ -102,6 +110,11 @@ const ApiModelsRoute = ApiModelsRouteImport.update({
   path: '/api/models',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiLogsRoute = ApiLogsRouteImport.update({
+  id: '/api/logs',
+  path: '/api/logs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiKeysRoute = ApiKeysRouteImport.update({
   id: '/api/keys',
   path: '/api/keys',
@@ -110,6 +123,11 @@ const ApiKeysRoute = ApiKeysRouteImport.update({
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCronRoute = ApiCronRouteImport.update({
+  id: '/api/cron',
+  path: '/api/cron',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiConfigRoute = ApiConfigRouteImport.update({
@@ -268,13 +286,16 @@ export interface FileRoutesByFullPath {
   '/api/$': typeof ApiSplatRoute
   '/api/chat': typeof ApiChatRoute
   '/api/config': typeof ApiConfigRoute
+  '/api/cron': typeof ApiCronRoute
   '/api/health': typeof ApiHealthRoute
   '/api/keys': typeof ApiKeysRoute
+  '/api/logs': typeof ApiLogsRoute
   '/api/models': typeof ApiModelsRoute
   '/api/pairing': typeof ApiPairingRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/upload': typeof ApiUploadRoute
+  '/api/usage': typeof ApiUsageRoute
   '/api/whatsapp': typeof ApiWhatsappRoute
   '/api/workspace': typeof ApiWorkspaceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -307,13 +328,16 @@ export interface FileRoutesByTo {
   '/api/$': typeof ApiSplatRoute
   '/api/chat': typeof ApiChatRoute
   '/api/config': typeof ApiConfigRoute
+  '/api/cron': typeof ApiCronRoute
   '/api/health': typeof ApiHealthRoute
   '/api/keys': typeof ApiKeysRoute
+  '/api/logs': typeof ApiLogsRoute
   '/api/models': typeof ApiModelsRoute
   '/api/pairing': typeof ApiPairingRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/upload': typeof ApiUploadRoute
+  '/api/usage': typeof ApiUsageRoute
   '/api/whatsapp': typeof ApiWhatsappRoute
   '/api/workspace': typeof ApiWorkspaceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -349,13 +373,16 @@ export interface FileRoutesById {
   '/api/$': typeof ApiSplatRoute
   '/api/chat': typeof ApiChatRoute
   '/api/config': typeof ApiConfigRoute
+  '/api/cron': typeof ApiCronRoute
   '/api/health': typeof ApiHealthRoute
   '/api/keys': typeof ApiKeysRoute
+  '/api/logs': typeof ApiLogsRoute
   '/api/models': typeof ApiModelsRoute
   '/api/pairing': typeof ApiPairingRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/upload': typeof ApiUploadRoute
+  '/api/usage': typeof ApiUsageRoute
   '/api/whatsapp': typeof ApiWhatsappRoute
   '/api/workspace': typeof ApiWorkspaceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -390,13 +417,16 @@ export interface FileRouteTypes {
     | '/api/$'
     | '/api/chat'
     | '/api/config'
+    | '/api/cron'
     | '/api/health'
     | '/api/keys'
+    | '/api/logs'
     | '/api/models'
     | '/api/pairing'
     | '/api/skills'
     | '/api/telegram'
     | '/api/upload'
+    | '/api/usage'
     | '/api/whatsapp'
     | '/api/workspace'
     | '/api/auth/$'
@@ -429,13 +459,16 @@ export interface FileRouteTypes {
     | '/api/$'
     | '/api/chat'
     | '/api/config'
+    | '/api/cron'
     | '/api/health'
     | '/api/keys'
+    | '/api/logs'
     | '/api/models'
     | '/api/pairing'
     | '/api/skills'
     | '/api/telegram'
     | '/api/upload'
+    | '/api/usage'
     | '/api/whatsapp'
     | '/api/workspace'
     | '/api/auth/$'
@@ -470,13 +503,16 @@ export interface FileRouteTypes {
     | '/api/$'
     | '/api/chat'
     | '/api/config'
+    | '/api/cron'
     | '/api/health'
     | '/api/keys'
+    | '/api/logs'
     | '/api/models'
     | '/api/pairing'
     | '/api/skills'
     | '/api/telegram'
     | '/api/upload'
+    | '/api/usage'
     | '/api/whatsapp'
     | '/api/workspace'
     | '/api/auth/$'
@@ -493,13 +529,16 @@ export interface RootRouteChildren {
   ApiSplatRoute: typeof ApiSplatRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiConfigRoute: typeof ApiConfigRoute
+  ApiCronRoute: typeof ApiCronRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiKeysRoute: typeof ApiKeysRoute
+  ApiLogsRoute: typeof ApiLogsRoute
   ApiModelsRoute: typeof ApiModelsRoute
   ApiPairingRoute: typeof ApiPairingRoute
   ApiSkillsRoute: typeof ApiSkillsRoute
   ApiTelegramRoute: typeof ApiTelegramRoute
   ApiUploadRoute: typeof ApiUploadRoute
+  ApiUsageRoute: typeof ApiUsageRoute
   ApiWhatsappRoute: typeof ApiWhatsappRoute
   ApiWorkspaceRoute: typeof ApiWorkspaceRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -552,6 +591,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWhatsappRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/usage': {
+      id: '/api/usage'
+      path: '/api/usage'
+      fullPath: '/api/usage'
+      preLoaderRoute: typeof ApiUsageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/upload': {
       id: '/api/upload'
       path: '/api/upload'
@@ -587,6 +633,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiModelsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/logs': {
+      id: '/api/logs'
+      path: '/api/logs'
+      fullPath: '/api/logs'
+      preLoaderRoute: typeof ApiLogsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/keys': {
       id: '/api/keys'
       path: '/api/keys'
@@ -599,6 +652,13 @@ declare module '@tanstack/react-router' {
       path: '/api/health'
       fullPath: '/api/health'
       preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cron': {
+      id: '/api/cron'
+      path: '/api/cron'
+      fullPath: '/api/cron'
+      preLoaderRoute: typeof ApiCronRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/config': {
@@ -848,13 +908,16 @@ const rootRouteChildren: RootRouteChildren = {
   ApiSplatRoute: ApiSplatRoute,
   ApiChatRoute: ApiChatRoute,
   ApiConfigRoute: ApiConfigRoute,
+  ApiCronRoute: ApiCronRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiKeysRoute: ApiKeysRoute,
+  ApiLogsRoute: ApiLogsRoute,
   ApiModelsRoute: ApiModelsRoute,
   ApiPairingRoute: ApiPairingRoute,
   ApiSkillsRoute: ApiSkillsRoute,
   ApiTelegramRoute: ApiTelegramRoute,
   ApiUploadRoute: ApiUploadRoute,
+  ApiUsageRoute: ApiUsageRoute,
   ApiWhatsappRoute: ApiWhatsappRoute,
   ApiWorkspaceRoute: ApiWorkspaceRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
@@ -865,12 +928,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

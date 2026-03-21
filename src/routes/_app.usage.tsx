@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   RefreshCw,
   TrendingUp,
@@ -17,48 +17,69 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import { Button } from '#/components/ui/button'
+import { apiFetch } from '#/lib/api'
 
 export const Route = createFileRoute('/_app/usage')({
   component: UsagePage,
 })
 
-interface UsageStats {
+interface UsageSummary {
+  totalRequests: number
   totalTokens: number
-  inputTokens: number
-  outputTokens: number
+  totalPromptTokens: number
+  totalCompletionTokens: number
   totalCost: number
-  requestCount: number
-  avgLatency: number
-  models: { name: string; tokens: number; cost: number; requests: number }[]
-  dailyUsage: { date: string; tokens: number; cost: number }[]
+  avgDuration: number
+  totalToolCalls: number
+  errorCount: number
 }
+
+interface ModelBreakdown {
+  _id: string
+  requests: number
+  tokens: number
+  cost: number
+  avgDuration: number
+}
+
+interface DailyPoint {
+  _id: string
+  requests: number
+  tokens: number
+  cost: number
+}
+
+const PERIOD_DAYS: Record<string, number> = { today: 1, '7d': 7, '30d': 30 }
 
 function UsagePage() {
   const [period, setPeriod] = useState<'today' | '7d' | '30d'>('7d')
-  const [loading] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [summary, setSummary] = useState<UsageSummary | null>(null)
+  const [models, setModels] = useState<ModelBreakdown[]>([])
+  const [daily, setDaily] = useState<DailyPoint[]>([])
 
-  // Mock usage data — matches OpenClaw's token usage dashboard concept
-  const stats: UsageStats = {
-    totalTokens: 1_247_832,
-    inputTokens: 823_412,
-    outputTokens: 424_420,
-    totalCost: 18.74,
-    requestCount: 342,
-    avgLatency: 1.2,
-    models: [
-      { name: 'claude-opus-4-6', tokens: 645_200, cost: 12.4, requests: 156 },
-      { name: 'gpt-4o', tokens: 312_400, cost: 3.8, requests: 98 },
-      { name: 'claude-sonnet-4', tokens: 189_000, cost: 1.9, requests: 67 },
-      { name: 'gemini-2.5-pro', tokens: 101_232, cost: 0.64, requests: 21 },
-    ],
-    dailyUsage: Array.from({ length: 7 }, (_, i) => ({
-      date: new Date(Date.now() - (6 - i) * 86400000).toISOString().slice(0, 10),
-      tokens: Math.floor(100000 + Math.random() * 200000),
-      cost: Number((1 + Math.random() * 5).toFixed(2)),
-    })),
+  async function loadUsage(days: number) {
+    setLoading(true)
+    try {
+      const res = await apiFetch(`/api/usage?days=${days}`)
+      if (res.ok) {
+        const data = await res.json()
+        setSummary(data.summary)
+        setModels(data.byModel)
+        setDaily(data.daily)
+      }
+    } catch {
+      // API may not be reachable
+    }
+    setLoading(false)
   }
 
-  const maxTokens = Math.max(...stats.dailyUsage.map((d) => d.tokens))
+  useEffect(() => {
+    loadUsage(PERIOD_DAYS[period])
+  }, [period])
+
+  const totalTokens = summary?.totalTokens ?? 0
+  const maxTokens = Math.max(...daily.map((d) => d.tokens), 1)
 
   function formatTokens(n: number) {
     if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -78,7 +99,6 @@ function UsagePage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {/* Period selector — OpenClaw: Today / 7d / 30d */}
               <div className="flex rounded-lg border overflow-hidden">
                 {(['today', '7d', '30d'] as const).map((p) => (
                   <button
@@ -94,7 +114,7 @@ function UsagePage() {
                   </button>
                 ))}
               </div>
-              <Button variant="outline" size="sm" disabled={loading}>
+              <Button variant="outline" size="sm" onClick={() => loadUsage(PERIOD_DAYS[period])} disabled={loading}>
                 <RefreshCw className={`size-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
@@ -108,9 +128,9 @@ function UsagePage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-muted-foreground">Total Tokens</p>
-                    <p className="text-2xl font-bold">{formatTokens(stats.totalTokens)}</p>
+                    <p className="text-2xl font-bold">{formatTokens(totalTokens)}</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {formatTokens(stats.inputTokens)} in / {formatTokens(stats.outputTokens)} out
+                      {formatTokens(summary?.totalPromptTokens ?? 0)} in / {formatTokens(summary?.totalCompletionTokens ?? 0)} out
                     </p>
                   </div>
                   <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
@@ -124,11 +144,10 @@ function UsagePage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-muted-foreground">Total Cost</p>
-                    <p className="text-2xl font-bold">${stats.totalCost.toFixed(2)}</p>
-                    <div className="flex items-center gap-1 text-xs text-green-500 mt-1">
-                      <ArrowDownRight className="size-3" />
-                      12% vs last period
-                    </div>
+                    <p className="text-2xl font-bold">${(summary?.totalCost ?? 0).toFixed(2)}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {summary?.totalToolCalls ?? 0} tool calls
+                    </p>
                   </div>
                   <div className="flex size-10 items-center justify-center rounded-lg bg-green-500/10">
                     <DollarSign className="size-5 text-green-500" />
@@ -141,11 +160,10 @@ function UsagePage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-muted-foreground">Requests</p>
-                    <p className="text-2xl font-bold">{stats.requestCount}</p>
-                    <div className="flex items-center gap-1 text-xs text-blue-500 mt-1">
-                      <ArrowUpRight className="size-3" />
-                      8% vs last period
-                    </div>
+                    <p className="text-2xl font-bold">{summary?.totalRequests ?? 0}</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {summary?.errorCount ?? 0} errors
+                    </p>
                   </div>
                   <div className="flex size-10 items-center justify-center rounded-lg bg-blue-500/10">
                     <TrendingUp className="size-5 text-blue-500" />
@@ -158,7 +176,9 @@ function UsagePage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs text-muted-foreground">Avg Latency</p>
-                    <p className="text-2xl font-bold">{stats.avgLatency}s</p>
+                    <p className="text-2xl font-bold">
+                      {summary?.avgDuration ? `${(summary.avgDuration / 1000).toFixed(1)}s` : '—'}
+                    </p>
                     <p className="text-xs text-muted-foreground mt-1">per request</p>
                   </div>
                   <div className="flex size-10 items-center justify-center rounded-lg bg-orange-500/10">
@@ -176,24 +196,30 @@ function UsagePage() {
               <CardDescription>Tokens consumed per day</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex items-end gap-2 h-48">
-                {stats.dailyUsage.map((day) => (
-                  <div key={day.date} className="flex-1 flex flex-col items-center gap-1">
-                    <span className="text-[10px] text-muted-foreground font-mono">
-                      {formatTokens(day.tokens)}
-                    </span>
-                    <div
-                      className="w-full bg-primary/80 rounded-t-sm hover:bg-primary transition-colors min-h-[4px]"
-                      style={{
-                        height: `${(day.tokens / maxTokens) * 160}px`,
-                      }}
-                    />
-                    <span className="text-[10px] text-muted-foreground">
-                      {day.date.slice(5)}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              {daily.length > 0 ? (
+                <div className="flex items-end gap-2 h-48">
+                  {daily.map((day) => (
+                    <div key={day._id} className="flex-1 flex flex-col items-center gap-1">
+                      <span className="text-[10px] text-muted-foreground font-mono">
+                        {formatTokens(day.tokens)}
+                      </span>
+                      <div
+                        className="w-full bg-primary/80 rounded-t-sm hover:bg-primary transition-colors min-h-1"
+                        style={{
+                          height: `${(day.tokens / maxTokens) * 160}px`,
+                        }}
+                      />
+                      <span className="text-[10px] text-muted-foreground">
+                        {day._id.slice(5)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">
+                  No usage data for this period.
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -205,7 +231,6 @@ function UsagePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-1">
-                {/* Header */}
                 <div className="grid grid-cols-[1fr_120px_100px_100px_1fr] gap-3 text-xs font-medium text-muted-foreground border-b pb-2 px-3">
                   <span>Model</span>
                   <span className="text-right">Tokens</span>
@@ -213,14 +238,14 @@ function UsagePage() {
                   <span className="text-right">Requests</span>
                   <span>Share</span>
                 </div>
-                {stats.models.map((model) => {
-                  const share = (model.tokens / stats.totalTokens) * 100
+                {models.map((model) => {
+                  const share = totalTokens > 0 ? (model.tokens / totalTokens) * 100 : 0
                   return (
                     <div
-                      key={model.name}
+                      key={model._id}
                       className="grid grid-cols-[1fr_120px_100px_100px_1fr] gap-3 items-center text-sm px-3 py-2 rounded-lg hover:bg-accent/50 transition-colors"
                     >
-                      <span className="font-mono text-xs">{model.name}</span>
+                      <span className="font-mono text-xs">{model._id}</span>
                       <span className="text-right font-mono text-xs">
                         {formatTokens(model.tokens)}
                       </span>
@@ -242,6 +267,11 @@ function UsagePage() {
                     </div>
                   )
                 })}
+                {models.length === 0 && (
+                  <p className="text-sm text-muted-foreground text-center py-6">
+                    No model usage data yet.
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>

@@ -3,14 +3,14 @@ import { useState, useEffect } from 'react'
 import {
   Network,
   RefreshCw,
-  Monitor,
-  Smartphone,
   Cpu,
   CheckCircle2,
   XCircle,
   Shield,
   Clock,
-  MoreHorizontal,
+  Smartphone,
+  Check,
+  X,
 } from 'lucide-react'
 import {
   Card,
@@ -21,85 +21,71 @@ import {
 } from '#/components/ui/card'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '#/components/ui/dropdown-menu'
 import { apiFetch } from '#/lib/api'
+import { toast } from 'sonner'
 
 export const Route = createFileRoute('/_app/nodes')({
   component: NodesPage,
 })
 
-interface Node {
-  id: string
-  name: string
-  type: 'server' | 'desktop' | 'mobile' | 'edge'
-  status: 'online' | 'offline' | 'pending'
-  capabilities: string[]
-  lastSeen: string
-  version: string
-  os: string
-  execApproval: 'auto' | 'manual' | 'denied'
+interface PairingRequest {
+  _id: string
+  channel: string
+  remoteJid: string
+  code: string
+  status: string
+  createdAt: string
+}
+
+interface HealthData {
+  status: string
+  database: string
+  timestamp: string
 }
 
 function NodesPage() {
-  const [nodes, setNodes] = useState<Node[]>([])
+  const [health, setHealth] = useState<HealthData | null>(null)
+  const [pairings, setPairings] = useState<PairingRequest[]>([])
   const [loading, setLoading] = useState(true)
 
-  async function loadNodes() {
+  async function loadData() {
     setLoading(true)
     try {
-      const res = await apiFetch('/api/health')
-      if (res.ok) {
-        // Build current node from health data
-        setNodes([
-          {
-            id: 'local-1',
-            name: 'brilion-gateway',
-            type: 'server',
-            status: 'online',
-            capabilities: ['chat', 'tools', 'channels', 'skills'],
-            lastSeen: new Date().toISOString(),
-            version: '1.0.0',
-            os: 'Linux/Windows',
-            execApproval: 'auto',
-          },
-        ])
+      const [healthRes, pairingRes] = await Promise.all([
+        apiFetch('/api/health'),
+        apiFetch('/api/pairing'),
+      ])
+      if (healthRes.ok) setHealth(await healthRes.json())
+      if (pairingRes.ok) {
+        const data = await pairingRes.json()
+        setPairings(data.pending ?? [])
       }
     } catch {
-      setNodes([])
+      // API may not be reachable
     }
     setLoading(false)
   }
 
   useEffect(() => {
-    loadNodes()
+    loadData()
   }, [])
 
-  const nodeIcon = (type: Node['type']) => {
-    switch (type) {
-      case 'server':
-        return <Cpu className="size-5 text-primary" />
-      case 'desktop':
-        return <Monitor className="size-5 text-primary" />
-      case 'mobile':
-        return <Smartphone className="size-5 text-primary" />
-      default:
-        return <Network className="size-5 text-primary" />
-    }
-  }
-
-  const statusColor = (status: Node['status']) => {
-    switch (status) {
-      case 'online':
-        return 'bg-green-500'
-      case 'offline':
-        return 'bg-red-500'
-      case 'pending':
-        return 'bg-yellow-500'
+  async function handlePairing(code: string, action: 'approve' | 'reject') {
+    try {
+      const res = await apiFetch('/api/pairing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, code }),
+      })
+      const data = await res.json()
+      if (data.ok) {
+        toast.success(`Pairing ${action === 'approve' ? 'approved' : 'rejected'}`)
+        setPairings((prev) => prev.filter((p) => p.code !== code))
+      } else {
+        toast.error(data.error || `Failed to ${action} pairing`)
+      }
+    } catch {
+      toast.error(`Failed to ${action} pairing`)
     }
   }
 
@@ -111,16 +97,16 @@ function NodesPage() {
             <div>
               <h1 className="text-2xl font-heading font-semibold">Nodes</h1>
               <p className="text-sm text-muted-foreground">
-                Connected device nodes, capabilities, and execution approvals.
+                Gateway status, connected channels, and device pairing.
               </p>
             </div>
-            <Button variant="outline" size="sm" onClick={loadNodes} disabled={loading}>
+            <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
               <RefreshCw className={`size-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
           </div>
 
-          {/* Summary Cards */}
+          {/* Gateway Node */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <Card>
               <CardContent className="pt-6">
@@ -130,24 +116,9 @@ function NodesPage() {
                   </div>
                   <div>
                     <p className="text-2xl font-bold">
-                      {nodes.filter((n) => n.status === 'online').length}
+                      {health?.status === 'ok' ? '1' : '0'}
                     </p>
-                    <p className="text-xs text-muted-foreground">Online</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-lg bg-red-500/10">
-                    <XCircle className="size-5 text-red-500" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold">
-                      {nodes.filter((n) => n.status === 'offline').length}
-                    </p>
-                    <p className="text-xs text-muted-foreground">Offline</p>
+                    <p className="text-xs text-muted-foreground">Gateway Online</p>
                   </div>
                 </div>
               </CardContent>
@@ -156,92 +127,122 @@ function NodesPage() {
               <CardContent className="pt-6">
                 <div className="flex items-center gap-3">
                   <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
-                    <Network className="size-5 text-primary" />
+                    <Shield className="size-5 text-primary" />
                   </div>
                   <div>
-                    <p className="text-2xl font-bold">{nodes.length}</p>
-                    <p className="text-xs text-muted-foreground">Total Nodes</p>
+                    <p className="text-2xl font-bold">
+                      {health?.database === 'connected' ? 'Connected' : 'N/A'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Database</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-lg bg-yellow-500/10">
+                    <Smartphone className="size-5 text-yellow-500" />
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold">{pairings.length}</p>
+                    <p className="text-xs text-muted-foreground">Pending Pairings</p>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Node List */}
+          {/* Gateway Server Card */}
+          <Card className="mb-6">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
+                    <Cpu className="size-5 text-primary" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-base font-mono">brilion-gateway</CardTitle>
+                      <span
+                        className={`size-2 rounded-full ${health?.status === 'ok' ? 'bg-green-500' : 'bg-red-500'}`}
+                      />
+                    </div>
+                    <CardDescription>AI Gateway Server</CardDescription>
+                  </div>
+                </div>
+                <Badge
+                  variant="outline"
+                  className="border-green-500/30 text-green-500"
+                >
+                  <Shield className="size-3 mr-1" />
+                  auto
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-muted-foreground mr-1">Capabilities:</span>
+                {['chat', 'tools', 'channels', 'skills', 'cron'].map((cap) => (
+                  <Badge key={cap} variant="secondary" className="text-xs">
+                    {cap}
+                  </Badge>
+                ))}
+              </div>
+              <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+                <Clock className="size-3" />
+                Last checked: {health?.timestamp ? new Date(health.timestamp).toLocaleString() : '—'}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Pending Pairing Requests */}
+          <h2 className="text-lg font-heading font-semibold mb-3">Pairing Requests</h2>
           <div className="space-y-3">
-            {nodes.map((node) => (
-              <Card key={node.id}>
-                <CardHeader className="pb-3">
+            {pairings.map((p) => (
+              <Card key={p._id}>
+                <CardContent className="pt-6">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10">
-                        {nodeIcon(node.type)}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <CardTitle className="text-base font-mono">{node.name}</CardTitle>
-                          <span
-                            className={`size-2 rounded-full ${statusColor(node.status)}`}
-                          />
-                        </div>
-                        <CardDescription>
-                          {node.os} · v{node.version}
-                        </CardDescription>
-                      </div>
+                    <div>
+                      <p className="font-mono text-sm">{p.remoteJid}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Channel: {p.channel} · Code:{' '}
+                        <span className="font-mono font-bold">{p.code}</span> ·{' '}
+                        {new Date(p.createdAt).toLocaleString()}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge
+                      <Button
+                        size="sm"
                         variant="outline"
-                        className={
-                          node.execApproval === 'auto'
-                            ? 'border-green-500/30 text-green-500'
-                            : node.execApproval === 'manual'
-                              ? 'border-yellow-500/30 text-yellow-500'
-                              : 'border-red-500/30 text-red-500'
-                        }
+                        className="text-green-500 border-green-500/30"
+                        onClick={() => handlePairing(p.code, 'approve')}
                       >
-                        <Shield className="size-3 mr-1" />
-                        {node.execApproval}
-                      </Badge>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="size-8">
-                            <MoreHorizontal className="size-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem>Set approval: auto</DropdownMenuItem>
-                          <DropdownMenuItem>Set approval: manual</DropdownMenuItem>
-                          <DropdownMenuItem>Set approval: denied</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                        <Check className="size-4 mr-1" />
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive"
+                        onClick={() => handlePairing(p.code, 'reject')}
+                      >
+                        <X className="size-4 mr-1" />
+                        Reject
+                      </Button>
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs text-muted-foreground mr-1">Capabilities:</span>
-                    {node.capabilities.map((cap) => (
-                      <Badge key={cap} variant="secondary" className="text-xs">
-                        {cap}
-                      </Badge>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
-                    <Clock className="size-3" />
-                    Last seen: {new Date(node.lastSeen).toLocaleString()}
                   </div>
                 </CardContent>
               </Card>
             ))}
 
-            {nodes.length === 0 && !loading && (
+            {pairings.length === 0 && !loading && (
               <Card>
                 <CardContent className="py-12 text-center">
                   <Network className="size-10 mx-auto mb-3 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">No nodes connected</p>
+                  <p className="text-sm text-muted-foreground">No pending pairing requests</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Nodes will appear here once they connect to the gateway.
+                    Devices requesting access will appear here for approval.
                   </p>
                 </CardContent>
               </Card>

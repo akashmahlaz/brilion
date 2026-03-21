@@ -4,6 +4,8 @@ import { connectDB } from "#/server/db";
 import { requireAuth } from "#/server/middleware";
 import { Conversation } from "#/server/models/conversation";
 import { getAgentConfig } from "#/server/lib/agent";
+import { trackUsage, estimateTokens } from "#/server/lib/usage-tracker";
+import { createLogger } from "#/server/models/log-entry";
 import path from "node:path";
 import fs from "node:fs/promises";
 
@@ -125,13 +127,33 @@ export const Route = createFileRoute("/api/chat")({
           stream: true,
         });
 
-        // Save conversation in background (web chat only — channel messages saved by router)
-        if (conversationId) {
-          streamToText(result).then(async (fullText) => {
+        // Save conversation + track usage in background
+        const startTime = Date.now();
+        const modelName = (agentConfig.adapter as any)?.model || modelSpec || "unknown";
+        const providerName = (agentConfig.adapter as any)?.provider || "unknown";
+        const logger = createLogger(userId, "api");
+
+        streamToText(result).then(async (fullText) => {
+          const durationMs = Date.now() - startTime;
+          // Track usage
+          const promptText = messages.map((m: any) => typeof m.content === "string" ? m.content : "").join("");
+          trackUsage({
+            userId,
+            conversationId,
+            channel: "web",
+            provider: providerName,
+            model: modelName,
+            promptTokens: estimateTokens(promptText),
+            completionTokens: estimateTokens(fullText),
+            durationMs,
+            success: true,
+          });
+          logger.info(`Web chat completed`, { model: modelName, durationMs });
+
+          // Save conversation
+          if (conversationId) {
             try {
               const lastUserMsg = messages[messages.length - 1];
-
-              // Generate title from first user message if still "New Chat"
               const conv = await Conversation.findById(conversationId);
               if (!conv) return;
 
@@ -140,7 +162,6 @@ export const Route = createFileRoute("/api/chat")({
                 { role: "assistant", content: fullText }
               );
 
-              // Auto-title: if title is default and this is the first real message
               if (
                 (conv.title === "New Chat" || !conv.title) &&
                 lastUserMsg.content
@@ -148,12 +169,23 @@ export const Route = createFileRoute("/api/chat")({
                 conv.title = generateTitle(lastUserMsg.content);
               }
 
-              await conv.save(); // Triggers updatedAt via timestamps
+              await conv.save();
             } catch (e) {
               console.error("[chat] Failed to save conversation:", e);
             }
+          }
+        }).catch((e) => {
+          trackUsage({
+            userId,
+            channel: "web",
+            provider: providerName,
+            model: modelName,
+            durationMs: Date.now() - startTime,
+            success: false,
+            error: e instanceof Error ? e.message : String(e),
           });
-        }
+          logger.error("Web chat failed", { error: String(e) });
+        });
 
         return toServerSentEventsResponse(result);
       },

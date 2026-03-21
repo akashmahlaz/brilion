@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Clock,
   Plus,
@@ -11,8 +11,7 @@ import {
   XCircle,
   AlertCircle,
   CalendarClock,
-  Webhook,
-  MessageSquare,
+  RefreshCw,
 } from 'lucide-react'
 import {
   Card,
@@ -26,13 +25,6 @@ import { Badge } from '#/components/ui/badge'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
 import { Textarea } from '#/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -49,95 +41,111 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
 import { toast } from 'sonner'
+import { apiFetch } from '#/lib/api'
 
 export const Route = createFileRoute('/_app/cron')({
   component: CronPage,
 })
 
 interface CronJob {
-  id: string
+  _id: string
   name: string
+  description?: string
   schedule: string
-  delivery: 'channel' | 'webhook'
-  target: string
+  channel?: string
   prompt: string
-  enabled: boolean
-  lastRun: string | null
-  lastStatus: 'success' | 'error' | 'pending' | null
-  nextRun: string
+  status: 'active' | 'paused' | 'error'
+  lastRunAt: string | null
+  lastRunStatus: 'success' | 'error' | null
+  lastRunError?: string
+  nextRunAt: string | null
+  runCount: number
+  createdAt: string
 }
 
 function CronPage() {
-  const [jobs, setJobs] = useState<CronJob[]>([
-    {
-      id: '1',
-      name: 'Daily Summary',
-      schedule: '0 9 * * *',
-      delivery: 'channel',
-      target: 'web',
-      prompt: 'Generate a daily summary of pending tasks and upcoming events.',
-      enabled: true,
-      lastRun: new Date(Date.now() - 3600000).toISOString(),
-      lastStatus: 'success',
-      nextRun: new Date(Date.now() + 86400000).toISOString(),
-    },
-    {
-      id: '2',
-      name: 'Weekly Report',
-      schedule: '0 8 * * 1',
-      delivery: 'webhook',
-      target: 'https://hooks.example.com/report',
-      prompt: 'Compile a weekly progress report with key metrics.',
-      enabled: false,
-      lastRun: null,
-      lastStatus: null,
-      nextRun: new Date(Date.now() + 604800000).toISOString(),
-    },
-  ])
+  const [jobs, setJobs] = useState<CronJob[]>([])
+  const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [newJob, setNewJob] = useState<{
-    name: string
-    schedule: string
-    delivery: 'channel' | 'webhook'
-    target: string
-    prompt: string
-  }>({
+  const [newJob, setNewJob] = useState({
     name: '',
     schedule: '',
-    delivery: 'channel',
-    target: '',
+    channel: '',
     prompt: '',
   })
 
-  function toggleJob(id: string) {
-    setJobs((prev) =>
-      prev.map((j) => (j.id === id ? { ...j, enabled: !j.enabled } : j)),
-    )
-    toast.success('Job updated')
+  async function loadJobs() {
+    setLoading(true)
+    try {
+      const res = await apiFetch('/api/cron')
+      if (res.ok) {
+        const data = await res.json()
+        setJobs(data.jobs)
+      }
+    } catch {
+      // API may not be reachable
+    }
+    setLoading(false)
   }
 
-  function deleteJob(id: string) {
-    setJobs((prev) => prev.filter((j) => j.id !== id))
-    toast.success('Job deleted')
+  useEffect(() => {
+    loadJobs()
+  }, [])
+
+  async function toggleJob(job: CronJob) {
+    const newStatus = job.status === 'active' ? 'paused' : 'active'
+    try {
+      const res = await apiFetch('/api/cron', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: job._id, status: newStatus }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setJobs((prev) => prev.map((j) => (j._id === job._id ? data.job : j)))
+        toast.success(`Job ${newStatus === 'active' ? 'enabled' : 'paused'}`)
+      }
+    } catch {
+      toast.error('Failed to update job')
+    }
   }
 
-  function addJob() {
-    if (!newJob.name || !newJob.schedule) {
-      toast.error('Name and schedule are required')
+  async function deleteJob(id: string) {
+    try {
+      const res = await apiFetch(`/api/cron?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+      if (res.ok) {
+        setJobs((prev) => prev.filter((j) => j._id !== id))
+        toast.success('Job deleted')
+      }
+    } catch {
+      toast.error('Failed to delete job')
+    }
+  }
+
+  async function addJob() {
+    if (!newJob.name || !newJob.schedule || !newJob.prompt) {
+      toast.error('Name, schedule, and prompt are required')
       return
     }
-    const job: CronJob = {
-      id: String(Date.now()),
-      ...newJob,
-      enabled: true,
-      lastRun: null,
-      lastStatus: null,
-      nextRun: new Date(Date.now() + 60000).toISOString(),
+    try {
+      const res = await apiFetch('/api/cron', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newJob),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setJobs((prev) => [data.job, ...prev])
+        setDialogOpen(false)
+        setNewJob({ name: '', schedule: '', channel: '', prompt: '' })
+        toast.success('Cron job created')
+      } else {
+        const err = await res.json()
+        toast.error(err.error || 'Failed to create job')
+      }
+    } catch {
+      toast.error('Failed to create job')
     }
-    setJobs((prev) => [...prev, job])
-    setDialogOpen(false)
-    setNewJob({ name: '', schedule: '', delivery: 'channel', target: '', prompt: '' })
-    toast.success('Cron job created')
   }
 
   function formatDate(dateStr: string | null) {
@@ -153,10 +161,14 @@ function CronPage() {
             <div>
               <h1 className="text-2xl font-heading font-semibold">Cron</h1>
               <p className="text-sm text-muted-foreground">
-                Scheduled jobs with delivery modes, channel/webhook targeting, and run history.
+                Scheduled jobs with AI prompt execution and run history.
               </p>
             </div>
             <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={loadJobs} disabled={loading}>
+                <RefreshCw className={`size-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
               <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogTrigger asChild>
                   <Button size="sm">
@@ -168,7 +180,7 @@ function CronPage() {
                   <DialogHeader>
                     <DialogTitle>Create Cron Job</DialogTitle>
                     <DialogDescription>
-                      Schedule a recurring AI prompt delivery.
+                      Schedule a recurring AI prompt execution.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
@@ -193,34 +205,11 @@ function CronPage() {
                       </p>
                     </div>
                     <div className="grid gap-2">
-                      <Label>Delivery Mode</Label>
-                      <Select
-                        value={newJob.delivery}
-                        onValueChange={(v) =>
-                          setNewJob((p) => ({ ...p, delivery: v as 'channel' | 'webhook' }))
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="channel">Channel</SelectItem>
-                          <SelectItem value="webhook">Webhook</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label>
-                        {newJob.delivery === 'channel' ? 'Channel' : 'Webhook URL'}
-                      </Label>
+                      <Label>Channel (optional)</Label>
                       <Input
-                        value={newJob.target}
-                        onChange={(e) => setNewJob((p) => ({ ...p, target: e.target.value }))}
-                        placeholder={
-                          newJob.delivery === 'channel'
-                            ? 'web, whatsapp, telegram'
-                            : 'https://hooks.example.com/...'
-                        }
+                        value={newJob.channel}
+                        onChange={(e) => setNewJob((p) => ({ ...p, channel: e.target.value }))}
+                        placeholder="web, whatsapp, telegram"
                       />
                     </div>
                     <div className="grid gap-2">
@@ -247,7 +236,7 @@ function CronPage() {
           {/* Cron Jobs List */}
           <div className="space-y-3">
             {jobs.map((job) => (
-              <Card key={job.id} className={!job.enabled ? 'opacity-60' : ''}>
+              <Card key={job._id} className={job.status === 'paused' ? 'opacity-60' : ''}>
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -262,27 +251,27 @@ function CronPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="gap-1">
-                        {job.delivery === 'channel' ? (
-                          <MessageSquare className="size-3" />
-                        ) : (
-                          <Webhook className="size-3" />
-                        )}
-                        {job.delivery}
+                      <Badge variant="outline" className="text-xs">
+                        {job.status}
                       </Badge>
-                      {job.lastStatus === 'success' && (
+                      {job.channel && (
+                        <Badge variant="secondary" className="text-xs">
+                          {job.channel}
+                        </Badge>
+                      )}
+                      {job.lastRunStatus === 'success' && (
                         <Badge variant="default" className="bg-green-500/10 text-green-500 border-green-500/30">
                           <CheckCircle2 className="size-3 mr-1" />
                           success
                         </Badge>
                       )}
-                      {job.lastStatus === 'error' && (
+                      {job.lastRunStatus === 'error' && (
                         <Badge variant="destructive">
                           <XCircle className="size-3 mr-1" />
                           error
                         </Badge>
                       )}
-                      {!job.lastStatus && (
+                      {!job.lastRunStatus && (
                         <Badge variant="secondary">
                           <AlertCircle className="size-3 mr-1" />
                           never run
@@ -295,22 +284,22 @@ function CronPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => toggleJob(job.id)}>
-                            {job.enabled ? (
+                          <DropdownMenuItem onClick={() => toggleJob(job)}>
+                            {job.status === 'active' ? (
                               <>
                                 <Pause className="mr-2 size-4" />
-                                Disable
+                                Pause
                               </>
                             ) : (
                               <>
                                 <Play className="mr-2 size-4" />
-                                Enable
+                                Activate
                               </>
                             )}
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             className="text-destructive"
-                            onClick={() => deleteJob(job.id)}
+                            onClick={() => deleteJob(job._id)}
                           >
                             <Trash2 className="mr-2 size-4" />
                             Delete
@@ -323,17 +312,18 @@ function CronPage() {
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-3">{job.prompt}</p>
                   <div className="flex gap-6 text-xs text-muted-foreground">
-                    <span>
-                      Target: <span className="font-mono">{job.target}</span>
-                    </span>
-                    <span>Last run: {formatDate(job.lastRun)}</span>
-                    <span>Next run: {formatDate(job.nextRun)}</span>
+                    <span>Runs: {job.runCount}</span>
+                    <span>Last run: {formatDate(job.lastRunAt)}</span>
+                    <span>Next run: {formatDate(job.nextRunAt)}</span>
                   </div>
+                  {job.lastRunError && (
+                    <p className="text-xs text-destructive mt-1">{job.lastRunError}</p>
+                  )}
                 </CardContent>
               </Card>
             ))}
 
-            {jobs.length === 0 && (
+            {jobs.length === 0 && !loading && (
               <Card>
                 <CardContent className="py-12 text-center">
                   <Clock className="size-10 mx-auto mb-3 text-muted-foreground/40" />

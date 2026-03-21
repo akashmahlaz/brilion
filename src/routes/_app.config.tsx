@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   RefreshCw,
   Save,
@@ -31,6 +31,8 @@ import {
 } from '#/components/ui/select'
 import { toast } from 'sonner'
 import { apiFetch } from '#/lib/api'
+import { useRanger } from '@tanstack/react-ranger'
+import { useDebouncedValue } from '@tanstack/react-pacer'
 
 export const Route = createFileRoute('/_app/config')({
   component: ConfigPage,
@@ -38,11 +40,14 @@ export const Route = createFileRoute('/_app/config')({
 
 interface ConfigField {
   key: string
-  type: 'string' | 'number' | 'boolean' | 'select' | 'array'
+  type: 'string' | 'number' | 'boolean' | 'select' | 'array' | 'range'
   label: string
   description: string
   tag: string
   options?: string[]
+  min?: number
+  max?: number
+  step?: number
 }
 
 const CONFIG_TAGS = ['all', 'general', 'model', 'channels', 'advanced'] as const
@@ -163,7 +168,89 @@ const CONFIG_FIELDS: ConfigField[] = [
     description: 'Maximum simultaneous AI requests',
     tag: 'advanced',
   },
+  {
+    key: 'agents.defaults.model.temperature',
+    type: 'range',
+    label: 'Temperature',
+    description: 'Controls randomness. Lower = more focused, higher = more creative.',
+    tag: 'model',
+    min: 0,
+    max: 2,
+    step: 0.1,
+  },
+  {
+    key: 'agents.defaults.model.maxTokens',
+    type: 'range',
+    label: 'Max Output Tokens',
+    description: 'Maximum tokens in the AI response.',
+    tag: 'model',
+    min: 256,
+    max: 16384,
+    step: 256,
+  },
 ]
+
+function RangeField({
+  value,
+  min,
+  max,
+  stepSize,
+  onChange,
+}: {
+  value: number
+  min: number
+  max: number
+  stepSize: number
+  onChange: (v: number) => void
+}) {
+  const [values, setValues] = useState([value])
+  const rangerRef = useRef<HTMLDivElement>(null)
+
+  const rangerInstance = useRanger<HTMLDivElement>({
+    getRangerElement: () => rangerRef.current,
+    values,
+    min,
+    max,
+    stepSize,
+    onChange: (instance) => {
+      const v = instance.sortedValues[0]
+      setValues([v])
+      onChange(v)
+    },
+  })
+
+  return (
+    <div className="flex items-center gap-4 max-w-md">
+      <div
+        ref={rangerRef}
+        className="relative h-2 flex-1 rounded-full bg-muted cursor-pointer select-none"
+      >
+        {rangerInstance.getSteps().map((step, i) => (
+          <div
+            key={i}
+            className="absolute h-full bg-primary rounded-full"
+            style={{ left: `${step.left}%`, width: `${step.width}%` }}
+          />
+        ))}
+        {rangerInstance.handles().map((handle, i) => (
+          <button
+            key={i}
+            onKeyDown={handle.onKeyDownHandler}
+            onMouseDown={handle.onMouseDownHandler}
+            onTouchStart={handle.onTouchStart}
+            role="slider"
+            aria-valuemin={min}
+            aria-valuemax={max}
+            aria-valuenow={handle.value}
+            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-4 rounded-full bg-primary border-2 border-background shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            style={{ left: `${rangerInstance.getPercentageForValue(handle.value)}%` }}
+          />
+        ))}
+      </div>
+      <span className="text-sm font-mono w-16 text-right">{values[0]}</span>
+    </div>
+  )
+}
 
 function ConfigPage() {
   const [config, setConfig] = useState<Record<string, any>>({})
@@ -172,6 +259,7 @@ function ConfigPage() {
   const [saving, setSaving] = useState(false)
   const [activeTag, setActiveTag] = useState<string>('all')
   const [searchFilter, setSearchFilter] = useState('')
+  const [debouncedSearch] = useDebouncedValue(searchFilter, { wait: 250 })
 
   async function fetchConfig() {
     setLoading(true)
@@ -199,9 +287,9 @@ function ConfigPage() {
   const filteredFields = CONFIG_FIELDS.filter((f) => {
     const tagMatch = activeTag === 'all' || f.tag === activeTag
     const searchMatch =
-      !searchFilter ||
-      f.label.toLowerCase().includes(searchFilter.toLowerCase()) ||
-      f.key.toLowerCase().includes(searchFilter.toLowerCase())
+      !debouncedSearch ||
+      f.label.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      f.key.toLowerCase().includes(debouncedSearch.toLowerCase())
     return tagMatch && searchMatch
   })
 
@@ -298,6 +386,18 @@ function ConfigPage() {
                 .filter(Boolean),
             )
           }
+        />
+      )
+    }
+
+    if (field.type === 'range') {
+      return (
+        <RangeField
+          value={typeof raw === 'number' ? raw : field.min ?? 0}
+          min={field.min ?? 0}
+          max={field.max ?? 100}
+          stepSize={field.step ?? 1}
+          onChange={(v) => updateField(field.key, v)}
         />
       )
     }

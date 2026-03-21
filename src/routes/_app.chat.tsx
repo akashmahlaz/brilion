@@ -1,5 +1,7 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+import type { UIMessage } from '@tanstack/ai-react'
 import {
   Sparkles,
   Copy,
@@ -140,10 +142,40 @@ function ChatPage() {
   const { id: urlConvId } = Route.useSearch()
   const navigate = useNavigate()
 
-  // Chat state
-  const [messages, setMessages] = useState<Message[]>([])
+  // Chat state — useChat manages messages + loading + streaming
+  const convIdRef = useRef<string | null>(null)
+  const {
+    messages: chatMessages,
+    sendMessage,
+    isLoading,
+    stop: stopChat,
+    setMessages: setChatMessages,
+    clear: clearChat,
+    error: chatError,
+  } = useChat({
+    connection: fetchServerSentEvents('/api/chat', () => ({
+      body: {
+        conversationId: convIdRef.current,
+      },
+      credentials: 'same-origin' as RequestCredentials,
+    })),
+  })
+
+  // Map UIMessage[] → our Message[] for rendering
+  const messages: Message[] = chatMessages.map((m: UIMessage) => ({
+    role: m.role as Message['role'],
+    content: m.parts
+      ?.filter((p: any) => p.type === 'text')
+      .map((p: any) => p.content)
+      .join('') ?? '',
+  }))
+
+  // Show chat errors as toasts
+  useEffect(() => {
+    if (chatError) toast.error(chatError.message)
+  }, [chatError])
+
   const [input, setInput] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [activeChannel, setActiveChannel] = useState<string>('web')
   const [showScrollBtn, setShowScrollBtn] = useState(false)
@@ -172,7 +204,9 @@ function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const abortRef = useRef<AbortController | null>(null)
+
+  // Keep convIdRef in sync
+  useEffect(() => { convIdRef.current = conversationId }, [conversationId])
 
   // Determine the primary channel to show (WhatsApp first priority)
   const primaryChannel = (() => {
@@ -224,7 +258,7 @@ function ChatPage() {
       loadConversation(urlConvId)
     } else if (!urlConvId && conversationId) {
       setConversationId(null)
-      setMessages([])
+      clearChat()
       setActiveChannel('web')
     }
   }, [urlConvId])
@@ -237,11 +271,13 @@ function ChatPage() {
         const res = await apiFetch(`/api/chat?id=${encodeURIComponent(conversationId)}`)
         if (res.ok) {
           const data = await res.json()
-          setMessages(
-            (data.messages || []).map((m: { role: string; content: string; createdAt?: string }) => ({
-              role: m.role, content: m.content, createdAt: m.createdAt,
-            }))
-          )
+          const loaded = (data.messages || []).map((m: { role: string; content: string }, i: number) => ({
+            id: String(i),
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+            parts: [{ type: 'text' as const, content: m.content }],
+          }))
+          setChatMessages(loaded)
         }
       } catch { /* ignore */ }
     }, 3000)
@@ -318,12 +354,15 @@ function ChatPage() {
       if (!res.ok) throw new Error('Failed')
       const data = await res.json()
       setConversationId(data._id)
+      convIdRef.current = data._id
       setActiveChannel(data.channel || 'web')
-      setMessages(
-        (data.messages || []).map((m: { role: string; content: string; createdAt?: string }) => ({
-          role: m.role, content: m.content, createdAt: m.createdAt,
-        }))
-      )
+      const loaded = (data.messages || []).map((m: { role: string; content: string; createdAt?: string }, i: number) => ({
+        id: String(i),
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+        parts: [{ type: 'text' as const, content: m.content }],
+      }))
+      setChatMessages(loaded)
       requestAnimationFrame(() => scrollToBottom(true))
     } catch {
       toast.error('Failed to load conversation')
@@ -365,16 +404,14 @@ function ChatPage() {
   function startNewChat() {
     navigate({ to: '/chat', search: { id: undefined } })
     setConversationId(null)
-    setMessages([])
+    clearChat()
     setActiveChannel('web')
     setInput('')
     requestAnimationFrame(() => textareaRef.current?.focus())
   }
 
   function handleAbort() {
-    abortRef.current?.abort()
-    abortRef.current = null
-    setIsLoading(false)
+    stopChat()
   }
 
   function handleFileClick() {
@@ -507,63 +544,29 @@ function ChatPage() {
       content = content ? `${content}\n\n${fileSection}` : fileSection
     }
 
-    const userMessage: Message = { role: 'user', content }
-    const newMessages = [...messages, userMessage]
-    setMessages(newMessages)
     setInput('')
     setAttachedFiles([])
-    setIsLoading(true)
     setIsNearBottom(true)
     setShowScrollBtn(false)
-
-    const controller = new AbortController()
-    abortRef.current = controller
 
     try {
       let activeConvId = conversationId
       if (!activeConvId) {
         activeConvId = await createConversation()
       }
+      convIdRef.current = activeConvId
 
-      const res = await apiFetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newMessages, conversationId: activeConvId }),
-        signal: controller.signal,
-      })
-
-      if (!res.ok) throw new Error(`Server error: ${res.status}`)
-
-      const reader = res.body?.getReader()
-      if (!reader) throw new Error('No response body')
-
-      const decoder = new TextDecoder()
-      let assistantContent = ''
-      setMessages((prev) => [...prev, { role: 'assistant', content: '' }])
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        assistantContent += decoder.decode(value, { stream: true })
-        setMessages((prev) => {
-          const updated = [...prev]
-          updated[updated.length - 1] = { role: 'assistant', content: assistantContent }
-          return updated
-        })
-      }
-
+      // useChat handles streaming, messages state, and loading state
+      await sendMessage(content)
       loadConversations()
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return
       const message = err instanceof Error ? err.message : 'Failed to connect'
       toast.error(message)
-      setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${message}` }])
     } finally {
-      abortRef.current = null
-      setIsLoading(false)
       requestAnimationFrame(() => textareaRef.current?.focus())
     }
-  }, [input, isLoading, messages, conversationId, activeChannel, attachedFiles])
+  }, [input, isLoading, conversationId, activeChannel, attachedFiles, sendMessage])
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {

@@ -27,6 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
+import { HotkeysProvider, useHotkey } from '@tanstack/react-hotkeys'
 
 export const Route = createFileRoute('/_app')({
   beforeLoad: async () => {
@@ -63,6 +64,14 @@ function AppLayout() {
   const user = session?.user
   const [expanded, setExpanded] = useState(false)
 
+  // Global keyboard shortcuts
+  useHotkey('mod+shift+c', () => router.navigate({ to: '/chat' }))
+  useHotkey('mod+shift+s', () => router.navigate({ to: '/settings' }))
+  useHotkey('mod+shift+l', () => router.navigate({ to: '/logs' }))
+  useHotkey('mod+shift+u', () => router.navigate({ to: '/usage' }))
+  useHotkey('mod+shift+o', () => router.navigate({ to: '/overview' }))
+  useHotkey('mod+b', () => setExpanded((e) => !e))
+
   const isSettings = pathname.startsWith('/settings') || pathname.startsWith('/channels') ||
     pathname.startsWith('/agents') || pathname.startsWith('/config') ||
     pathname.startsWith('/skills') || pathname.startsWith('/cron') ||
@@ -82,6 +91,7 @@ function AppLayout() {
             : 'chat'
 
   return (
+    <HotkeysProvider>
     <div className="flex h-dvh bg-background">
       {/* ─── Sidebar ───────────────────────────────────────── */}
       <nav
@@ -218,5 +228,6 @@ function AppLayout() {
         <Outlet />
       </div>
     </div>
+    </HotkeysProvider>
   )
 }

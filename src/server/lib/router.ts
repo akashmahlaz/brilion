@@ -7,6 +7,8 @@ import {
 } from "../channels/whatsapp";
 import { Conversation } from "../models/conversation";
 import { connectDB } from "../db";
+import { trackUsage, estimateTokens } from "./usage-tracker";
+import { createLogger } from "../models/log-entry";
 
 const log = (...args: unknown[]) => console.log("[router]", ...args);
 const logErr = (...args: unknown[]) => console.error("[router]", ...args);
@@ -407,7 +409,11 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
 
   // Call AI via TanStack AI chat()
   log("Calling chat()...");
+  const sysLogger = createLogger(ownerId, "router");
   let fullText: string;
+  const startTime = Date.now();
+  const modelName = (agentConfig.adapter as any)?.model || "unknown";
+  const providerName = (agentConfig.adapter as any)?.provider || "unknown";
   try {
     fullText = await chat({
       adapter: adapterOverride ?? agentConfig.adapter,
@@ -417,10 +423,39 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
       agentLoopStrategy: maxIterations(agentConfig.maxSteps ?? 20),
       stream: false,
     }) as string;
+    const durationMs = Date.now() - startTime;
     log("AI response received, length:", fullText.length);
     log("AI response preview:", fullText.substring(0, 300));
+
+    // Track usage
+    const promptText = history.map((m: any) => typeof m.content === "string" ? m.content : "").join("");
+    trackUsage({
+      userId: ownerId,
+      conversationId: conv._id?.toString(),
+      channel: msg.channel,
+      provider: providerName,
+      model: modelName,
+      promptTokens: estimateTokens(promptText),
+      completionTokens: estimateTokens(fullText),
+      durationMs,
+      success: true,
+    });
+    sysLogger.info(`Chat completed via ${msg.channel}`, {
+      model: modelName, durationMs, responseLength: fullText.length,
+    });
   } catch (e) {
+    const durationMs = Date.now() - startTime;
     logErr("chat() FAILED:", e);
+    trackUsage({
+      userId: ownerId,
+      channel: msg.channel,
+      provider: providerName,
+      model: modelName,
+      durationMs,
+      success: false,
+      error: e instanceof Error ? e.message : String(e),
+    });
+    sysLogger.error(`Chat failed via ${msg.channel}`, { error: String(e) });
     const errMsg = `AI Error: ${e instanceof Error ? e.message : String(e)}`;
     if (msg.channel === "whatsapp") {
       await sendWhatsAppMessage(ownerId, msg.senderId, errMsg);

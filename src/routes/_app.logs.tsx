@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   ScrollText,
   Download,
@@ -22,6 +22,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { useDebouncedValue } from '@tanstack/react-pacer'
+import { apiFetch } from '#/lib/api'
+import { toast } from 'sonner'
 
 export const Route = createFileRoute('/_app/logs')({
   component: LogsPage,
@@ -30,11 +34,12 @@ export const Route = createFileRoute('/_app/logs')({
 type LogLevel = 'info' | 'warn' | 'error' | 'debug'
 
 interface LogEntry {
-  id: string
-  timestamp: string
+  _id: string
+  createdAt: string
   level: LogLevel
   source: string
   message: string
+  meta?: Record<string, unknown>
 }
 
 const LEVEL_COLORS: Record<LogLevel, string> = {
@@ -44,99 +49,85 @@ const LEVEL_COLORS: Record<LogLevel, string> = {
   debug: 'text-muted-foreground',
 }
 
-
-function generateMockLogs(count: number): LogEntry[] {
-  const sources = ['gateway', 'chat', 'whatsapp', 'telegram', 'agent', 'skills', 'cron']
-  const messages: Record<LogLevel, string[]> = {
-    info: [
-      'Request processed successfully',
-      'Channel connection established',
-      'Session created for user',
-      'Model response generated',
-      'Health check passed',
-      'Skill loaded: web_search',
-    ],
-    warn: [
-      'Rate limit approaching threshold',
-      'Slow response from provider (2.3s)',
-      'Session nearing token limit',
-      'Retry attempt 2/3 for API call',
-    ],
-    error: [
-      'Failed to connect to provider',
-      'WebSocket connection lost',
-      'Invalid API key for provider',
-      'Tool execution failed: timeout',
-    ],
-    debug: [
-      'Parsing message payload',
-      'Token count: 1,234 / 4,096',
-      'Cache hit for model config',
-      'Webhook delivery attempt',
-    ],
-  }
-  const levels: LogLevel[] = ['info', 'info', 'info', 'info', 'warn', 'warn', 'error', 'debug', 'debug', 'debug']
-
-  return Array.from({ length: count }, (_, i) => {
-    const level = levels[Math.floor(Math.random() * levels.length)]
-    const msgs = messages[level]
-    return {
-      id: String(i),
-      timestamp: new Date(Date.now() - (count - i) * 2000).toISOString(),
-      level,
-      source: sources[Math.floor(Math.random() * sources.length)],
-      message: msgs[Math.floor(Math.random() * msgs.length)],
-    }
-  })
-}
-
 function LogsPage() {
-  const [logs, setLogs] = useState<LogEntry[]>(() => generateMockLogs(50))
+  const [logs, setLogs] = useState<LogEntry[]>([])
   const [paused, setPaused] = useState(false)
   const [filter, setFilter] = useState('')
+  const [debouncedFilter] = useDebouncedValue(filter, { wait: 300 })
   const [levelFilter, setLevelFilter] = useState<string>('all')
   const [sourceFilter, setSourceFilter] = useState<string>('all')
-  const logEndRef = useRef<HTMLDivElement>(null)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [levelCounts, setLevelCounts] = useState<Record<string, number>>({})
+  const [hasMore, setHasMore] = useState(false)
+  const [cursor, setCursor] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const parentRef = useRef<HTMLDivElement>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Live tail — add new logs every 2s
+  const loadLogs = useCallback(async (append = false) => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ limit: '200' })
+      if (levelFilter !== 'all') params.set('level', levelFilter)
+      if (sourceFilter !== 'all') params.set('source', sourceFilter)
+      if (append && cursor) params.set('cursor', cursor)
+
+      const res = await apiFetch(`/api/logs?${params}`)
+      if (res.ok) {
+        const data = await res.json()
+        if (append) {
+          setLogs((prev) => [...prev, ...data.logs])
+        } else {
+          setLogs(data.logs)
+        }
+        setCursor(data.nextCursor)
+        setHasMore(data.hasMore)
+        setLevelCounts(data.levelCounts || {})
+      }
+    } catch {
+      // API may not be reachable
+    }
+    setLoading(false)
+  }, [levelFilter, sourceFilter, cursor])
+
+  // Initial load + refresh on filter change
+  useEffect(() => {
+    setCursor(null)
+    setLogs([])
+    loadLogs(false)
+  }, [levelFilter, sourceFilter])
+
+  // Live polling when not paused
   useEffect(() => {
     if (paused) {
-      if (intervalRef.current) clearInterval(intervalRef.current)
+      if (pollRef.current) clearInterval(pollRef.current)
       return
     }
-    intervalRef.current = setInterval(() => {
-      const newLogs = generateMockLogs(1).map((l) => ({
-        ...l,
-        id: String(Date.now()),
-        timestamp: new Date().toISOString(),
-      }))
-      setLogs((prev) => [...prev.slice(-499), ...newLogs])
-    }, 2000)
+    pollRef.current = setInterval(() => {
+      loadLogs(false)
+    }, 5000)
     return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current)
+      if (pollRef.current) clearInterval(pollRef.current)
     }
-  }, [paused])
+  }, [paused, levelFilter, sourceFilter])
 
-  // Auto-scroll
-  useEffect(() => {
-    if (!paused) {
-      logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    }
-  }, [logs, paused])
-
-  const filteredLogs = logs.filter((log) => {
-    if (levelFilter !== 'all' && log.level !== levelFilter) return false
-    if (sourceFilter !== 'all' && log.source !== sourceFilter) return false
-    if (filter && !log.message.toLowerCase().includes(filter.toLowerCase())) return false
-    return true
-  })
+  // Filter logs client-side by text search
+  const filteredLogs = debouncedFilter
+    ? logs.filter((l) => l.message.toLowerCase().includes(debouncedFilter.toLowerCase()))
+    : logs
 
   const sources = Array.from(new Set(logs.map((l) => l.source))).sort()
 
+  // Virtual list
+  const virtualizer = useVirtualizer({
+    count: filteredLogs.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 28,
+    overscan: 20,
+  })
+
   function exportLogs() {
     const text = filteredLogs
-      .map((l) => `${l.timestamp} [${l.level.toUpperCase()}] [${l.source}] ${l.message}`)
+      .map((l) => `${l.createdAt} [${l.level.toUpperCase()}] [${l.source}] ${l.message}`)
       .join('\n')
     const blob = new Blob([text], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
@@ -147,8 +138,17 @@ function LogsPage() {
     URL.revokeObjectURL(url)
   }
 
-  function clearLogs() {
-    setLogs([])
+  async function clearLogs() {
+    try {
+      const res = await apiFetch('/api/logs', { method: 'DELETE' })
+      if (res.ok) {
+        setLogs([])
+        setCursor(null)
+        toast.success('Logs cleared')
+      }
+    } catch {
+      toast.error('Failed to clear logs')
+    }
   }
 
   function formatTime(ts: string) {
@@ -213,19 +213,19 @@ function LogsPage() {
               />
             </div>
             <Select value={levelFilter} onValueChange={setLevelFilter}>
-              <SelectTrigger className="w-[120px]">
+              <SelectTrigger className="w-30">
                 <SelectValue placeholder="Level" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Levels</SelectItem>
-                <SelectItem value="info">Info</SelectItem>
-                <SelectItem value="warn">Warn</SelectItem>
-                <SelectItem value="error">Error</SelectItem>
-                <SelectItem value="debug">Debug</SelectItem>
+                <SelectItem value="info">Info {levelCounts.info ? `(${levelCounts.info})` : ''}</SelectItem>
+                <SelectItem value="warn">Warn {levelCounts.warn ? `(${levelCounts.warn})` : ''}</SelectItem>
+                <SelectItem value="error">Error {levelCounts.error ? `(${levelCounts.error})` : ''}</SelectItem>
+                <SelectItem value="debug">Debug {levelCounts.debug ? `(${levelCounts.debug})` : ''}</SelectItem>
               </SelectContent>
             </Select>
             <Select value={sourceFilter} onValueChange={setSourceFilter}>
-              <SelectTrigger className="w-[140px]">
+              <SelectTrigger className="w-35">
                 <SelectValue placeholder="Source" />
               </SelectTrigger>
               <SelectContent>
@@ -242,39 +242,64 @@ function LogsPage() {
             </Badge>
           </div>
 
-          {/* Log Output — terminal style */}
+          {/* Virtualized Log Output — terminal style */}
           <Card className="bg-[#0d1117] border-border/50">
             <CardContent className="p-0">
-              <div className="h-[calc(100vh-320px)] overflow-y-auto font-mono text-xs">
-                <div className="p-3 space-y-px">
-                  {filteredLogs.map((log) => (
-                    <div
-                      key={log.id}
-                      className="flex gap-3 py-0.5 hover:bg-white/5 px-2 rounded"
-                    >
-                      <span className="text-muted-foreground shrink-0 w-[85px]">
-                        {formatTime(log.timestamp)}
-                      </span>
-                      <span
-                        className={`shrink-0 w-[42px] uppercase font-bold ${LEVEL_COLORS[log.level]}`}
+              <div
+                ref={parentRef}
+                className="h-[calc(100vh-320px)] overflow-y-auto font-mono text-xs"
+              >
+                <div
+                  className="relative w-full p-3"
+                  style={{ height: `${virtualizer.getTotalSize()}px` }}
+                >
+                  {virtualizer.getVirtualItems().map((vItem) => {
+                    const log = filteredLogs[vItem.index]
+                    return (
+                      <div
+                        key={log._id}
+                        className="absolute top-0 left-0 w-full flex gap-3 py-0.5 hover:bg-white/5 px-5 rounded"
+                        style={{
+                          height: `${vItem.size}px`,
+                          transform: `translateY(${vItem.start}px)`,
+                        }}
                       >
-                        {log.level}
-                      </span>
-                      <span className="text-purple-400 shrink-0 w-[80px] truncate">
-                        {log.source}
-                      </span>
-                      <span className="text-[#c9d1d9]">{log.message}</span>
-                    </div>
-                  ))}
-                  <div ref={logEndRef} />
+                        <span className="text-muted-foreground shrink-0 w-21">
+                          {formatTime(log.createdAt)}
+                        </span>
+                        <span
+                          className={`shrink-0 w-11 uppercase font-bold ${LEVEL_COLORS[log.level] ?? 'text-muted-foreground'}`}
+                        >
+                          {log.level}
+                        </span>
+                        <span className="text-purple-400 shrink-0 w-20 truncate">
+                          {log.source}
+                        </span>
+                        <span className="text-[#c9d1d9] truncate flex-1">{log.message}</span>
+                      </div>
+                    )
+                  })}
                 </div>
-                {filteredLogs.length === 0 && (
+                {filteredLogs.length === 0 && !loading && (
                   <div className="flex items-center justify-center h-full text-muted-foreground">
                     <ScrollText className="size-8 mr-2" />
                     No logs matching filters
                   </div>
                 )}
               </div>
+              {hasMore && (
+                <div className="p-2 text-center border-t border-border/30">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => loadLogs(true)}
+                    disabled={loading}
+                    className="text-xs text-muted-foreground"
+                  >
+                    {loading ? 'Loading...' : 'Load more'}
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
