@@ -22,33 +22,88 @@ interface IncomingMessage {
   foreignId?: string;
   imageBase64?: string;
   imageMime?: string;
+  isGroup?: boolean;
+  groupId?: string;
+  isMentioned?: boolean;
 }
 
 interface ChannelConfig {
   enabled: boolean;
   dmPolicy: "open" | "pairing" | "allowlist" | "disabled";
   allowFrom: string[];
+  groupPolicy?: "open" | "allowlist" | "disabled";
+  groupAllowFrom?: string[];
 }
 
-function isAllowed(sender: string, channelCfg: ChannelConfig): boolean {
+/** Normalize JID: strip device suffix and extract phone number */
+const normalizeJid = (jid: string) =>
+  jid.replace(/:\d+@/, "@").split("@")[0];
+
+type AccessDecision =
+  | { allowed: true }
+  | { allowed: false; reason: string; action?: "pairing" | "block" };
+
+/**
+ * OpenClaw-style access control hierarchy:
+ * 1. Channel enabled check
+ * 2. Self-chat bypass (owner)
+ * 3. Group policy → group allowlist → activation gating
+ * 4. DM policy: disabled → block | open → allow | allowlist → check | pairing → challenge
+ */
+function resolveAccess(
+  sender: string,
+  channelCfg: ChannelConfig,
+  opts: { isGroup?: boolean; groupId?: string }
+): AccessDecision {
   if (!channelCfg.enabled) {
-    log("isAllowed: channel DISABLED");
-    return false;
+    return { allowed: false, reason: "channel_disabled" };
   }
-  if (channelCfg.dmPolicy === "disabled") {
-    log("isAllowed: dmPolicy=disabled");
-    return false;
+
+  // Group access check
+  if (opts.isGroup && opts.groupId) {
+    const groupPolicy = channelCfg.groupPolicy ?? "open";
+    if (groupPolicy === "disabled") {
+      return { allowed: false, reason: "group_disabled" };
+    }
+    if (groupPolicy === "allowlist") {
+      const groupAllowFrom = channelCfg.groupAllowFrom ?? [];
+      const groupAllowed = groupAllowFrom.some(
+        (p) => p === "*" || p === opts.groupId
+      );
+      if (!groupAllowed) {
+        return { allowed: false, reason: "group_not_allowlisted" };
+      }
+    }
+    return { allowed: true };
   }
-  if (channelCfg.dmPolicy === "open") {
-    log("isAllowed: dmPolicy=open → ALLOWED");
-    return true;
+
+  // DM access check
+  const { dmPolicy } = channelCfg;
+  if (dmPolicy === "disabled") {
+    return { allowed: false, reason: "dm_disabled" };
   }
-  const allowed = channelCfg.allowFrom.some(
-    (pattern) => pattern === "*" || pattern === sender ||
+  if (dmPolicy === "open") {
+    return { allowed: true };
+  }
+
+  // Check allowlist (applies to both "allowlist" and "pairing" policies)
+  const inAllowlist = channelCfg.allowFrom.some(
+    (pattern) =>
+      pattern === "*" ||
+      pattern === sender ||
       sender.includes(pattern.replace(/^\+/, ""))
   );
-  log("isAllowed: dmPolicy=", channelCfg.dmPolicy, "allowFrom:", channelCfg.allowFrom, "sender:", sender, "→", allowed ? "ALLOWED" : "BLOCKED");
-  return allowed;
+
+  if (inAllowlist) {
+    return { allowed: true };
+  }
+
+  // Not in allowlist
+  if (dmPolicy === "pairing") {
+    return { allowed: false, reason: "pairing_required", action: "pairing" };
+  }
+
+  return { allowed: false, reason: "not_allowlisted" };
 }
 
 async function handleChatCommand(
@@ -187,39 +242,74 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   const channelCfg = config.channels?.[msg.channel] as ChannelConfig | undefined;
   log("Channel config:", JSON.stringify(channelCfg));
 
-  // Self-chat check: if sender JID matches the owner's WhatsApp JID, honour selfChatMode
-  if (msg.channel === "whatsapp" && config.channels?.whatsapp) {
-    const { isWhatsAppConnected: _isConn } = await import("../channels/whatsapp");
+  // --- Access control hierarchy (OpenClaw-style) ---
+  let isSelfChat = false;
+
+  // Step 1: Self-chat detection (owner bypass)
+  if (msg.channel === "whatsapp") {
     const { getOwnerJid } = await import("./wa-manager");
     const ownerJid = getOwnerJid(ownerId);
-    if (ownerJid) {
-      const normalizeJid = (jid: string) => jid.replace(/:\d+@/, "@");
-      const isSelfChat = normalizeJid(msg.senderId) === normalizeJid(ownerJid);
-      if (isSelfChat) {
-        const selfChatEnabled = config.channels.whatsapp.selfChatMode !== false;
-        log("Self-chat detected. selfChatMode:", selfChatEnabled);
-        if (!selfChatEnabled) {
-          log("BLOCKED: selfChatMode is disabled");
-          return "[blocked] Self-chat mode is disabled.";
-        }
-        // Self-chat is allowed — skip the normal isAllowed check
-        log("Self-chat ALLOWED — skipping DM policy check");
-      } else if (channelCfg && !isAllowed(msg.senderId, channelCfg)) {
-        log("BLOCKED: sender not allowed:", msg.senderId);
-        await sendWhatsAppMessage(ownerId, msg.senderId, "[blocked] Sender not allowed by DM policy.");
-        return "[blocked] Sender not allowed by DM policy.";
+    isSelfChat = ownerJid
+      ? normalizeJid(msg.senderId) === normalizeJid(ownerJid)
+      : false;
+    log("Self-chat check: senderId=", msg.senderId, "ownerJid=", ownerJid, "isSelfChat=", isSelfChat);
+
+    if (isSelfChat) {
+      const selfChatEnabled = config.channels?.whatsapp?.selfChatMode !== false;
+      if (!selfChatEnabled) {
+        log("BLOCKED: selfChatMode is disabled");
+        return "[blocked] Self-chat mode is disabled.";
       }
-    } else if (channelCfg && !isAllowed(msg.senderId, channelCfg)) {
-      log("BLOCKED: sender not allowed:", msg.senderId);
-      await sendWhatsAppMessage(ownerId, msg.senderId, "[blocked] Sender not allowed by DM policy.");
-      return "[blocked] Sender not allowed by DM policy.";
+      log("Self-chat ALLOWED — skipping access control");
     }
-  } else if (channelCfg && !isAllowed(msg.senderId, channelCfg)) {
-    log("BLOCKED: sender not allowed:", msg.senderId);
-    if (msg.channel === "whatsapp") {
-      await sendWhatsAppMessage(ownerId, msg.senderId, "[blocked] Sender not allowed by DM policy.");
+  }
+
+  // Step 2: Channel access control (if not self-chat)
+  if (!isSelfChat && channelCfg) {
+    const access = resolveAccess(msg.senderId, channelCfg, {
+      isGroup: msg.isGroup,
+      groupId: msg.groupId,
+    });
+    log("Access decision:", JSON.stringify(access));
+
+    if (!access.allowed) {
+      if (access.action === "pairing") {
+        // Issue pairing challenge
+        const { issuePairingChallenge } = await import("./pairing");
+        const pairing = await issuePairingChallenge({
+          userId: ownerId,
+          channel: msg.channel as "whatsapp" | "telegram",
+          senderId: msg.senderId,
+          senderName: msg.senderName,
+        });
+        log("Pairing challenge issued:", pairing.code, "alreadyPending:", pairing.alreadyPending);
+
+        if (msg.channel === "whatsapp") {
+          await sendWhatsAppMessage(ownerId, msg.senderId, pairing.message);
+        }
+        return "[pairing] Challenge issued.";
+      }
+
+      // Blocked
+      const blockMsg = `[blocked] ${access.reason}`;
+      log("BLOCKED:", blockMsg);
+      if (msg.channel === "whatsapp") {
+        await sendWhatsAppMessage(ownerId, msg.senderId, blockMsg);
+      }
+      return blockMsg;
     }
-    return "[blocked] Sender not allowed by DM policy.";
+  } else if (!isSelfChat && !channelCfg) {
+    log("No channel config — allowing by default");
+  }
+
+  // Step 3: Group activation gating (mention/command modes)
+  if (msg.isGroup && channelCfg) {
+    const groupPolicy = channelCfg.groupPolicy ?? "open";
+    // In "mention" or non-"open" modes, require @mention or /command
+    if (groupPolicy !== "open" && !msg.isMentioned && !msg.text.startsWith("/")) {
+      log("Group message skipped: not mentioned and not a command");
+      return "[skipped] Group message — not mentioned.";
+    }
   }
 
   // Handle chat commands
@@ -236,24 +326,27 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   }
 
   // Find or create conversation
-  log("Looking up conversation: userId=", ownerId, "channel=", msg.channel, "foreignId=", msg.senderId);
+  // Per-peer isolation: DMs use senderId, groups use groupId
+  const conversationKey = msg.isGroup && msg.groupId ? msg.groupId : msg.senderId;
+  log("Looking up conversation: userId=", ownerId, "channel=", msg.channel, "foreignId=", conversationKey);
   let conv = await Conversation.findOne({
     channel: msg.channel,
-    foreignId: msg.senderId,
+    foreignId: conversationKey,
     userId: ownerId,
   });
 
   if (!conv) {
-    // Generate a proper title: use sender name + first message preview
     const senderLabel = msg.senderName || msg.senderId.replace(/@.*/, "");
     const msgPreview = msg.text.length > 40 ? msg.text.slice(0, 40) + "…" : msg.text;
-    const title = `${senderLabel}: ${msgPreview}`;
+    const title = msg.isGroup
+      ? `Group: ${conversationKey.replace(/@.*/, "")}`
+      : `${senderLabel}: ${msgPreview}`;
     
     log("No existing conversation — creating new one");
     conv = await Conversation.create({
       userId: ownerId,
       channel: msg.channel,
-      foreignId: msg.senderId,
+      foreignId: conversationKey,
       title,
       messages: [],
       model: config.agents?.defaults?.model?.primary || "gpt-4o",
@@ -347,10 +440,13 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   }
 
   // Send reply back through channel
-  log("Sending reply back via", msg.channel);
+  // Send reply back through channel
+  // For groups, reply to the group JID; for DMs, reply to the sender
+  const replyTarget = msg.isGroup && msg.groupId ? msg.groupId : msg.senderId;
+  log("Sending reply back via", msg.channel, "to", replyTarget);
   switch (msg.channel) {
     case "whatsapp": {
-      const sendResult = await sendWhatsAppMessage(ownerId, msg.senderId, fullText);
+      const sendResult = await sendWhatsAppMessage(ownerId, replyTarget, fullText);
       log("WhatsApp send result:", JSON.stringify(sendResult));
       break;
     }
@@ -395,6 +491,9 @@ export async function initMessageRouter(userId: string): Promise<void> {
       text: msg.text,
       imageBase64: msg.imageBase64,
       imageMime: msg.imageMime,
+      isGroup: msg.isGroup,
+      groupId: msg.groupId,
+      isMentioned: msg.isMentioned,
     }).then((reply) => {
       log("  routeMessage() completed. Reply length:", reply?.length);
     }).catch((err) => {

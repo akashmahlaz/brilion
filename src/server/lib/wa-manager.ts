@@ -29,11 +29,24 @@ interface LoginSession {
   restartAttempted: boolean;
 }
 
-type MessageHandler = (userId: string, msg: { jid: string; text: string; pushName?: string; imageBase64?: string; imageMime?: string }) => void;
+type MessageHandler = (userId: string, msg: {
+  jid: string;
+  text: string;
+  pushName?: string;
+  imageBase64?: string;
+  imageMime?: string;
+  isGroup: boolean;
+  groupId?: string;
+  senderJid?: string;
+  isMentioned?: boolean;
+}) => void;
 
 const connections = new Map<string, UserConnection>();
 const loginSessions = new Map<string, LoginSession>();
 const messageHandlers: MessageHandler[] = [];
+
+/** Track message IDs sent by our bot to prevent self-chat infinite loops */
+const sentByUs = new Set<string>();
 
 const LOGIN_TTL_MS = 3 * 60 * 1000;
 
@@ -184,16 +197,24 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
       log("  remoteJid:", msg.key.remoteJid);
       log("  pushName:", msg.pushName);
       log("  messageType:", msg.message ? Object.keys(msg.message).join(", ") : "null");
+
+      // Skip messages sent by our own bot to prevent infinite loops
+      if (msg.key.id && sentByUs.has(msg.key.id)) {
+        log("  SKIPPED: message sent by our bot (id:", msg.key.id, ")");
+        continue;
+      }
       
       if (msg.key.fromMe) {
         // Allow self-chat: user messaging their own WhatsApp number
-        // Normalize JIDs by stripping device suffix (e.g. "123:5@s.whatsapp.net" → "123@s.whatsapp.net")
-        const normalizeJid = (jid: string) => jid.replace(/:\d+@/, "@");
+        // Normalize JIDs: strip device suffix AND handle LID format
+        // e.g. "123:5@s.whatsapp.net" → "123@s.whatsapp.net"
+        const normalizeJid = (jid: string) =>
+          jid.replace(/:\d+@/, "@").split("@")[0];
         const ownJid = conn.jid ? normalizeJid(conn.jid) : "";
         const remoteJid = msg.key.remoteJid ? normalizeJid(msg.key.remoteJid) : "";
         const isSelfChat = ownJid && remoteJid === ownJid;
         if (!isSelfChat) {
-          log("  SKIPPED: fromMe=true (not self-chat)");
+          log("  SKIPPED: fromMe=true (not self-chat, own:", ownJid, "remote:", remoteJid, ")");
           continue;
         }
         log("  ALLOWED: self-chat message (fromMe=true, remoteJid matches own JID)");
@@ -236,15 +257,35 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
       }
 
       log("  >>> Dispatching to", messageHandlers.length, "handlers");
+
+      // Detect group messages (JID ends with @g.us)
+      const remoteJid = msg.key.remoteJid!;
+      const isGroup = remoteJid.endsWith("@g.us");
+      // In groups, participant is the actual sender; in DMs, it's the remoteJid
+      const senderJid = isGroup ? (msg.key.participant || remoteJid) : remoteJid;
+      // Check if bot was @mentioned in the message
+      const mentionedJids = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+      const isMentioned = conn.jid
+        ? mentionedJids.some((m: string) =>
+            m.replace(/:\d+@/, "@") === conn.jid!.replace(/:\d+@/, "@")
+          )
+        : false;
+
+      log("  isGroup:", isGroup, "senderJid:", senderJid, "isMentioned:", isMentioned);
+
       for (let i = 0; i < messageHandlers.length; i++) {
         log("  Calling handler", i);
         try {
           messageHandlers[i](userId, {
-            jid: msg.key.remoteJid,
+            jid: senderJid,
             text: text || (imageBase64 ? "[User sent an image]" : ""),
             pushName: msg.pushName || undefined,
             imageBase64,
             imageMime,
+            isGroup,
+            groupId: isGroup ? remoteJid : undefined,
+            senderJid,
+            isMentioned,
           });
           log("  Handler", i, "called successfully");
         } catch (e) {
@@ -357,7 +398,12 @@ export async function send(userId: string, jid: string, text: string) {
   }
   try {
     log("Calling socket.sendMessage...");
-    await conn.socket.sendMessage(jid, { text });
+    const sent = await conn.socket.sendMessage(jid, { text });
+    // Track sent message ID to prevent infinite loops on self-chat
+    if (sent?.key?.id) {
+      sentByUs.add(sent.key.id);
+      setTimeout(() => sentByUs.delete(sent.key.id!), 30_000);
+    }
     log("Message SENT successfully to", jid);
     return { status: "sent" };
   } catch (err) {

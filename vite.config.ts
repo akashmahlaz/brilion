@@ -19,11 +19,19 @@ const config = defineConfig({
       strategy: ['url', 'baseLocale'],
     }),
     nitro({
-      rollupConfig: {
+      externals: {
         external: [
-          /^@sentry\//,
-          /^@whiskeysockets\//,
-          /^grammy/,
+          '@whiskeysockets/baileys',
+          'grammy',
+          'qrcode',
+          'sharp',
+          'pino',
+          'link-preview-js',
+          '@sentry/node',
+        ],
+        traceInclude: [
+          '@whiskeysockets/baileys',
+          'grammy',
           'qrcode',
           'sharp',
           'pino',

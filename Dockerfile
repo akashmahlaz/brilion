@@ -24,11 +24,8 @@ WORKDIR /app
 # Create non-root user
 RUN addgroup -S brilion && adduser -S brilion -G brilion
 
-# Copy only the build output (self-contained Nitro server)
+# Copy build output (Nitro traces externals into .output/server/node_modules/)
 COPY --from=build /app/.output ./.output
-
-# Copy node_modules for externalized packages (baileys, grammy, sharp, pino, etc.)
-COPY --from=deps /app/node_modules ./node_modules
 
 # Create uploads directory with proper permissions
 RUN mkdir -p /app/uploads && chown -R brilion:brilion /app

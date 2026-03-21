@@ -18,6 +18,7 @@ import { Route as ApiWhatsappRouteImport } from './routes/api/whatsapp'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
 import { Route as ApiTelegramRouteImport } from './routes/api/telegram'
 import { Route as ApiSkillsRouteImport } from './routes/api/skills'
+import { Route as ApiPairingRouteImport } from './routes/api/pairing'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
 import { Route as ApiKeysRouteImport } from './routes/api/keys'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -89,6 +90,11 @@ const ApiTelegramRoute = ApiTelegramRouteImport.update({
 const ApiSkillsRoute = ApiSkillsRouteImport.update({
   id: '/api/skills',
   path: '/api/skills',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPairingRoute = ApiPairingRouteImport.update({
+  id: '/api/pairing',
+  path: '/api/pairing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiModelsRoute = ApiModelsRouteImport.update({
@@ -265,6 +271,7 @@ export interface FileRoutesByFullPath {
   '/api/health': typeof ApiHealthRoute
   '/api/keys': typeof ApiKeysRoute
   '/api/models': typeof ApiModelsRoute
+  '/api/pairing': typeof ApiPairingRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/upload': typeof ApiUploadRoute
@@ -303,6 +310,7 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/api/keys': typeof ApiKeysRoute
   '/api/models': typeof ApiModelsRoute
+  '/api/pairing': typeof ApiPairingRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/upload': typeof ApiUploadRoute
@@ -344,6 +352,7 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/api/keys': typeof ApiKeysRoute
   '/api/models': typeof ApiModelsRoute
+  '/api/pairing': typeof ApiPairingRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/upload': typeof ApiUploadRoute
@@ -384,6 +393,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/keys'
     | '/api/models'
+    | '/api/pairing'
     | '/api/skills'
     | '/api/telegram'
     | '/api/upload'
@@ -422,6 +432,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/keys'
     | '/api/models'
+    | '/api/pairing'
     | '/api/skills'
     | '/api/telegram'
     | '/api/upload'
@@ -462,6 +473,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/keys'
     | '/api/models'
+    | '/api/pairing'
     | '/api/skills'
     | '/api/telegram'
     | '/api/upload'
@@ -484,6 +496,7 @@ export interface RootRouteChildren {
   ApiHealthRoute: typeof ApiHealthRoute
   ApiKeysRoute: typeof ApiKeysRoute
   ApiModelsRoute: typeof ApiModelsRoute
+  ApiPairingRoute: typeof ApiPairingRoute
   ApiSkillsRoute: typeof ApiSkillsRoute
   ApiTelegramRoute: typeof ApiTelegramRoute
   ApiUploadRoute: typeof ApiUploadRoute
@@ -558,6 +571,13 @@ declare module '@tanstack/react-router' {
       path: '/api/skills'
       fullPath: '/api/skills'
       preLoaderRoute: typeof ApiSkillsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/pairing': {
+      id: '/api/pairing'
+      path: '/api/pairing'
+      fullPath: '/api/pairing'
+      preLoaderRoute: typeof ApiPairingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/models': {
@@ -831,6 +851,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthRoute: ApiHealthRoute,
   ApiKeysRoute: ApiKeysRoute,
   ApiModelsRoute: ApiModelsRoute,
+  ApiPairingRoute: ApiPairingRoute,
   ApiSkillsRoute: ApiSkillsRoute,
   ApiTelegramRoute: ApiTelegramRoute,
   ApiUploadRoute: ApiUploadRoute,
@@ -844,12 +865,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
