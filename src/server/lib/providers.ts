@@ -1,9 +1,7 @@
-import { createOpenAI } from "@ai-sdk/openai";
-import { createAnthropic } from "@ai-sdk/anthropic";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createXai } from "@ai-sdk/xai";
-import { createMistral } from "@ai-sdk/mistral";
-import type { LanguageModel } from "ai";
+import { createOpenaiChat } from "@tanstack/ai-openai";
+import { createAnthropicChat } from "@tanstack/ai-anthropic";
+import { createGeminiChat } from "@tanstack/ai-gemini";
+import type { AnyTextAdapter } from "@tanstack/ai";
 import { resolveProviderKey, resolveProviderBaseUrl } from "./auth-profiles";
 import { loadConfig } from "./config";
 
@@ -90,47 +88,61 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
   },
 ];
 
-function buildProvider(
+function buildAdapter(
   providerId: string,
+  modelId: string,
   apiKey: string,
   baseUrl?: string
-) {
+): AnyTextAdapter {
   switch (providerId) {
     case "github":
-      return createOpenAI({
+      return createOpenaiChat({
+        model: modelId,
         apiKey,
-        baseURL: baseUrl || "https://models.inference.ai.azure.com",
+        baseUrl: baseUrl || "https://models.inference.ai.azure.com",
       });
     case "github-copilot":
-      return createOpenAI({
+      return createOpenaiChat({
+        model: modelId,
         apiKey,
-        baseURL: baseUrl || "https://api.githubcopilot.com",
+        baseUrl: baseUrl || "https://api.githubcopilot.com",
       });
     case "openai":
-      return createOpenAI({ apiKey, baseURL: baseUrl });
+      return createOpenaiChat({ model: modelId, apiKey, baseUrl });
     case "anthropic":
-      return createAnthropic({ apiKey, baseURL: baseUrl });
+      return createAnthropicChat({ model: modelId, apiKey, baseUrl });
     case "google":
-      return createGoogleGenerativeAI({ apiKey, baseURL: baseUrl });
+      return createGeminiChat({ model: modelId, apiKey, baseUrl });
     case "xai":
-      return createXai({ apiKey, baseURL: baseUrl });
-    case "mistral":
-      return createMistral({ apiKey, baseURL: baseUrl });
-    case "openrouter":
-      return createOpenAI({
+      // xAI uses OpenAI-compatible API
+      return createOpenaiChat({
+        model: modelId,
         apiKey,
-        baseURL: baseUrl || "https://openrouter.ai/api/v1",
+        baseUrl: baseUrl || "https://api.x.ai/v1",
+      });
+    case "mistral":
+      // Mistral uses OpenAI-compatible API
+      return createOpenaiChat({
+        model: modelId,
+        apiKey,
+        baseUrl: baseUrl || "https://api.mistral.ai/v1",
+      });
+    case "openrouter":
+      return createOpenaiChat({
+        model: modelId,
+        apiKey,
+        baseUrl: baseUrl || "https://openrouter.ai/api/v1",
       });
     default:
-      return createOpenAI({ apiKey, baseURL: baseUrl });
+      return createOpenaiChat({ model: modelId, apiKey, baseUrl });
   }
 }
 
 /**
- * Resolve a model spec (e.g. "github/gpt-4o") into an AI SDK LanguageModel.
+ * Resolve a model spec (e.g. "github/gpt-4o") into a TanStack AI adapter.
  * Implements OpenClaw-style failover: tries primary, then each fallback.
  */
-export async function resolveModel(modelSpec?: string, userId?: string): Promise<LanguageModel> {
+export async function resolveModel(modelSpec?: string, userId?: string): Promise<AnyTextAdapter> {
   console.log("[providers] resolveModel() called, spec:", modelSpec || "default", "userId:", userId || "none");
   const config = await loadConfig(userId);
   const spec = modelSpec || config.agents?.defaults?.model?.primary || "gpt-4o";
@@ -143,11 +155,11 @@ export async function resolveModel(modelSpec?: string, userId?: string): Promise
 
   for (const currentSpec of specs) {
     try {
-      const model = await resolveModelSingle(currentSpec, userId);
+      const adapter = await resolveModelSingle(currentSpec, userId);
       if (currentSpec !== spec) {
         console.log("[providers] Failover succeeded with:", currentSpec);
       }
-      return model;
+      return adapter;
     } catch (e) {
       lastError = e instanceof Error ? e : new Error(String(e));
       console.log("[providers] Failed to resolve", currentSpec, ":", lastError.message);
@@ -157,7 +169,7 @@ export async function resolveModel(modelSpec?: string, userId?: string): Promise
   throw lastError || new Error("No AI provider configured. Set an API key first.");
 }
 
-async function resolveModelSingle(spec: string, userId?: string): Promise<LanguageModel> {
+async function resolveModelSingle(spec: string, userId?: string): Promise<AnyTextAdapter> {
   let providerId: string = "github";
   let modelId: string;
 
@@ -185,11 +197,10 @@ async function resolveModelSingle(spec: string, userId?: string): Promise<Langua
 
   const baseUrl = await resolveProviderBaseUrl(providerId!, userId);
   console.log("[providers] baseUrl:", baseUrl || "default");
-  const provider = buildProvider(providerId!, apiKey, baseUrl ?? undefined);
-  return (provider as any)(modelId);
+  return buildAdapter(providerId!, modelId, apiKey, baseUrl ?? undefined);
 }
 
-export async function resolveModelBySpec(spec: string, userId?: string): Promise<LanguageModel> {
+export async function resolveModelBySpec(spec: string, userId?: string): Promise<AnyTextAdapter> {
   return resolveModel(spec, userId);
 }
 

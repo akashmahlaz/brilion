@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { streamText } from "ai";
+import { chat, maxIterations, toServerSentEventsResponse, streamToText } from "@tanstack/ai";
 import { connectDB } from "#/server/db";
 import { requireAuth } from "#/server/middleware";
 import { Conversation } from "#/server/models/conversation";
@@ -107,7 +107,7 @@ export const Route = createFileRoute("/api/chat")({
         const { messages, conversationId, model: modelSpec } = body;
 
         const agentConfig = await getAgentConfig(userId);
-        const modelOverride = modelSpec
+        const adapterOverride = modelSpec
           ? await (
               await import("#/server/lib/providers")
             ).resolveModel(modelSpec, userId)
@@ -116,15 +116,18 @@ export const Route = createFileRoute("/api/chat")({
         // Transform messages — convert [Image: name](url) to actual multimodal image parts
         const aiMessages = await transformMessages(messages);
 
-        const result = streamText({
-          ...agentConfig,
-          ...(modelOverride ? { model: modelOverride } : {}),
+        const result = chat({
+          adapter: adapterOverride ?? agentConfig.adapter,
           messages: aiMessages,
+          systemPrompts: agentConfig.systemPrompts,
+          tools: agentConfig.tools,
+          agentLoopStrategy: maxIterations(agentConfig.maxSteps ?? 20),
+          stream: true,
         });
 
         // Save conversation in background (web chat only — channel messages saved by router)
         if (conversationId) {
-          result.text.then(async (fullText) => {
+          streamToText(result).then(async (fullText) => {
             try {
               const lastUserMsg = messages[messages.length - 1];
 
@@ -152,7 +155,7 @@ export const Route = createFileRoute("/api/chat")({
           });
         }
 
-        return result.toTextStreamResponse();
+        return toServerSentEventsResponse(result);
       },
 
       // GET /api/chat — list conversations or get single

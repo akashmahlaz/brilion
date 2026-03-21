@@ -1,4 +1,4 @@
-import { tool } from "ai";
+import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import { resolveProviderKey } from "../auth-profiles";
 
@@ -35,7 +35,8 @@ async function getToken() {
   return token;
 }
 
-export const githubReadFile = tool({
+export const githubReadFile = toolDefinition({
+  name: "github_read_file",
   description:
     "Read a file from a GitHub repository. Returns the file content decoded from base64.",
   inputSchema: z.object({
@@ -44,26 +45,26 @@ export const githubReadFile = tool({
     path: z.string().describe("File path in the repo"),
     ref: z.string().optional().describe("Branch or commit SHA (default: main)"),
   }),
-  execute: async ({ owner, repo, path, ref }) => {
-    try {
-      const token = await getToken();
-      const query = ref ? `?ref=${encodeURIComponent(ref)}` : "";
-      const data = await githubFetch(
-        `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${path}${query}`,
-        token
-      );
-      if (data.type !== "file") {
-        return { error: `Path is a ${data.type}, not a file` };
-      }
-      const content = Buffer.from(data.content, "base64").toString("utf-8");
-      return { path: data.path, content, sha: data.sha, size: data.size };
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : String(err) };
+}).server(async ({ owner, repo, path, ref }) => {
+  try {
+    const token = await getToken();
+    const query = ref ? `?ref=${encodeURIComponent(ref)}` : "";
+    const data = await githubFetch(
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${path}${query}`,
+      token
+    );
+    if (data.type !== "file") {
+      return { error: `Path is a ${data.type}, not a file` };
     }
-  },
+    const content = Buffer.from(data.content, "base64").toString("utf-8");
+    return { path: data.path, content, sha: data.sha, size: data.size };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
 });
 
-export const githubWriteFile = tool({
+export const githubWriteFile = toolDefinition({
+  name: "github_write_file",
   description:
     "Create or update a file in a GitHub repository. Provide content and an optional SHA for updates.",
   inputSchema: z.object({
@@ -78,34 +79,34 @@ export const githubWriteFile = tool({
       .describe("SHA of the file being replaced (required for updates)"),
     branch: z.string().optional().describe("Target branch (default: main)"),
   }),
-  execute: async ({ owner, repo, path, content, message, sha, branch }) => {
-    try {
-      const token = await getToken();
-      const body: Record<string, string> = {
-        message,
-        content: Buffer.from(content).toString("base64"),
-      };
-      if (sha) body.sha = sha;
-      if (branch) body.branch = branch;
+}).server(async ({ owner, repo, path, content, message, sha, branch }) => {
+  try {
+    const token = await getToken();
+    const body: Record<string, string> = {
+      message,
+      content: Buffer.from(content).toString("base64"),
+    };
+    if (sha) body.sha = sha;
+    if (branch) body.branch = branch;
 
-      const data = await githubFetch(
-        `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${path}`,
-        token,
-        { method: "PUT", body: JSON.stringify(body) }
-      );
-      return {
-        status: "ok",
-        path: data.content.path,
-        sha: data.content.sha,
-        commitSha: data.commit.sha,
-      };
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : String(err) };
-    }
-  },
+    const data = await githubFetch(
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${path}`,
+      token,
+      { method: "PUT", body: JSON.stringify(body) }
+    );
+    return {
+      status: "ok",
+      path: data.content.path,
+      sha: data.content.sha,
+      commitSha: data.commit.sha,
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
 });
 
-export const githubListRepoContents = tool({
+export const githubListRepoContents = toolDefinition({
+  name: "github_list_repo_contents",
   description:
     "List files and directories in a GitHub repo path.",
   inputSchema: z.object({
@@ -114,34 +115,34 @@ export const githubListRepoContents = tool({
     path: z.string().optional().describe("Directory path (default: root)"),
     ref: z.string().optional().describe("Branch or commit SHA"),
   }),
-  execute: async ({ owner, repo, path = "", ref }) => {
-    try {
-      const token = await getToken();
-      const query = ref ? `?ref=${encodeURIComponent(ref)}` : "";
-      const data = await githubFetch(
-        `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${path}${query}`,
-        token
-      );
-      if (!Array.isArray(data)) {
-        return { error: "Path is a file, not a directory" };
-      }
-      return {
-        items: data.map(
-          (item: { name: string; type: string; path: string; size: number }) => ({
-            name: item.name,
-            type: item.type,
-            path: item.path,
-            size: item.size,
-          })
-        ),
-      };
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : String(err) };
+}).server(async ({ owner, repo, path = "", ref }) => {
+  try {
+    const token = await getToken();
+    const query = ref ? `?ref=${encodeURIComponent(ref)}` : "";
+    const data = await githubFetch(
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${path}${query}`,
+      token
+    );
+    if (!Array.isArray(data)) {
+      return { error: "Path is a file, not a directory" };
     }
-  },
+    return {
+      items: data.map(
+        (item: { name: string; type: string; path: string; size: number }) => ({
+          name: item.name,
+          type: item.type,
+          path: item.path,
+          size: item.size,
+        })
+      ),
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
 });
 
-export const githubCreateRepo = tool({
+export const githubCreateRepo = toolDefinition({
+  name: "github_create_repo",
   description: "Create a new GitHub repository.",
   inputSchema: z.object({
     name: z.string().describe("Repository name"),
@@ -151,31 +152,31 @@ export const githubCreateRepo = tool({
       .optional()
       .describe("Whether the repo is private (default: false)"),
   }),
-  execute: async ({ name, description, isPrivate = false }) => {
-    try {
-      const token = await getToken();
-      const data = await githubFetch("/user/repos", token, {
-        method: "POST",
-        body: JSON.stringify({
-          name,
-          description,
-          private: isPrivate,
-          auto_init: true,
-        }),
-      });
-      return {
-        status: "ok",
-        fullName: data.full_name,
-        url: data.html_url,
-        cloneUrl: data.clone_url,
-      };
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : String(err) };
-    }
-  },
+}).server(async ({ name, description, isPrivate = false }) => {
+  try {
+    const token = await getToken();
+    const data = await githubFetch("/user/repos", token, {
+      method: "POST",
+      body: JSON.stringify({
+        name,
+        description,
+        private: isPrivate,
+        auto_init: true,
+      }),
+    });
+    return {
+      status: "ok",
+      fullName: data.full_name,
+      url: data.html_url,
+      cloneUrl: data.clone_url,
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
 });
 
-export const githubListRepos = tool({
+export const githubListRepos = toolDefinition({
+  name: "github_list_repos",
   description: "List the authenticated user's GitHub repositories.",
   inputSchema: z.object({
     sort: z
@@ -184,39 +185,39 @@ export const githubListRepos = tool({
       .describe("Sort order"),
     perPage: z.number().min(1).max(100).optional().describe("Results per page"),
   }),
-  execute: async ({ sort = "updated", perPage = 30 }) => {
-    try {
-      const token = await getToken();
-      const data = await githubFetch(
-        `/user/repos?sort=${sort}&per_page=${perPage}`,
-        token
-      );
-      return {
-        repos: data.map(
-          (r: {
-            full_name: string;
-            description: string | null;
-            html_url: string;
-            private: boolean;
-            language: string | null;
-            updated_at: string;
-          }) => ({
-            fullName: r.full_name,
-            description: r.description,
-            url: r.html_url,
-            private: r.private,
-            language: r.language,
-            updatedAt: r.updated_at,
-          })
-        ),
-      };
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : String(err) };
-    }
-  },
+}).server(async ({ sort = "updated", perPage = 30 }) => {
+  try {
+    const token = await getToken();
+    const data = await githubFetch(
+      `/user/repos?sort=${sort}&per_page=${perPage}`,
+      token
+    );
+    return {
+      repos: data.map(
+        (r: {
+          full_name: string;
+          description: string | null;
+          html_url: string;
+          private: boolean;
+          language: string | null;
+          updated_at: string;
+        }) => ({
+          fullName: r.full_name,
+          description: r.description,
+          url: r.html_url,
+          private: r.private,
+          language: r.language,
+          updatedAt: r.updated_at,
+        })
+      ),
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
 });
 
-export const githubDispatchWorkflow = tool({
+export const githubDispatchWorkflow = toolDefinition({
+  name: "github_dispatch_workflow",
   description:
     "Trigger a GitHub Actions workflow dispatch event. The workflow must have a workflow_dispatch trigger.",
   inputSchema: z.object({
@@ -231,23 +232,22 @@ export const githubDispatchWorkflow = tool({
       .optional()
       .describe("Workflow input parameters"),
   }),
-  execute: async ({ owner, repo, workflowId, ref, inputs }) => {
-    try {
-      const token = await getToken();
-      await githubFetch(
-        `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/workflows/${encodeURIComponent(workflowId)}/dispatches`,
-        token,
-        {
-          method: "POST",
-          body: JSON.stringify({ ref, inputs: inputs || {} }),
-        }
-      );
-      return {
-        status: "ok",
-        message: `Workflow '${workflowId}' dispatched on branch '${ref}'`,
-      };
-    } catch (err) {
-      return { error: err instanceof Error ? err.message : String(err) };
-    }
-  },
+}).server(async ({ owner, repo, workflowId, ref, inputs }) => {
+  try {
+    const token = await getToken();
+    await githubFetch(
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/workflows/${encodeURIComponent(workflowId)}/dispatches`,
+      token,
+      {
+        method: "POST",
+        body: JSON.stringify({ ref, inputs: inputs || {} }),
+      }
+    );
+    return {
+      status: "ok",
+      message: `Workflow '${workflowId}' dispatched on branch '${ref}'`,
+    };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
 });

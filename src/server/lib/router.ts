@@ -1,4 +1,4 @@
-import { streamText } from "ai";
+import { chat, maxIterations } from "@tanstack/ai";
 import { getAgentConfig } from "./agent";
 import { loadConfig } from "./config";
 import {
@@ -380,9 +380,9 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   let agentConfig;
   try {
     agentConfig = await getAgentConfig(ownerId);
-    log("Agent config ready. Model:", (agentConfig.model as any)?.modelId || "unknown");
+    log("Agent config ready. Adapter:", (agentConfig.adapter as any)?.model || "unknown");
     log("Tools:", Object.keys(agentConfig.tools || {}).join(", "));
-    log("System prompt length:", agentConfig.system?.length);
+    log("System prompt length:", agentConfig.systemPrompts?.[0]?.length);
   } catch (e) {
     logErr("getAgentConfig FAILED:", e);
     const errMsg = `Error: ${e instanceof Error ? e.message : String(e)}`;
@@ -393,32 +393,34 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   }
 
   // Check for model override on conversation
-  let modelOverride;
+  let adapterOverride;
   if (conv.model && conv.model !== config.agents?.defaults?.model?.primary) {
     log("Conversation has model override:", conv.model);
     try {
       const { resolveModel } = await import("./providers");
-      modelOverride = await resolveModel(conv.model, ownerId);
+      adapterOverride = await resolveModel(conv.model, ownerId);
       log("Model override resolved");
     } catch (e) {
       log("Model override failed, using default:", e);
     }
   }
 
-  // Call AI
-  log("Calling streamText...");
+  // Call AI via TanStack AI chat()
+  log("Calling chat()...");
   let fullText: string;
   try {
-    const result = streamText({
-      ...agentConfig,
-      ...(modelOverride ? { model: modelOverride } : {}),
+    fullText = await chat({
+      adapter: adapterOverride ?? agentConfig.adapter,
       messages: history,
-    });
-    fullText = await result.text;
+      systemPrompts: agentConfig.systemPrompts,
+      tools: agentConfig.tools,
+      agentLoopStrategy: maxIterations(agentConfig.maxSteps ?? 20),
+      stream: false,
+    }) as string;
     log("AI response received, length:", fullText.length);
     log("AI response preview:", fullText.substring(0, 300));
   } catch (e) {
-    logErr("streamText FAILED:", e);
+    logErr("chat() FAILED:", e);
     const errMsg = `AI Error: ${e instanceof Error ? e.message : String(e)}`;
     if (msg.channel === "whatsapp") {
       await sendWhatsAppMessage(ownerId, msg.senderId, errMsg);

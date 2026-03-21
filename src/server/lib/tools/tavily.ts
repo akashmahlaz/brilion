@@ -1,10 +1,11 @@
-import { tool } from "ai";
+import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import { resolveProviderKey } from "../auth-profiles";
 
 const TAVILY_API_URL = "https://api.tavily.com/search";
 
-export const tavilySearch = tool({
+export const tavilySearch = toolDefinition({
+  name: "tavily_search",
   description:
     "Search the web using Tavily API. Returns relevant search results with snippets. Use this when the user asks about current events, factual questions, or anything that requires up-to-date information.",
   inputSchema: z.object({
@@ -24,7 +25,7 @@ export const tavilySearch = tool({
       .optional()
       .describe("Whether to include a direct AI-generated answer"),
   }),
-  execute: async ({
+}).server(async ({
     query,
     searchDepth = "basic",
     maxResults = 5,

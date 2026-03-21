@@ -1,4 +1,4 @@
-import type { LanguageModel, ToolSet } from "ai";
+import type { AnyTextAdapter, Tool } from "@tanstack/ai";
 import { resolveModel } from "./providers";
 import { buildSystemPromptFromWorkspace } from "./workspace";
 import { loadConfig } from "./config";
@@ -53,32 +53,30 @@ Instead of running commands locally, use web_request with stored tokens to:
 
 Always be helpful, concise, and action-oriented.`;
 
-export async function buildToolSet(userId: string): Promise<ToolSet> {
+export async function buildToolSet(userId: string): Promise<Array<Tool>> {
   const metaTools = createMetaTools(userId);
 
-  const workspaceTools = {};  // Now included in metaTools
-
-  const builtInTools = {
-    tavily_search: tavilySearch,
-    github_read_file: githubReadFile,
-    github_write_file: githubWriteFile,
-    github_list_repo_contents: githubListRepoContents,
-    github_create_repo: githubCreateRepo,
-    github_list_repos: githubListRepos,
-    github_dispatch_workflow: githubDispatchWorkflow,
-    web_request: webRequest,
-    get_token: getToken,
-  };
+  const builtInTools: Tool[] = [
+    tavilySearch,
+    githubReadFile,
+    githubWriteFile,
+    githubListRepoContents,
+    githubCreateRepo,
+    githubListRepos,
+    githubDispatchWorkflow,
+    webRequest,
+    getToken,
+  ];
 
   // Load dynamic skill tools from user's installed skills
-  let skillTools: ToolSet = {};
+  let skillTools: Tool[] = [];
   try {
     skillTools = await loadSkillTools(userId);
   } catch {
     // skills not loaded — proceed without
   }
 
-  return { ...builtInTools, ...metaTools, ...workspaceTools, ...skillTools };
+  return [...builtInTools, ...metaTools, ...skillTools];
 }
 
 async function getSystemPrompt(userId: string): Promise<string> {
@@ -112,22 +110,22 @@ async function getSystemPrompt(userId: string): Promise<string> {
 export async function getAgentConfig(userId: string) {
   log("getAgentConfig() called, userId:", userId || "none");
   const tools = await buildToolSet(userId);
-  log("Tools built, count:", Object.keys(tools).length);
+  log("Tools built, count:", tools.length);
   const systemPrompt = await getSystemPrompt(userId);
   log("System prompt built, length:", systemPrompt.length);
 
-  let model: LanguageModel;
+  let adapter: AnyTextAdapter;
   try {
-    model = await resolveModel(undefined, userId);
-    log("Model resolved:", (model as any).modelId || "unknown");
+    adapter = await resolveModel(undefined, userId);
+    log("Adapter resolved:", (adapter as any).model || "unknown");
   } catch (e) {
     logErr("resolveModel() failed:", e);
     throw new Error("No AI provider configured. Set an API key first.");
   }
 
   return {
-    model,
-    system: systemPrompt,
+    adapter,
+    systemPrompts: [systemPrompt],
     tools,
     maxSteps: 20,
   };

@@ -1,4 +1,4 @@
-import { tool } from "ai";
+import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import { UserSkill } from "../models/user-skill";
 import { connectDB } from "../db";
@@ -60,12 +60,12 @@ function yamlList(yaml: string, key: string): string[] {
  */
 export async function loadSkillTools(
   userId: string
-): Promise<Record<string, any>> {
+): Promise<any[]> {
   await connectDB();
   const filter: Record<string, unknown> = { isEnabled: true, userId };
 
   const skills = await UserSkill.find(filter).lean();
-  const tools: Record<string, any> = {};
+  const tools: any[] = [];
 
   for (const s of skills) {
     const skill = s as {
@@ -74,13 +74,12 @@ export async function loadSkillTools(
       description: string;
       content: string;
     };
-    const toolName = `skill_${skill.name.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`;
 
-    tools[toolName] = createSkillTool(
+    tools.push(createSkillTool(
       skill.name,
       skill.description,
       skill.content
-    );
+    ));
   }
 
   return tools;
@@ -95,19 +94,19 @@ function createSkillTool(
   description: string,
   content: string
 ) {
-  return tool({
+  return toolDefinition({
+    name: `skill_${name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "")}`,
     description: `Skill: ${name} — ${description || "Custom skill"}. Use this when the user's request matches this skill's purpose.`,
     inputSchema: z.object({
       userRequest: z.string().describe("The user's request to handle with this skill"),
     }),
-    execute: async ({ userRequest }: { userRequest: string }) => {
-      return {
-        skill: name,
-        instructions: content,
-        userRequest,
-        note: "Follow the skill instructions above to handle this request. Use other tools (web_request, github, etc.) as needed.",
-      };
-    },
+  }).server(async ({ userRequest }: { userRequest: string }) => {
+    return {
+      skill: name,
+      instructions: content,
+      userRequest,
+      note: "Follow the skill instructions above to handle this request. Use other tools (web_request, github, etc.) as needed.",
+    };
   });
 }
 
