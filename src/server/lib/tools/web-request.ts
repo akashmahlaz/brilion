@@ -11,7 +11,7 @@ export const webRequest = toolDefinition({
   name: "web_request",
   description: `Make an HTTP request to any API. Use this to interact with external services like Vercel, Netlify, GitHub, Slack, Notion, etc. Tokens are stored in the user's auth-profiles — retrieve them by provider name. Always include the appropriate Authorization header.`,
   inputSchema: z.object({
-    url: z.string().url().describe("Full API URL to call"),
+    url: z.string().describe("Full API URL to call (e.g. https://api.example.com/v1/resource)"),
     method: z
       .enum(["GET", "POST", "PUT", "PATCH", "DELETE"])
       .optional()
