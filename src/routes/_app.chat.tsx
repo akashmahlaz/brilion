@@ -657,12 +657,15 @@ function ChatPage() {
                           </p>
                         )}
                       </div>
-                      <button
+                      <div
+                        role="button"
+                        tabIndex={0}
                         onClick={(e) => deleteConversation(c._id, e)}
-                        className="mt-0.5 opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/40 hover:text-destructive transition-all"
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') deleteConversation(c._id, e); }}
+                        className="mt-0.5 opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/40 hover:text-destructive transition-all cursor-pointer"
                       >
                         <Trash2 className="size-3" />
-                      </button>
+                      </div>
                     </div>
                   </button>
                 )

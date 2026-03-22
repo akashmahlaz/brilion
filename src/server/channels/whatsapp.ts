@@ -8,6 +8,8 @@ export {
   getLoginStatus,
   isWhatsAppConnected,
   send as sendWhatsAppMessage,
+  sendComposing,
+  markRead,
   disconnect as disconnectWhatsApp,
   logout as logoutWhatsApp,
   onMessage as onWhatsAppMessage,

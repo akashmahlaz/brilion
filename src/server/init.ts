@@ -45,6 +45,24 @@ export async function ensureServerInit(): Promise<void> {
       logErr("Telegram auto-start failed:", e);
     }
 
+    // Start cron scheduler for proactive messages
+    try {
+      const { startCronScheduler } = await import("./lib/cron-scheduler");
+      startCronScheduler();
+      log("✅ Cron scheduler started");
+    } catch (e) {
+      logErr("Cron scheduler failed to start:", e);
+    }
+
+    // Start BullMQ message queue workers (Redis-backed)
+    try {
+      const { startMessageQueue } = await import("./lib/message-queue");
+      startMessageQueue();
+      log("✅ Message queue started");
+    } catch (e) {
+      logErr("Message queue failed to start:", e);
+    }
+
     _initialized = true;
     log("═══════════════════════════════════════════════");
     log("✅ Server initialization complete");
@@ -54,3 +72,6 @@ export async function ensureServerInit(): Promise<void> {
     _initializing = false; // Allow retry on next request
   }
 }
+
+/** Alias for nitro plugin import */
+export { ensureServerInit as initServer };

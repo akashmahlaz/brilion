@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   MessageCircle,
   Send as SendIcon,
@@ -8,6 +8,11 @@ import {
   PowerOff,
   Wifi,
   WifiOff,
+  Settings2,
+  Plus,
+  X,
+  Shield,
+  Users,
 } from 'lucide-react'
 import {
   Card,
@@ -21,6 +26,15 @@ import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
 import { Badge } from '#/components/ui/badge'
+import { Switch } from '#/components/ui/switch'
+import { Separator } from '#/components/ui/separator'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '#/components/ui/select'
 import { toast } from 'sonner'
 import { apiFetch } from '#/lib/api'
 
@@ -60,9 +74,21 @@ function WhatsAppCard() {
     message: string
   } | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showConfig, setShowConfig] = useState(false)
+  const [config, setConfig] = useState<{
+    dmPolicy: string
+    groupPolicy: string
+    selfChatMode: boolean
+    allowFrom: string[]
+    groupAllowFrom: string[]
+  } | null>(null)
+  const [newAllowNumber, setNewAllowNumber] = useState('')
+  const [newGroupAllowNumber, setNewGroupAllowNumber] = useState('')
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     fetchStatus()
+    fetchConfig()
     const interval = setInterval(fetchStatus, 5000)
     return () => clearInterval(interval)
   }, [])
@@ -79,6 +105,46 @@ function WhatsAppCard() {
       }
     } catch {
       setWaStatus(null)
+    }
+  }
+
+  const fetchConfig = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/config')
+      if (res.ok) {
+        const data = await res.json()
+        const wa = data.channels?.whatsapp
+        if (wa) {
+          setConfig({
+            dmPolicy: wa.dmPolicy || 'pairing',
+            groupPolicy: wa.groupPolicy || 'disabled',
+            selfChatMode: wa.selfChatMode ?? true,
+            allowFrom: wa.allowFrom || ['*'],
+            groupAllowFrom: wa.groupAllowFrom || ['*'],
+          })
+        }
+      }
+    } catch {
+      // Config not available yet
+    }
+  }, [])
+
+  async function saveChannelConfig(updates: Record<string, unknown>) {
+    setSaving(true)
+    try {
+      for (const [key, value] of Object.entries(updates)) {
+        await apiFetch('/api/config', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ path: `channels.whatsapp.${key}`, value }),
+        })
+      }
+      toast.success('WhatsApp settings saved')
+      await fetchConfig()
+    } catch {
+      toast.error('Failed to save settings')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -183,11 +249,11 @@ function WhatsAppCard() {
 
       <CardContent>
         {waStatus?.connected ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              WhatsApp is connected and receiving messages. DM policy: <strong>{waStatus.dmPolicy || 'open'}</strong>
+              WhatsApp is connected and receiving messages.
             </p>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -196,6 +262,15 @@ function WhatsAppCard() {
               >
                 <RefreshCw className="mr-2 size-4" />
                 Refresh
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowConfig(!showConfig)}
+                className="rounded-xl"
+              >
+                <Settings2 className="mr-2 size-4" />
+                {showConfig ? 'Hide Settings' : 'Settings'}
               </Button>
               <Button
                 variant="destructive"
@@ -215,6 +290,192 @@ function WhatsAppCard() {
                 Logout &amp; Clear
               </Button>
             </div>
+
+            {showConfig && config && (
+              <>
+                <Separator />
+                <div className="space-y-5">
+                  {/* Self-Chat Mode */}
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="text-sm font-medium">Self-Chat Mode</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Message yourself to talk with AI
+                      </p>
+                    </div>
+                    <Switch
+                      checked={config.selfChatMode}
+                      onCheckedChange={(checked) => {
+                        setConfig({ ...config, selfChatMode: checked })
+                        saveChannelConfig({ selfChatMode: checked })
+                      }}
+                    />
+                  </div>
+
+                  {/* DM Policy */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Shield className="size-4 text-muted-foreground" />
+                      <Label className="text-sm font-medium">DM Policy</Label>
+                    </div>
+                    <Select
+                      value={config.dmPolicy}
+                      onValueChange={(value) => {
+                        setConfig({ ...config, dmPolicy: value })
+                        saveChannelConfig({ dmPolicy: value })
+                      }}
+                    >
+                      <SelectTrigger className="rounded-xl">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="disabled">Disabled — ignore all DMs</SelectItem>
+                        <SelectItem value="pairing">Pairing — require pairing code</SelectItem>
+                        <SelectItem value="allowlist">Allowlist — approved numbers only</SelectItem>
+                        <SelectItem value="open">Open — respond to anyone</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {config.dmPolicy === 'disabled' && 'AI will not respond to any direct messages.'}
+                      {config.dmPolicy === 'pairing' && 'New contacts must send a pairing code to activate AI.'}
+                      {config.dmPolicy === 'allowlist' && 'Only numbers in your allowlist can chat with AI.'}
+                      {config.dmPolicy === 'open' && 'Anyone can message your number and get AI responses.'}
+                    </p>
+                  </div>
+
+                  {/* DM Allowlist */}
+                  {config.dmPolicy === 'allowlist' && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Allowed Numbers (DMs)</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {config.allowFrom.filter(n => n !== '*').map((num) => (
+                          <Badge key={num} variant="secondary" className="gap-1 pl-2.5 pr-1">
+                            {num}
+                            <button
+                              type="button"
+                              className="ml-1 rounded-full p-0.5 hover:bg-muted"
+                              onClick={() => {
+                                const updated = config.allowFrom.filter(n => n !== num)
+                                setConfig({ ...config, allowFrom: updated })
+                                saveChannelConfig({ allowFrom: updated })
+                              }}
+                            >
+                              <X className="size-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="+1234567890"
+                          value={newAllowNumber}
+                          onChange={(e) => setNewAllowNumber(e.target.value)}
+                          className="rounded-xl"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="rounded-xl shrink-0"
+                          disabled={!newAllowNumber.trim()}
+                          onClick={() => {
+                            const num = newAllowNumber.trim()
+                            if (!num) return
+                            const updated = [...config.allowFrom.filter(n => n !== '*'), num]
+                            setConfig({ ...config, allowFrom: updated })
+                            saveChannelConfig({ allowFrom: updated })
+                            setNewAllowNumber('')
+                          }}
+                        >
+                          <Plus className="mr-1 size-4" />
+                          Add
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <Separator />
+
+                  {/* Group Policy */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Users className="size-4 text-muted-foreground" />
+                      <Label className="text-sm font-medium">Group Policy</Label>
+                    </div>
+                    <Select
+                      value={config.groupPolicy}
+                      onValueChange={(value) => {
+                        setConfig({ ...config, groupPolicy: value })
+                        saveChannelConfig({ groupPolicy: value })
+                      }}
+                    >
+                      <SelectTrigger className="rounded-xl">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="disabled">Disabled — ignore group messages</SelectItem>
+                        <SelectItem value="allowlist">Allowlist — approved groups only</SelectItem>
+                        <SelectItem value="open">Open — respond in all groups</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {config.groupPolicy === 'disabled' && 'AI will not respond in any groups.'}
+                      {config.groupPolicy === 'allowlist' && 'AI only responds in groups from the allowlist (when @mentioned).'}
+                      {config.groupPolicy === 'open' && 'AI responds in all groups when @mentioned.'}
+                    </p>
+                  </div>
+
+                  {/* Group Allowlist */}
+                  {config.groupPolicy === 'allowlist' && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium">Allowed Groups</Label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {config.groupAllowFrom.filter(n => n !== '*').map((gid) => (
+                          <Badge key={gid} variant="secondary" className="gap-1 pl-2.5 pr-1">
+                            {gid}
+                            <button
+                              type="button"
+                              className="ml-1 rounded-full p-0.5 hover:bg-muted"
+                              onClick={() => {
+                                const updated = config.groupAllowFrom.filter(n => n !== gid)
+                                setConfig({ ...config, groupAllowFrom: updated })
+                                saveChannelConfig({ groupAllowFrom: updated })
+                              }}
+                            >
+                              <X className="size-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Group JID or name"
+                          value={newGroupAllowNumber}
+                          onChange={(e) => setNewGroupAllowNumber(e.target.value)}
+                          className="rounded-xl"
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="rounded-xl shrink-0"
+                          disabled={!newGroupAllowNumber.trim()}
+                          onClick={() => {
+                            const gid = newGroupAllowNumber.trim()
+                            if (!gid) return
+                            const updated = [...config.groupAllowFrom.filter(n => n !== '*'), gid]
+                            setConfig({ ...config, groupAllowFrom: updated })
+                            saveChannelConfig({ groupAllowFrom: updated })
+                            setNewGroupAllowNumber('')
+                          }}
+                        >
+                          <Plus className="mr-1 size-4" />
+                          Add
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-4">

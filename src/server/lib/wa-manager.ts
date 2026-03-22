@@ -39,6 +39,8 @@ type MessageHandler = (userId: string, msg: {
   groupId?: string;
   senderJid?: string;
   isMentioned?: boolean;
+  messageId?: string;
+  remoteJid?: string;
 }) => void;
 
 const connections = new Map<string, UserConnection>();
@@ -49,6 +51,134 @@ const messageHandlers: MessageHandler[] = [];
 const sentByUs = new Set<string>();
 
 const LOGIN_TTL_MS = 3 * 60 * 1000;
+
+// ── Error tracking: detect Bad MAC / decryption cascades ──
+interface ErrorTracker {
+  count: number;
+  firstSeen: number;
+  lastSeen: number;
+}
+const decryptionErrors = new Map<string, ErrorTracker>();
+const DECRYPTION_ERROR_WINDOW_MS = 60_000; // 1 minute window
+const DECRYPTION_ERROR_THRESHOLD = 5; // 5+ errors → trigger cleanup
+
+function trackDecryptionError(userId: string): boolean {
+  const now = Date.now();
+  let tracker = decryptionErrors.get(userId);
+  if (!tracker || now - tracker.firstSeen > DECRYPTION_ERROR_WINDOW_MS) {
+    tracker = { count: 0, firstSeen: now, lastSeen: now };
+    decryptionErrors.set(userId, tracker);
+  }
+  tracker.count++;
+  tracker.lastSeen = now;
+  return tracker.count >= DECRYPTION_ERROR_THRESHOLD;
+}
+
+function clearDecryptionErrors(userId: string): void {
+  decryptionErrors.delete(userId);
+}
+
+// ── Outbound rate limiter — Redis-backed (falls back to in-memory) ──
+const outboundTimestamps = new Map<string, number[]>();
+const RATE_LIMIT_WINDOW_MS = 10_000; // 10 second window
+const RATE_LIMIT_MAX = 10; // Max 10 messages per window per user
+
+/** In-memory fallback rate limiter */
+function checkRateLimitLocal(userId: string): boolean {
+  const now = Date.now();
+  let timestamps = outboundTimestamps.get(userId);
+  if (!timestamps) {
+    timestamps = [];
+    outboundTimestamps.set(userId, timestamps);
+  }
+  const cutoff = now - RATE_LIMIT_WINDOW_MS;
+  while (timestamps.length > 0 && timestamps[0] < cutoff) {
+    timestamps.shift();
+  }
+  if (timestamps.length >= RATE_LIMIT_MAX) {
+    return false;
+  }
+  timestamps.push(now);
+  return true;
+}
+
+/** Rate limiter: uses Redis if available, falls back to in-memory */
+async function checkRateLimit(userId: string): Promise<boolean> {
+  try {
+    const { checkRedisRateLimit, isRedisConfigured } = await import("./redis");
+    if (isRedisConfigured()) {
+      return await checkRedisRateLimit(`rl:outbound:${userId}`, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_MS);
+    }
+  } catch {
+    // Redis unavailable — fall through to local
+  }
+  return checkRateLimitLocal(userId);
+}
+
+/** Split long text into chunks at word/line boundaries */
+function chunkText(text: string, maxLen: number): string[] {
+  if (text.length <= maxLen) return [text];
+  const chunks: string[] = [];
+  let remaining = text;
+  while (remaining.length > 0) {
+    if (remaining.length <= maxLen) {
+      chunks.push(remaining);
+      break;
+    }
+    // Find a good split point: newline > space > maxLen
+    let splitAt = remaining.lastIndexOf("\n", maxLen);
+    if (splitAt < maxLen * 0.3) splitAt = remaining.lastIndexOf(" ", maxLen);
+    if (splitAt < maxLen * 0.3) splitAt = maxLen;
+    chunks.push(remaining.slice(0, splitAt));
+    remaining = remaining.slice(splitAt).trimStart();
+  }
+  return chunks;
+}
+
+// ── Message debounce — batch rapid messages from same sender ──
+const debounceTimers = new Map<string, NodeJS.Timeout>();
+const debounceBuffer = new Map<string, Array<{
+  userId: string;
+  msg: Parameters<MessageHandler>[1];
+}>>();
+const DEBOUNCE_MS = 1500; // 1.5 second debounce window
+
+function debounceMessage(
+  key: string,
+  userId: string,
+  msg: Parameters<MessageHandler>[1],
+  flush: (userId: string, msgs: Array<Parameters<MessageHandler>[1]>) => void,
+): void {
+  const existing = debounceTimers.get(key);
+  if (existing) clearTimeout(existing);
+
+  let buffer = debounceBuffer.get(key);
+  if (!buffer) {
+    buffer = [];
+    debounceBuffer.set(key, buffer);
+  }
+  buffer.push({ userId, msg });
+
+  // Images/media skip debounce — flush immediately
+  if (msg.imageBase64) {
+    debounceTimers.delete(key);
+    debounceBuffer.delete(key);
+    flush(userId, buffer.map(b => b.msg));
+    return;
+  }
+
+  const timer = setTimeout(() => {
+    debounceTimers.delete(key);
+    const buffered = debounceBuffer.get(key);
+    debounceBuffer.delete(key);
+    if (buffered && buffered.length > 0) {
+      // Merge text from multiple rapid messages
+      const merged = buffered.map(b => b.msg);
+      flush(userId, merged);
+    }
+  }, DEBOUNCE_MS);
+  debounceTimers.set(key, timer);
+}
 
 function getOrCreateConnection(userId: string): UserConnection {
   let conn = connections.get(userId);
@@ -126,13 +256,17 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
       log("DisconnectReason.loggedOut =", DisconnectReason.loggedOut);
       log("Full lastDisconnect:", JSON.stringify(lastDisconnect, null, 2));
 
-      if (statusCode === DisconnectReason.loggedOut) {
+      if (statusCode === DisconnectReason.loggedOut || statusCode === 428 /* device_removed */) {
+        log(statusCode === 428 ? "Device removed (428)" : "Logged out (401)", "— clearing auth for:", userId);
         conn.status = "failed";
         conn.socket = null;
+        clearDecryptionErrors(userId);
         if (conn.clearAuthState) await conn.clearAuthState().catch(() => {});
         if (session) {
           session.status = "failed";
-          session.message = "Logged out. Please restart login.";
+          session.message = statusCode === 428
+            ? "Device removed. Please re-link WhatsApp."
+            : "Logged out. Please restart login.";
         }
       } else if (statusCode === 515 && session && !session.restartAttempted) {
         log("Status 515 — pairing restart for user:", userId);
@@ -160,10 +294,16 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
     if (connection === "open") {
       conn.status = "connected";
       conn.jid = sock.user?.id || null;
+      clearDecryptionErrors(userId);
       log("========== CONNECTION OPEN ==========");
       log("User:", userId);
       log("JID:", conn.jid);
       log("WhatsApp user info:", JSON.stringify(sock.user));
+
+      // Cache connection status in Redis for cross-instance awareness
+      import("./redis").then(({ cacheConnectionStatus }) => {
+        cacheConnectionStatus(userId, "connected", conn.jid || undefined).catch(() => {});
+      }).catch(() => {});
       
       if (session) {
         session.status = "connected";
@@ -191,6 +331,7 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
     log("Handler count:", messageHandlers.length);
     
     for (const msg of update.messages) {
+      try {
       log("--- Message ---");
       log("  key:", JSON.stringify(msg.key));
       log("  fromMe:", msg.key.fromMe);
@@ -226,27 +367,37 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
         msg.message?.imageMessage?.caption ||
         "";
       
-      // Check for image message
+      // Check for media messages (image, audio, video, document)
       const imageMsg = msg.message?.imageMessage;
+      const audioMsg = msg.message?.audioMessage;
+      const videoMsg = msg.message?.videoMessage;
+      const documentMsg = msg.message?.documentMessage;
       let imageBase64: string | undefined;
       let imageMime: string | undefined;
+      let mediaType: string | undefined;
+      let mediaFileName: string | undefined;
 
-      if (imageMsg) {
+      const mediaSource = imageMsg || audioMsg || videoMsg || documentMsg;
+      if (mediaSource) {
         try {
-          log("  Downloading image media...");
+          mediaType = imageMsg ? "image" : audioMsg ? "audio" : videoMsg ? "video" : "document";
+          mediaFileName = documentMsg?.fileName || undefined;
+          log(`  Downloading ${mediaType} media...`);
           const buffer = await downloadMediaMessage(msg, "buffer", {});
           imageBase64 = Buffer.from(buffer as Buffer).toString("base64");
-          imageMime = imageMsg.mimetype || "image/jpeg";
-          log("  Image downloaded:", Math.round((imageBase64.length * 3) / 4 / 1024), "KB", imageMime);
+          imageMime = mediaSource.mimetype || (imageMsg ? "image/jpeg" : audioMsg ? "audio/ogg" : videoMsg ? "video/mp4" : "application/octet-stream");
+          log(`  ${mediaType} downloaded:`, Math.round((imageBase64.length * 3) / 4 / 1024), "KB", imageMime);
         } catch (e) {
-          logErr("  Failed to download image:", e);
+          logErr(`  Failed to download ${mediaType}:`, e);
         }
       }
+
+      const caption = imageMsg?.caption || videoMsg?.caption || audioMsg?.caption || "";
 
       log("  Extracted text:", text ? `"${text.substring(0, 100)}"` : "null/empty");
       
       if (!text && !imageBase64) {
-        log("  SKIPPED: no text or image content");
+        log("  SKIPPED: no text or media content");
         log("  Full message object keys:", msg.message ? Object.keys(msg.message).join(", ") : "null");
         continue;
       }
@@ -273,23 +424,60 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
 
       log("  isGroup:", isGroup, "senderJid:", senderJid, "isMentioned:", isMentioned);
 
-      for (let i = 0; i < messageHandlers.length; i++) {
-        log("  Calling handler", i);
-        try {
-          messageHandlers[i](userId, {
-            jid: senderJid,
-            text: text || (imageBase64 ? "[User sent an image]" : ""),
-            pushName: msg.pushName || undefined,
-            imageBase64,
-            imageMime,
-            isGroup,
-            groupId: isGroup ? remoteJid : undefined,
-            senderJid,
-            isMentioned,
-          });
-          log("  Handler", i, "called successfully");
-        } catch (e) {
-          logErr("  Handler", i, "threw error:", e);
+      // Build descriptive text for non-image media
+      const mediaDescription = !text && imageBase64 && mediaType && mediaType !== "image"
+        ? `[User sent ${mediaType === "document" ? `a document: ${mediaFileName || "file"}` : `${mediaType}`}]`
+        : "";
+
+      const handlerMsg = {
+        jid: senderJid,
+        text: text || caption || (imageBase64 ? (mediaType === "image" ? "[User sent an image]" : mediaDescription) : ""),
+        pushName: msg.pushName || undefined,
+        imageBase64,
+        imageMime,
+        isGroup,
+        groupId: isGroup ? remoteJid : undefined,
+        senderJid,
+        isMentioned,
+        messageId: msg.key.id || undefined,
+        remoteJid,
+      };
+
+      // Debounce: batch rapid messages from same sender (1.5s window)
+      const debounceKey = `${userId}:${senderJid}`;
+      debounceMessage(debounceKey, userId, handlerMsg, (_uid, msgs) => {
+        // Merge debounced messages: concatenate text, keep latest metadata
+        const merged = { ...msgs[msgs.length - 1] };
+        if (msgs.length > 1) {
+          merged.text = msgs.map(m => m.text).filter(Boolean).join("\n");
+        }
+        for (let i = 0; i < messageHandlers.length; i++) {
+          log("  Calling handler", i, "(debounced, merged", msgs.length, "msgs)");
+          try {
+            messageHandlers[i](_uid, merged);
+            log("  Handler", i, "called successfully");
+          } catch (e) {
+            logErr("  Handler", i, "threw error:", e);
+          }
+        }
+      });
+      } catch (msgErr) {
+        // Catch Bad MAC, decryption, and other per-message errors gracefully
+        const errStr = String(msgErr);
+        const isBadMac = /bad mac|decrypt|hmac|signal/i.test(errStr);
+        if (isBadMac) {
+          const shouldCleanup = trackDecryptionError(userId);
+          log("  Decryption error (Bad MAC) suppressed for user:", userId, "count:", decryptionErrors.get(userId)?.count);
+          if (shouldCleanup) {
+            logErr("  Too many decryption errors — clearing auth state and disconnecting:", userId);
+            clearDecryptionErrors(userId);
+            conn.status = "failed";
+            if (conn.clearAuthState) await conn.clearAuthState().catch(() => {});
+            sock.end(undefined);
+            conn.socket = null;
+          }
+        } else {
+          logErr("  Unexpected error processing message:", msgErr);
         }
       }
     }
@@ -391,27 +579,92 @@ export async function send(userId: string, jid: string, text: string) {
   log("userId:", userId, "jid:", jid, "text length:", text.length);
   log("text preview:", text.substring(0, 200));
   
+  // Outbound rate limiting (Redis-backed, falls back to in-memory)
+  const allowed = await checkRateLimit(userId);
+  if (!allowed) {
+    logErr("SEND RATE LIMITED: userId:", userId, "jid:", jid);
+    return { status: "error", error: "Rate limited — too many messages sent. Try again shortly." };
+  }
+
   const conn = connections.get(userId);
   if (!conn?.socket || conn.status !== "connected") {
     logErr("SEND FAILED: not connected. status:", conn?.status, "hasSocket:", !!conn?.socket);
     return { status: "error", error: "WhatsApp not connected" };
   }
+
+  // Split long messages into chunks (WhatsApp ~4096 char practical limit)
+  const chunks = chunkText(text, 4000);
+  
   try {
-    log("Calling socket.sendMessage...");
-    const sent = await conn.socket.sendMessage(jid, { text });
-    // Track sent message ID to prevent infinite loops on self-chat
-    if (sent?.key?.id) {
-      sentByUs.add(sent.key.id);
-      setTimeout(() => sentByUs.delete(sent.key.id!), 30_000);
+    for (let i = 0; i < chunks.length; i++) {
+      log(`Calling socket.sendMessage (chunk ${i + 1}/${chunks.length})...`);
+      const sent = await conn.socket.sendMessage(jid, { text: chunks[i] });
+      if (sent?.key?.id) {
+        sentByUs.add(sent.key.id);
+        setTimeout(() => sentByUs.delete(sent.key.id!), 30_000);
+      }
+      // Brief delay between chunks to avoid rate limiting
+      if (i < chunks.length - 1) {
+        await new Promise(r => setTimeout(r, 500));
+      }
     }
-    log("Message SENT successfully to", jid);
+    log("Message SENT successfully to", jid, `(${chunks.length} chunk${chunks.length > 1 ? 's' : ''})`);
     return { status: "sent" };
   } catch (err) {
     logErr("SEND ERROR:", err);
+    // Exponential backoff retry (max 3 attempts)
+    const MAX_RETRIES = 3;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      const backoffMs = Math.min(1000 * Math.pow(2, attempt - 1) + Math.random() * 500, 8000);
+      log(`Retry attempt ${attempt}/${MAX_RETRIES} after ${Math.round(backoffMs)}ms...`);
+      await new Promise(r => setTimeout(r, backoffMs));
+      try {
+        // Re-check connection (may have dropped during backoff)
+        if (!conn.socket || conn.status !== "connected") break;
+        const sent = await conn.socket.sendMessage(jid, { text: chunks.length === 1 ? text : chunks[0] });
+        if (sent?.key?.id) {
+          sentByUs.add(sent.key.id);
+          setTimeout(() => sentByUs.delete(sent.key.id!), 30_000);
+        }
+        log(`Retry ${attempt} SUCCEEDED`);
+        return { status: "sent" };
+      } catch (retryErr) {
+        logErr(`Retry ${attempt} failed:`, retryErr);
+      }
+    }
     return {
       status: "error",
       error: err instanceof Error ? err.message : String(err),
     };
+  }
+}
+
+/** Send "composing..." typing indicator before replying */
+export async function sendComposing(userId: string, jid: string): Promise<void> {
+  const conn = connections.get(userId);
+  if (!conn?.socket || conn.status !== "connected") return;
+  try {
+    await conn.socket.sendPresenceUpdate("composing", jid);
+  } catch (e) {
+    log("sendComposing failed (non-fatal):", e);
+  }
+}
+
+/** Send read receipt for a message */
+export async function markRead(
+  userId: string,
+  remoteJid: string,
+  messageId: string,
+  participant?: string
+): Promise<void> {
+  const conn = connections.get(userId);
+  if (!conn?.socket || conn.status !== "connected") return;
+  try {
+    await conn.socket.readMessages([
+      { remoteJid, id: messageId, ...(participant ? { participant } : {}) },
+    ]);
+  } catch (e) {
+    log("markRead failed (non-fatal):", e);
   }
 }
 

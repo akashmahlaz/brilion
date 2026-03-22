@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { connectDB } from "#/server/db";
 import { requireAuth } from "#/server/middleware";
 import { CronJob } from "#/server/models/cron-job";
+import { computeNextRun } from "#/server/lib/cron-scheduler";
 
 export const Route = createFileRoute("/api/cron")({
   server: {
@@ -50,6 +51,7 @@ export const Route = createFileRoute("/api/cron")({
           prompt,
           channel,
           status: status || "active",
+          nextRunAt: computeNextRun(schedule, timezone || "UTC"),
         });
 
         return Response.json({ job }, { status: 201 });
@@ -66,6 +68,13 @@ export const Route = createFileRoute("/api/cron")({
 
         if (!id) {
           return Response.json({ error: "id is required" }, { status: 400 });
+        }
+
+        // Recompute nextRunAt if schedule or timezone changed
+        if (updates.schedule || updates.timezone) {
+          const schedule = updates.schedule || (await CronJob.findOne({ _id: id, userId }))?.schedule;
+          const timezone = updates.timezone || "UTC";
+          if (schedule) updates.nextRunAt = computeNextRun(schedule, timezone);
         }
 
         const job = await CronJob.findOneAndUpdate(

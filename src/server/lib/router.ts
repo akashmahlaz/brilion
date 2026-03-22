@@ -3,6 +3,8 @@ import { getAgentConfig } from "./agent";
 import { loadConfig } from "./config";
 import {
   sendWhatsAppMessage,
+  sendComposing,
+  markRead,
   onWhatsAppMessage,
 } from "../channels/whatsapp";
 import { Conversation } from "../models/conversation";
@@ -29,6 +31,8 @@ interface IncomingMessage {
   isGroup?: boolean;
   groupId?: string;
   isMentioned?: boolean;
+  messageId?: string;
+  remoteJid?: string;
 }
 
 interface ChannelConfig {
@@ -65,7 +69,7 @@ function resolveAccess(
 
   // Group access check
   if (opts.isGroup && opts.groupId) {
-    const groupPolicy = channelCfg.groupPolicy ?? "open";
+    const groupPolicy = channelCfg.groupPolicy ?? "disabled";
     if (groupPolicy === "disabled") {
       return { allowed: false, reason: "group_disabled" };
     }
@@ -206,16 +210,52 @@ async function handleChatCommand(
     ].join("\n");
   }
 
+  if (cmd === "/activation") {
+    if (!msg.isGroup) return "This command is for groups only.";
+    const config = await loadConfig(ownerId);
+    const gp = config.channels?.whatsapp?.groupPolicy || "disabled";
+    return `Group activation mode: *${gp}*\nUse /activation mention|open|disabled to change.`;
+  }
+
+  if (cmd.startsWith("/activation ")) {
+    if (!msg.isGroup) return "This command is for groups only.";
+    const mode = text.trim().split(/\s+/)[1]?.toLowerCase();
+    if (!["mention", "open", "disabled"].includes(mode)) {
+      return "Usage: /activation mention|open|disabled";
+    }
+    // Map "mention" to allowlist mode with current group
+    const policy = mode === "mention" ? "allowlist" : mode;
+    const config = await loadConfig(ownerId);
+    if (!config.channels) config.channels = {} as any;
+    if (!config.channels.whatsapp) config.channels.whatsapp = {} as any;
+    config.channels.whatsapp.groupPolicy = policy;
+    // Auto-add this group to allowlist if switching to allowlist
+    if (policy === "allowlist" && msg.groupId) {
+      const list = config.channels.whatsapp.groupAllowFrom || [];
+      if (!list.includes(msg.groupId) && !list.includes("*")) {
+        list.push(msg.groupId);
+        config.channels.whatsapp.groupAllowFrom = list;
+      }
+    }
+    const { saveConfig } = await import("./config");
+    await saveConfig(config);
+    return `Group activation changed to: *${mode}*`;
+  }
+
   if (cmd === "/help") {
-    return [
+    const lines = [
       "Available commands:",
       "/new or /reset — Start a new session",
       "/status — Show current session info",
       "/model [name] — Show or change model",
       "/compact — Compress old messages",
       "/usage — Show token usage estimate",
-      "/help — Show this help",
-    ].join("\n");
+    ];
+    if (msg.isGroup) {
+      lines.push("/activation [mode] — Group activation (mention|open|disabled)");
+    }
+    lines.push("/help — Show this help");
+    return lines.join("\n");
   }
 
   return null;
@@ -303,12 +343,16 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
       return blockMsg;
     }
   } else if (!isSelfChat && !channelCfg) {
-    log("No channel config — allowing by default");
+    // OpenClaw-style: default to BLOCKING when no channel config exists.
+    // Only self-chat is allowed without explicit channel configuration.
+    log("BLOCKED: No channel config — blocking by default (self-chat only)");
+    return "[blocked] Channel not configured. Set up channel policies in the dashboard.";
   }
 
   // Step 3: Group activation gating (mention/command modes)
   if (msg.isGroup && channelCfg) {
-    const groupPolicy = channelCfg.groupPolicy ?? "open";
+    const groupPolicy = channelCfg.groupPolicy ?? "disabled";
+    // In "disabled" mode, all group messages are already blocked by resolveAccess
     // In "mention" or non-"open" modes, require @mention or /command
     if (groupPolicy !== "open" && !msg.isMentioned && !msg.text.startsWith("/")) {
       log("Group message skipped: not mentioned and not a command");
@@ -327,6 +371,13 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
       }
       return cmdResult;
     }
+  }
+
+  // Send read receipt after access control passes (OpenClaw skips for self-chat + blocked)
+  if (msg.channel === "whatsapp" && msg.messageId && msg.remoteJid && !isSelfChat) {
+    markRead(ownerId, msg.remoteJid, msg.messageId,
+      msg.isGroup ? msg.senderId : undefined
+    ).catch(() => {});
   }
 
   // Find or create conversation
@@ -365,6 +416,21 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
     role: m.role,
     content: m.content,
   }));
+
+  // For group chats, inject sender context so AI knows who is speaking
+  if (msg.isGroup && msg.senderName) {
+    const senderLabel = msg.senderName || msg.senderId.replace(/@.*/, "");
+    // Prefix the user message with sender name for context
+    const contextNote = `[${senderLabel} in group]`;
+    if (history.length > 0 && history[history.length - 1]?.role === "user") {
+      // Will be overwritten below anyway; this is for prior messages in history
+    }
+    // Inject as a lightweight system note if multiple participants
+    history.unshift({
+      role: "system" as const,
+      content: `You are in a group chat. The current speaker is ${senderLabel}. Address them by name when relevant.`,
+    });
+  }
 
   // Build the current user message — multimodal if image attached
   if (msg.imageBase64 && msg.imageMime) {
@@ -407,6 +473,12 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
     } catch (e) {
       log("Model override failed, using default:", e);
     }
+  }
+
+  // Send typing indicator before AI processes (OpenClaw-style)
+  if (msg.channel === "whatsapp") {
+    const replyJid = msg.isGroup && msg.groupId ? msg.groupId : msg.senderId;
+    sendComposing(ownerId, replyJid).catch(() => {});
   }
 
   // Call AI via TanStack AI chat()
@@ -524,9 +596,9 @@ export async function initMessageRouter(userId: string): Promise<void> {
       return;
     }
     
-    log("  Routing message to routeMessage()...");
-    routeMessage({
-      channel: "whatsapp",
+    log("  Routing message...");
+    const msgData = {
+      channel: "whatsapp" as const,
       userId,
       senderId: msg.jid,
       senderName: msg.pushName,
@@ -536,10 +608,28 @@ export async function initMessageRouter(userId: string): Promise<void> {
       isGroup: msg.isGroup,
       groupId: msg.groupId,
       isMentioned: msg.isMentioned,
-    }).then((reply) => {
-      log("  routeMessage() completed. Reply length:", reply?.length);
-    }).catch((err) => {
-      logErr("  WhatsApp message routing FAILED:", err);
+      messageId: msg.messageId,
+      remoteJid: msg.remoteJid,
+    };
+
+    // Try to enqueue to BullMQ (persistent, crash-safe); fall back to inline
+    import("./message-queue").then(async ({ enqueueInbound }) => {
+      const jobId = await enqueueInbound({ ...msgData, enqueuedAt: Date.now() });
+      if (jobId) {
+        log("  Enqueued to BullMQ: job", jobId);
+      } else {
+        // Redis not available — process inline
+        routeMessage(msgData).then((reply) => {
+          log("  routeMessage() completed. Reply length:", reply?.length);
+        }).catch((err) => {
+          logErr("  WhatsApp message routing FAILED:", err);
+        });
+      }
+    }).catch(() => {
+      // Fallback: process inline
+      routeMessage(msgData).catch((err) => {
+        logErr("  WhatsApp message routing FAILED:", err);
+      });
     });
   });
 
