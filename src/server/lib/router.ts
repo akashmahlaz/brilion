@@ -262,29 +262,38 @@ async function handleChatCommand(
 }
 
 export async function routeMessage(msg: IncomingMessage): Promise<string> {
-  log("========== routeMessage() START ==========");
-  log("Channel:", msg.channel);
-  log("UserId:", msg.userId);
-  log("SenderId:", msg.senderId);
-  log("SenderName:", msg.senderName);
-  log("Text:", msg.text?.substring(0, 200));
+  log("╔══════════════════════════════════════╗");
+  log("║       routeMessage() START           ║");
+  log("╚══════════════════════════════════════╝");
+  log(`[route] Channel: ${msg.channel}`);
+  log(`[route] UserId: ${msg.userId}`);
+  log(`[route] SenderId: ${msg.senderId}`);
+  log(`[route] SenderName: ${msg.senderName || "(none)"}`);
+  log(`[route] Text: "${msg.text?.substring(0, 200)}" (${msg.text?.length || 0} chars)`);
+  log(`[route] isGroup: ${msg.isGroup} | groupId: ${msg.groupId || "(none)"}`);
+  log(`[route] hasImage: ${!!msg.imageBase64} | messageId: ${msg.messageId || "(none)"}`);
   
   await connectDB();
 
   const ownerId = msg.userId;
   
-  log("Loading config for userId:", ownerId);
+  log("[route] Loading config for userId:", ownerId);
   const config = await loadConfig(ownerId);
-  log("Config loaded:", !!config, "config.userId:", config?.userId);
+  log("[route] Config loaded:", !!config, "config.userId:", config?.userId);
   
   if (!config || !config.userId) {
-    logErr("NO CONFIG for userId:", ownerId);
+    logErr("[route] ❌ NO CONFIG for userId:", ownerId, "— user must open dashboard first");
     return "[error] Agent not configured yet. Open the dashboard first.";
   }
 
   // Check channel permissions
   const channelCfg = config.channels?.[msg.channel] as ChannelConfig | undefined;
-  log("Channel config:", JSON.stringify(channelCfg));
+  log("[route] Channel config:", JSON.stringify({
+    enabled: channelCfg?.enabled,
+    dmPolicy: channelCfg?.dmPolicy,
+    selfChatMode: config.channels?.whatsapp?.selfChatMode,
+    groupPolicy: channelCfg?.groupPolicy,
+  }));
 
   // --- Access control hierarchy (OpenClaw-style) ---
   let isSelfChat = false;
@@ -296,15 +305,15 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
     isSelfChat = ownerJid
       ? normalizeJid(msg.senderId) === normalizeJid(ownerJid)
       : false;
-    log("Self-chat check: senderId=", msg.senderId, "ownerJid=", ownerJid, "isSelfChat=", isSelfChat);
+    log(`[route] Self-chat: senderId="${normalizeJid(msg.senderId)}" ownerJid="${ownerJid ? normalizeJid(ownerJid) : "null"}" → isSelfChat=${isSelfChat}`);
 
     if (isSelfChat) {
       const selfChatEnabled = config.channels?.whatsapp?.selfChatMode !== false;
       if (!selfChatEnabled) {
-        log("BLOCKED: selfChatMode is disabled");
+        log("[route] ❌ BLOCKED: selfChatMode is disabled in config");
         return "[blocked] Self-chat mode is disabled.";
       }
-      log("Self-chat ALLOWED — skipping access control");
+      log("[route] ✅ Self-chat ALLOWED — bypassing access control");
     }
   }
 
@@ -314,7 +323,7 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
       isGroup: msg.isGroup,
       groupId: msg.groupId,
     });
-    log("Access decision:", JSON.stringify(access));
+    log(`[route] Access decision: allowed=${access.allowed}${!access.allowed ? ` reason=${(access as any).reason}` : ""}`);
 
     if (!access.allowed) {
       if (access.action === "pairing") {
@@ -326,7 +335,7 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
           senderId: msg.senderId,
           senderName: msg.senderName,
         });
-        log("Pairing challenge issued:", pairing.code, "alreadyPending:", pairing.alreadyPending);
+        log("[route] 🔗 Pairing challenge issued:", pairing.code, "alreadyPending:", pairing.alreadyPending);
 
         if (msg.channel === "whatsapp") {
           await sendWhatsAppMessage(ownerId, msg.senderId, pairing.message);
@@ -336,7 +345,7 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
 
       // Blocked
       const blockMsg = `[blocked] ${access.reason}`;
-      log("BLOCKED:", blockMsg);
+      log("[route] ❌ BLOCKED:", blockMsg);
       if (msg.channel === "whatsapp") {
         await sendWhatsAppMessage(ownerId, msg.senderId, blockMsg);
       }
@@ -345,7 +354,7 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   } else if (!isSelfChat && !channelCfg) {
     // OpenClaw-style: default to BLOCKING when no channel config exists.
     // Only self-chat is allowed without explicit channel configuration.
-    log("BLOCKED: No channel config — blocking by default (self-chat only)");
+    log("[route] ❌ BLOCKED: No channel config found — blocking by default (only self-chat allowed without config)");
     return "[blocked] Channel not configured. Set up channel policies in the dashboard.";
   }
 
@@ -355,17 +364,17 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
     // In "disabled" mode, all group messages are already blocked by resolveAccess
     // In "mention" or non-"open" modes, require @mention or /command
     if (groupPolicy !== "open" && !msg.isMentioned && !msg.text.startsWith("/")) {
-      log("Group message skipped: not mentioned and not a command");
+      log("[route] Group message skipped: not @mentioned and not a /command");
       return "[skipped] Group message — not mentioned.";
     }
   }
 
   // Handle chat commands
   if (msg.text.startsWith("/")) {
-    log("Processing chat command:", msg.text);
+    log("[route] Processing chat command:", msg.text);
     const cmdResult = await handleChatCommand(msg.text, msg, ownerId);
     if (cmdResult !== null) {
-      log("Command result:", cmdResult);
+      log("[route] Command result:", cmdResult);
       if (msg.channel === "whatsapp") {
         await sendWhatsAppMessage(ownerId, msg.senderId, cmdResult);
       }
@@ -383,7 +392,7 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   // Find or create conversation
   // Per-peer isolation: DMs use senderId, groups use groupId
   const conversationKey = msg.isGroup && msg.groupId ? msg.groupId : msg.senderId;
-  log("Looking up conversation: userId=", ownerId, "channel=", msg.channel, "foreignId=", conversationKey);
+  log(`[route] Conversation lookup: channel=${msg.channel} foreignId=${conversationKey}`);
   let conv = await Conversation.findOne({
     channel: msg.channel,
     foreignId: conversationKey,
@@ -397,7 +406,7 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
       ? `Group: ${conversationKey.replace(/@.*/, "")}`
       : `${senderLabel}: ${msgPreview}`;
     
-    log("No existing conversation — creating new one");
+    log("[route] No existing conversation — creating new one");
     conv = await Conversation.create({
       userId: ownerId,
       channel: msg.channel,
@@ -406,9 +415,9 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
       messages: [],
       model: config.agents?.defaults?.model?.primary || "gpt-4o",
     });
-    log("Created conversation:", conv._id, "title:", title);
+    log(`[route] Created conversation: ${conv._id} title="${title}"`);
   } else {
-    log("Found existing conversation:", conv._id, "messages:", conv.messages?.length);
+    log(`[route] Found existing conversation: ${conv._id} messages=${conv.messages?.length}`);
   }
 
   // Build message history
@@ -443,18 +452,16 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   } else {
     history.push({ role: "user" as const, content: msg.text });
   }
-  log("Message history length:", history.length);
+  log(`[route] Message history: ${history.length} messages (last 20 + current)`);
 
   // Get agent config (model + tools + system prompt)
-  log("Getting agent config...");
+  log("[route] Getting agent config...");
   let agentConfig;
   try {
     agentConfig = await getAgentConfig(ownerId);
-    log("Agent config ready. Adapter:", (agentConfig.adapter as any)?.model || "unknown");
-    log("Tools:", Object.keys(agentConfig.tools || {}).join(", "));
-    log("System prompt length:", agentConfig.systemPrompts?.[0]?.length);
+    log(`[route] Agent config ready — adapter=${(agentConfig.adapter as any)?.model || "unknown"}, tools=[${Object.keys(agentConfig.tools || {}).join(", ")}], systemPromptLen=${agentConfig.systemPrompts?.[0]?.length || 0}`);
   } catch (e) {
-    logErr("getAgentConfig FAILED:", e);
+    logErr("[route] ❌ getAgentConfig FAILED:", e);
     const errMsg = `Error: ${e instanceof Error ? e.message : String(e)}`;
     if (msg.channel === "whatsapp") {
       await sendWhatsAppMessage(ownerId, msg.senderId, errMsg);
@@ -465,13 +472,13 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   // Check for model override on conversation
   let adapterOverride;
   if (conv.model && conv.model !== config.agents?.defaults?.model?.primary) {
-    log("Conversation has model override:", conv.model);
+    log("[route] Conversation has model override:", conv.model);
     try {
       const { resolveModel } = await import("./providers");
       adapterOverride = await resolveModel(conv.model, ownerId);
-      log("Model override resolved");
+      log("[route] Model override resolved");
     } catch (e) {
-      log("Model override failed, using default:", e);
+      log("[route] Model override failed, using default:", e);
     }
   }
 
@@ -482,7 +489,7 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   }
 
   // Call AI via TanStack AI chat()
-  log("Calling chat()...");
+  log(`[route] 🤖 Calling chat() — model=${modelName} provider=${providerName}...`);
   const sysLogger = createLogger(ownerId, "router");
   let fullText: string;
   const startTime = Date.now();
@@ -498,8 +505,8 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
       stream: false,
     }) as string;
     const durationMs = Date.now() - startTime;
-    log("AI response received, length:", fullText.length);
-    log("AI response preview:", fullText.substring(0, 300));
+    log(`[route] ✅ AI response: ${fullText.length} chars in ${durationMs}ms`);
+    log(`[route] Preview: "${fullText.substring(0, 200)}"`);
 
     // Track usage
     const promptText = history.map((m: any) => typeof m.content === "string" ? m.content : "").join("");
@@ -519,7 +526,7 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
     });
   } catch (e) {
     const durationMs = Date.now() - startTime;
-    logErr("chat() FAILED:", e);
+    logErr("[route] ❌ chat() FAILED:", e);
     trackUsage({
       userId: ownerId,
       channel: msg.channel,
@@ -538,30 +545,30 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   }
 
   // Save to conversation
-  log("Saving messages to conversation...");
+  log("[route] Saving messages to conversation...");
   try {
     conv.messages.push(
       { role: "user", content: msg.text },
       { role: "assistant", content: fullText }
     );
     await conv.save();
-    log("Conversation saved. Total messages:", conv.messages.length);
+    log(`[route] Conversation saved. Total messages: ${conv.messages.length}`);
 
     // Auto-compact if conversation is getting long + index for memory
     autoCompact(ownerId, conv._id.toString()).catch(() => {});
     indexConversation(ownerId, conv._id.toString()).catch(() => {});
   } catch (e) {
-    logErr("Failed to save conversation:", e);
+    logErr("[route] ❌ Failed to save conversation:", e);
   }
 
   // Send reply back through channel
   // For groups, reply to the group JID; for DMs, reply to the sender
   const replyTarget = msg.isGroup && msg.groupId ? msg.groupId : msg.senderId;
-  log("Sending reply back via", msg.channel, "to", replyTarget);
+  log(`[route] 📤 Sending reply via ${msg.channel} to ${replyTarget} (${fullText.length} chars)`);
   switch (msg.channel) {
     case "whatsapp": {
       const sendResult = await sendWhatsAppMessage(ownerId, replyTarget, fullText);
-      log("WhatsApp send result:", JSON.stringify(sendResult));
+      log(`[route] WhatsApp send result: ${JSON.stringify(sendResult)}`);
       break;
     }
     case "telegram":
@@ -569,7 +576,7 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
       break;
   }
 
-  log("========== routeMessage() DONE ==========");
+  log("[route] ════════ routeMessage() DONE ════════");
   return fullText;
 }
 
@@ -577,26 +584,25 @@ const _initializedUsers = new Set<string>();
 
 export async function initMessageRouter(userId: string): Promise<void> {
   if (_initializedUsers.has(userId)) {
-    log("initMessageRouter() SKIPPED — already initialized for:", userId);
+    log("[router] initMessageRouter() SKIPPED — already initialized for:", userId);
     return;
   }
   _initializedUsers.add(userId);
-  log("========== initMessageRouter() ==========");
-  log("Registering WhatsApp message handler for user:", userId);
+  log("[router] ════════ initMessageRouter() ════════");
+  log("[router] Registering WhatsApp message handler for user:", userId);
 
   onWhatsAppMessage((ownerUserId, msg) => {
-    log(">>> onWhatsAppMessage callback fired");
-    log("  ownerUserId:", ownerUserId, "expected:", userId);
-    log("  msg.jid:", msg.jid);
-    log("  msg.text:", msg.text?.substring(0, 100));
-    log("  msg.pushName:", msg.pushName);
+    log("[router] >>> onWhatsAppMessage callback fired");
+    log(`[router]   ownerUserId=${ownerUserId} expected=${userId}`);
+    log(`[router]   jid=${msg.jid} text="${msg.text?.substring(0, 80)}" pushName=${msg.pushName || "(none)"}`);
+    log(`[router]   isGroup=${msg.isGroup} remoteJid=${msg.remoteJid || "(none)"} messageId=${msg.messageId || "(none)"}`);
     
     if (ownerUserId !== userId) {
-      log("  SKIPPED: wrong user (ownerUserId !== userId)");
+      log("[router]   ⏭ SKIP: wrong user (ownerUserId !== userId)");
       return;
     }
     
-    log("  Routing message...");
+    log("[router]   ✅ User matched — routing message...");
     const msgData = {
       channel: "whatsapp" as const,
       userId,
@@ -616,22 +622,24 @@ export async function initMessageRouter(userId: string): Promise<void> {
     import("./message-queue").then(async ({ enqueueInbound }) => {
       const jobId = await enqueueInbound({ ...msgData, enqueuedAt: Date.now() });
       if (jobId) {
-        log("  Enqueued to BullMQ: job", jobId);
+        log(`[router]   📦 Enqueued to BullMQ: job ${jobId}`);
       } else {
         // Redis not available — process inline
+        log("[router]   ⚡ Redis unavailable — processing inline");
         routeMessage(msgData).then((reply) => {
-          log("  routeMessage() completed. Reply length:", reply?.length);
+          log(`[router]   ✅ routeMessage() done. Reply: ${reply?.length || 0} chars`);
         }).catch((err) => {
-          logErr("  WhatsApp message routing FAILED:", err);
+          logErr("[router]   ❌ routeMessage() FAILED:", err);
         });
       }
-    }).catch(() => {
+    }).catch((err) => {
       // Fallback: process inline
-      routeMessage(msgData).catch((err) => {
-        logErr("  WhatsApp message routing FAILED:", err);
+      logErr("[router]   ❌ BullMQ import failed — processing inline:", err);
+      routeMessage(msgData).catch((err2) => {
+        logErr("[router]   ❌ routeMessage() FAILED:", err2);
       });
     });
   });
 
-  log("Message router initialized for user:", userId);
+  log("[router] ✅ Message router initialized for user:", userId);
 }

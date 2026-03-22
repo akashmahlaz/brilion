@@ -50,6 +50,51 @@ const messageHandlers: MessageHandler[] = [];
 /** Track message IDs sent by our bot to prevent self-chat infinite loops */
 const sentByUs = new Set<string>();
 
+/** Content-based echo detection (OpenClaw-style: track recently sent text) */
+const recentlySentText = new Map<string, number>(); // text → timestamp
+const ECHO_TEXT_TTL_MS = 30_000;
+
+function trackSentText(userId: string, text: string): void {
+  const key = `${userId}:${text.slice(0, 200)}`;
+  recentlySentText.set(key, Date.now());
+  setTimeout(() => recentlySentText.delete(key), ECHO_TEXT_TTL_MS);
+}
+
+function isEchoText(userId: string, text: string): boolean {
+  const key = `${userId}:${text.slice(0, 200)}`;
+  const ts = recentlySentText.get(key);
+  if (!ts) return false;
+  if (Date.now() - ts > ECHO_TEXT_TTL_MS) {
+    recentlySentText.delete(key);
+    return false;
+  }
+  return true;
+}
+
+/** Inbound deduplication cache (OpenClaw-style: TTL-based, keyed by JID+messageId) */
+const processedMessages = new Map<string, number>(); // dedupKey → timestamp
+const DEDUP_TTL_MS = 20 * 60 * 1000; // 20 minutes
+const DEDUP_MAX_SIZE = 5000;
+
+function isDuplicate(userId: string, remoteJid: string, messageId: string): boolean {
+  const key = `${userId}:${remoteJid}:${messageId}`;
+  if (processedMessages.has(key)) return true;
+  // Evict old entries if cache is full
+  if (processedMessages.size >= DEDUP_MAX_SIZE) {
+    const now = Date.now();
+    for (const [k, ts] of processedMessages) {
+      if (now - ts > DEDUP_TTL_MS) processedMessages.delete(k);
+    }
+  }
+  processedMessages.set(key, Date.now());
+  return false;
+}
+
+/** Heartbeat stats */
+let messagesHandled = 0;
+let lastMessageAt = 0;
+let connectTimeMs = 0;
+
 const LOGIN_TTL_MS = 3 * 60 * 1000;
 
 // ── Error tracking: detect Bad MAC / decryption cascades ──
@@ -180,6 +225,31 @@ function debounceMessage(
   debounceTimers.set(key, timer);
 }
 
+// ── Heartbeat (OpenClaw-style: periodic health logging) ──
+const heartbeatIntervals = new Map<string, NodeJS.Timeout>();
+
+function startHeartbeat(userId: string): void {
+  // Clear any existing heartbeat for this user
+  const existing = heartbeatIntervals.get(userId);
+  if (existing) clearInterval(existing);
+
+  const interval = setInterval(() => {
+    const conn = connections.get(userId);
+    if (!conn || conn.status !== "connected") {
+      log(`[heartbeat] User ${userId} no longer connected — stopping heartbeat`);
+      clearInterval(interval);
+      heartbeatIntervals.delete(userId);
+      return;
+    }
+    const uptimeMs = Date.now() - connectTimeMs;
+    const sinceLastMsg = lastMessageAt ? Math.round((Date.now() - lastMessageAt) / 1000) : -1;
+    log(`[heartbeat] user=${userId} status=${conn.status} jid=${conn.jid || "?"} handled=${messagesHandled} lastMsgAgo=${sinceLastMsg}s uptime=${Math.round(uptimeMs / 60000)}min handlers=${messageHandlers.length}`);
+  }, 60_000); // Every 60 seconds
+
+  heartbeatIntervals.set(userId, interval);
+  log(`[heartbeat] Started for user ${userId}`);
+}
+
 function getOrCreateConnection(userId: string): UserConnection {
   let conn = connections.get(userId);
   if (!conn) {
@@ -294,11 +364,15 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
     if (connection === "open") {
       conn.status = "connected";
       conn.jid = sock.user?.id || null;
+      connectTimeMs = Date.now();
       clearDecryptionErrors(userId);
-      log("========== CONNECTION OPEN ==========");
-      log("User:", userId);
-      log("JID:", conn.jid);
-      log("WhatsApp user info:", JSON.stringify(sock.user));
+      log("╔══════════════════════════════════════╗");
+      log("║       CONNECTION OPEN                ║");
+      log("╚══════════════════════════════════════╝");
+      log("  User:", userId);
+      log("  JID:", conn.jid);
+      log("  WhatsApp user:", JSON.stringify(sock.user));
+      log("  Registered handlers:", messageHandlers.length);
 
       // Cache connection status in Redis for cross-instance awareness
       import("./redis").then(({ cacheConnectionStatus }) => {
@@ -310,64 +384,116 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
         session.message = "WhatsApp connected successfully!";
       }
 
-      // Auto-start message router
-      log("Initializing message router for user:", userId);
-      import("./router").then(({ initMessageRouter }) => {
-        initMessageRouter(userId);
-        log("Message router initialized for user:", userId);
-        log("Current handler count:", messageHandlers.length);
-      }).catch((e) => {
-        logErr("FAILED to init message router:", e);
-      });
+      // Auto-start message router — MUST await before messages arrive
+      log("  Initializing message router...");
+      try {
+        const { initMessageRouter } = await import("./router");
+        await initMessageRouter(userId);
+        log("  ✅ Message router ready. Handlers:", messageHandlers.length);
+      } catch (e) {
+        logErr("  ❌ FAILED to init message router:", e);
+      }
+
+      // Start heartbeat (OpenClaw-style: log health every 60s)
+      startHeartbeat(userId);
     }
   });
 
   // Register message listener
   sock.ev.on("messages.upsert", async (update) => {
-    log("========== messages.upsert ==========");
-    log("User:", userId);
-    log("Message count:", update.messages.length);
-    log("Type:", update.type);
-    log("Handler count:", messageHandlers.length);
-    
-    for (const msg of update.messages) {
-      try {
-      log("--- Message ---");
-      log("  key:", JSON.stringify(msg.key));
-      log("  fromMe:", msg.key.fromMe);
-      log("  remoteJid:", msg.key.remoteJid);
-      log("  pushName:", msg.pushName);
-      log("  messageType:", msg.message ? Object.keys(msg.message).join(", ") : "null");
+    const { type, messages: upsertMsgs } = update;
 
-      // Skip messages sent by our own bot to prevent infinite loops
-      if (msg.key.id && sentByUs.has(msg.key.id)) {
-        log("  SKIPPED: message sent by our bot (id:", msg.key.id, ")");
+    // ═══ OpenClaw-style: Only process real-time "notify" messages ═══
+    // "append" = history sync on reconnect, should NOT trigger AI replies
+    if (type !== "notify") {
+      log(`[inbound] ⏭ Skipping ${upsertMsgs.length} message(s) — type="${type}" (only "notify" is processed)`);
+      return;
+    }
+
+    log(`[inbound] ════════════════════════════════════════════════`);
+    log(`[inbound] messages.upsert: ${upsertMsgs.length} msg(s), type="${type}"`);
+    log(`[inbound] user=${userId}, handlers=${messageHandlers.length}, conn=${conn.status}, jid=${conn.jid || "null"}`);
+    
+    if (messageHandlers.length === 0) {
+      logErr(`[inbound] ❌ NO MESSAGE HANDLERS REGISTERED — messages will be dropped!`);
+      logErr(`[inbound]    This means initMessageRouter() hasn't completed yet.`);
+    }
+
+    for (const msg of upsertMsgs) {
+      try {
+      const remoteJid = msg.key.remoteJid || "";
+      const messageId = msg.key.id || "";
+      const fromMe = msg.key.fromMe ?? false;
+      const msgTypes = msg.message ? Object.keys(msg.message) : [];
+
+      log(`[inbound] ── Message ${messageId.slice(0, 12)}… ──`);
+      log(`[inbound]   remoteJid: ${remoteJid}`);
+      log(`[inbound]   fromMe: ${fromMe} | pushName: ${msg.pushName || "(none)"}`);
+      log(`[inbound]   types: [${msgTypes.join(", ")}]`);
+
+      // ═══ Filter: @status/@broadcast/@newsletter (WhatsApp status updates) ═══
+      if (
+        remoteJid.endsWith("@broadcast") ||
+        remoteJid === "status@broadcast" ||
+        remoteJid.endsWith("@newsletter") ||
+        remoteJid.endsWith("@status")
+      ) {
+        log(`[inbound]   ⏭ SKIP: status/broadcast/newsletter JID`);
+        continue;
+      }
+
+      // ═══ Filter: protocol messages (typing receipts, reactions, etc.) ═══
+      if (msg.message?.protocolMessage || msg.message?.reactionMessage) {
+        log(`[inbound]   ⏭ SKIP: protocol/reaction message`);
+        continue;
+      }
+
+      // ═══ Deduplication (OpenClaw-style: TTL cache, 20min window) ═══
+      if (messageId && isDuplicate(userId, remoteJid, messageId)) {
+        log(`[inbound]   ⏭ SKIP: duplicate message (already seen ${messageId})`);
+        continue;
+      }
+
+      // ═══ Echo detection: skip messages sent by our bot (ID-based) ═══
+      if (messageId && sentByUs.has(messageId)) {
+        log(`[inbound]   ⏭ SKIP: echo — message id is in sentByUs`);
         continue;
       }
       
-      if (msg.key.fromMe) {
-        // Allow self-chat: user messaging their own WhatsApp number
-        // Normalize JIDs: strip device suffix AND handle LID format
-        // e.g. "123:5@s.whatsapp.net" → "123@s.whatsapp.net"
+      // ═══ Self-chat detection ═══
+      let isSelfChat = false;
+      if (fromMe) {
         const normalizeJid = (jid: string) =>
           jid.replace(/:\d+@/, "@").split("@")[0];
         const ownJid = conn.jid ? normalizeJid(conn.jid) : "";
-        const remoteJid = msg.key.remoteJid ? normalizeJid(msg.key.remoteJid) : "";
-        const isSelfChat = ownJid && remoteJid === ownJid;
+        const remoteNorm = remoteJid ? normalizeJid(remoteJid) : "";
+        isSelfChat = ownJid !== "" && remoteNorm === ownJid;
+        
+        log(`[inbound]   Self-chat check: own="${ownJid}" remote="${remoteNorm}" match=${isSelfChat}`);
+        
         if (!isSelfChat) {
-          log("  SKIPPED: fromMe=true (not self-chat, own:", ownJid, "remote:", remoteJid, ")");
+          log(`[inbound]   ⏭ SKIP: fromMe=true but NOT self-chat (outbound DM/group)`);
           continue;
         }
-        log("  ALLOWED: self-chat message (fromMe=true, remoteJid matches own JID)");
+        log(`[inbound]   📱 SELF-CHAT mode — processing own message`);
       }
       
+      // ═══ Text extraction ═══
       const text =
         msg.message?.conversation ||
         msg.message?.extendedTextMessage?.text ||
         msg.message?.imageMessage?.caption ||
         "";
       
-      // Check for media messages (image, audio, video, document, sticker)
+      log(`[inbound]   text: "${text ? text.substring(0, 120) : "(empty)"}" (${text.length} chars)`);
+
+      // ═══ Content-based echo detection (OpenClaw-style) ═══
+      if (fromMe && text && isEchoText(userId, text)) {
+        log(`[inbound]   ⏭ SKIP: echo — recently sent text match`);
+        continue;
+      }
+
+      // ═══ Media extraction (image, audio, video, document, sticker) ═══
       const imageMsg = msg.message?.imageMessage;
       const audioMsg = msg.message?.audioMessage;
       const videoMsg = msg.message?.videoMessage;
@@ -383,39 +509,32 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
         try {
           mediaType = imageMsg ? "image" : audioMsg ? "audio" : videoMsg ? "video" : stickerMsg ? "sticker" : "document";
           mediaFileName = documentMsg?.fileName || undefined;
-          log(`  Downloading ${mediaType} media...`);
+          log(`[inbound]   📎 Downloading ${mediaType} media...`);
           const buffer = await downloadMediaMessage(msg, "buffer", {});
           imageBase64 = Buffer.from(buffer as Buffer).toString("base64");
           imageMime = mediaSource.mimetype || (imageMsg ? "image/jpeg" : audioMsg ? "audio/ogg" : videoMsg ? "video/mp4" : stickerMsg ? "image/webp" : "application/octet-stream");
-          log(`  ${mediaType} downloaded:`, Math.round((imageBase64.length * 3) / 4 / 1024), "KB", imageMime);
+          log(`[inbound]   📎 ${mediaType} downloaded: ${Math.round((imageBase64.length * 3) / 4 / 1024)}KB (${imageMime})`);
         } catch (e) {
-          logErr(`  Failed to download ${mediaType}:`, e);
+          logErr(`[inbound]   ❌ Failed to download ${mediaType}:`, e);
         }
       }
 
       const caption = imageMsg?.caption || videoMsg?.caption || audioMsg?.caption || "";
-
-      log("  Extracted text:", text ? `"${text.substring(0, 100)}"` : "null/empty");
       
       if (!text && !imageBase64) {
-        log("  SKIPPED: no text or media content");
-        log("  Full message object keys:", msg.message ? Object.keys(msg.message).join(", ") : "null");
+        log(`[inbound]   ⏭ SKIP: no text and no media content`);
+        log(`[inbound]   msg.message keys: [${msgTypes.join(", ")}]`);
         continue;
       }
       
-      if (!msg.key.remoteJid) {
-        log("  SKIPPED: no remoteJid");
+      if (!remoteJid) {
+        log(`[inbound]   ⏭ SKIP: no remoteJid`);
         continue;
       }
 
-      log("  >>> Dispatching to", messageHandlers.length, "handlers");
-
-      // Detect group messages (JID ends with @g.us)
-      const remoteJid = msg.key.remoteJid!;
+      // ═══ Group detection + mention check ═══
       const isGroup = remoteJid.endsWith("@g.us");
-      // In groups, participant is the actual sender; in DMs, it's the remoteJid
       const senderJid = isGroup ? (msg.key.participant || remoteJid) : remoteJid;
-      // Check if bot was @mentioned in the message
       const mentionedJids = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
       const isMentioned = conn.jid
         ? mentionedJids.some((m: string) =>
@@ -423,7 +542,7 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
           )
         : false;
 
-      log("  isGroup:", isGroup, "senderJid:", senderJid, "isMentioned:", isMentioned);
+      log(`[inbound]   isGroup=${isGroup} senderJid=${senderJid} isMentioned=${isMentioned}`);
 
       // Build descriptive text for non-image media
       const mediaDescription = !text && imageBase64 && mediaType && mediaType !== "image"
@@ -440,37 +559,55 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
         groupId: isGroup ? remoteJid : undefined,
         senderJid,
         isMentioned,
-        messageId: msg.key.id || undefined,
+        messageId: messageId || undefined,
         remoteJid,
       };
 
-      // Debounce: batch rapid messages from same sender (1.5s window)
+      // ═══ Summary log (OpenClaw-style one-liner) ═══
+      const chatType = isSelfChat ? "self" : isGroup ? "group" : "dm";
+      const senderDisplay = msg.pushName || senderJid.replace(/@.*/, "");
+      const bodyLen = handlerMsg.text.length;
+      const mediaLabel = mediaType ? ` +${mediaType}` : "";
+      log(`[inbound] 📨 ${senderDisplay} → ${chatType} (${bodyLen} chars${mediaLabel}) — dispatching to ${messageHandlers.length} handler(s)`);
+
+      // Update stats
+      messagesHandled++;
+      lastMessageAt = Date.now();
+
+      // ═══ Dispatch via debounce ═══
       const debounceKey = `${userId}:${senderJid}`;
       debounceMessage(debounceKey, userId, handlerMsg, (_uid, msgs) => {
-        // Merge debounced messages: concatenate text, keep latest metadata
         const merged = { ...msgs[msgs.length - 1] };
         if (msgs.length > 1) {
           merged.text = msgs.map(m => m.text).filter(Boolean).join("\n");
+          log(`[inbound] Debounce merged ${msgs.length} messages for ${senderJid}`);
         }
+
+        if (messageHandlers.length === 0) {
+          logErr(`[inbound] ❌ HANDLER DISPATCH FAILED: 0 handlers registered — message LOST`);
+          logErr(`[inbound]    text="${merged.text.substring(0, 80)}" from=${senderDisplay}`);
+          return;
+        }
+
         for (let i = 0; i < messageHandlers.length; i++) {
-          log("  Calling handler", i, "(debounced, merged", msgs.length, "msgs)");
+          log(`[inbound] → Calling handler ${i}/${messageHandlers.length}`);
           try {
             messageHandlers[i](_uid, merged);
-            log("  Handler", i, "called successfully");
+            log(`[inbound] → Handler ${i} invoked`);
           } catch (e) {
-            logErr("  Handler", i, "threw error:", e);
+            logErr(`[inbound] ❌ Handler ${i} threw:`, e);
           }
         }
       });
       } catch (msgErr) {
-        // Catch Bad MAC, decryption, and other per-message errors gracefully
+        // Catch Bad MAC, decryption, and other per-message errors
         const errStr = String(msgErr);
         const isBadMac = /bad mac|decrypt|hmac|signal/i.test(errStr);
         if (isBadMac) {
           const shouldCleanup = trackDecryptionError(userId);
-          log("  Decryption error (Bad MAC) suppressed for user:", userId, "count:", decryptionErrors.get(userId)?.count);
+          log(`[inbound] ⚠️ Decryption error (Bad MAC) for user ${userId}, count: ${decryptionErrors.get(userId)?.count}`);
           if (shouldCleanup) {
-            logErr("  Too many decryption errors — clearing auth state and disconnecting:", userId);
+            logErr(`[inbound] ❌ Too many decryption errors — clearing auth + disconnecting: ${userId}`);
             clearDecryptionErrors(userId);
             conn.status = "failed";
             if (conn.clearAuthState) await conn.clearAuthState().catch(() => {});
@@ -478,14 +615,19 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
             conn.socket = null;
           }
         } else {
-          logErr("  Unexpected error processing message:", msgErr);
+          logErr(`[inbound] ❌ Unexpected error processing message:`, msgErr);
         }
       }
     }
   });
 
+  // WebSocket error handler (OpenClaw-style)
+  sock.ws.on("error", (err: Error) => {
+    logErr(`[ws] WebSocket error for ${userId}:`, err.message);
+  });
+
   sock.ev.on("creds.update", () => {
-    log("Creds updated for user:", userId);
+    log("[creds] Updated for user:", userId);
     saveCreds();
   });
   
@@ -610,6 +752,8 @@ export async function send(userId: string, jid: string, text: string) {
       }
     }
     log("Message SENT successfully to", jid, `(${chunks.length} chunk${chunks.length > 1 ? 's' : ''})`);
+    // Track sent text for content-based echo detection
+    trackSentText(userId, text);
     return { status: "sent" };
   } catch (err) {
     logErr("SEND ERROR:", err);
