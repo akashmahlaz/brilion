@@ -343,10 +343,12 @@ function WhatsAppCard() {
                     </p>
                   </div>
 
-                  {/* DM Allowlist */}
-                  {config.dmPolicy === 'allowlist' && (
+                  {/* DM Allowlist — shown for both allowlist and pairing modes */}
+                  {(config.dmPolicy === 'allowlist' || config.dmPolicy === 'pairing') && (
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium">Allowed Numbers (DMs)</Label>
+                      <Label className="text-sm font-medium">
+                        {config.dmPolicy === 'pairing' ? 'Pre-approved Numbers (skip pairing)' : 'Allowed Numbers (DMs)'}
+                      </Label>
                       <div className="flex flex-wrap gap-1.5">
                         {config.allowFrom.filter(n => n !== '*').map((num) => (
                           <Badge key={num} variant="secondary" className="gap-1 pl-2.5 pr-1">
@@ -367,7 +369,7 @@ function WhatsAppCard() {
                       </div>
                       <div className="flex gap-2">
                         <Input
-                          placeholder="+1234567890"
+                          placeholder="919876543210"
                           value={newAllowNumber}
                           onChange={(e) => setNewAllowNumber(e.target.value)}
                           className="rounded-xl"
@@ -378,7 +380,10 @@ function WhatsAppCard() {
                           className="rounded-xl shrink-0"
                           disabled={!newAllowNumber.trim()}
                           onClick={() => {
-                            const num = newAllowNumber.trim()
+                            const raw = newAllowNumber.trim()
+                            if (!raw) return
+                            // Normalize: strip non-digits for robust matching
+                            const num = raw.replace(/\D/g, '')
                             if (!num) return
                             const updated = [...config.allowFrom.filter(n => n !== '*'), num]
                             setConfig({ ...config, allowFrom: updated })

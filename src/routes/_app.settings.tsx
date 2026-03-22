@@ -45,6 +45,7 @@ import { Switch } from '#/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '#/components/ui/select'
 import { toast } from 'sonner'
 import { apiFetch } from '#/lib/api'
+import { ProviderIcon } from '#/components/provider-icons'
 
 interface Provider {
   id: string
@@ -280,7 +281,10 @@ function ModelConfigTab() {
                 onClick={() => selectProvider(p.id)}
                 className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-accent ${selectedProvider === p.id ? 'border-primary bg-primary/5' : ''}`}
               >
-                <div className="flex-1">
+                <div className="flex size-9 items-center justify-center rounded-lg bg-muted shrink-0">
+                  <ProviderIcon provider={p.id} className="size-4.5" />
+                </div>
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium">{p.name}</span>
                     {p.configured && (
@@ -290,11 +294,11 @@ function ModelConfigTab() {
                       </Badge>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
                     {p.description}
                   </p>
                 </div>
-                <ChevronRight className="size-4 text-muted-foreground" />
+                <ChevronRight className="size-4 text-muted-foreground shrink-0" />
               </button>
             ))}
           </div>
@@ -470,20 +474,26 @@ function ApiKeysTab() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Provider / Service</Label>
-              <select
-                className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              <Select
                 value={newKey.provider}
-                onChange={(e) =>
-                  setNewKey((k) => ({ ...k, provider: e.target.value }))
+                onValueChange={(v) =>
+                  setNewKey((k) => ({ ...k, provider: v }))
                 }
               >
-                <option value="">Select...</option>
-                {ALL_PROVIDERS.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="Select..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {ALL_PROVIDERS.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      <div className="flex items-center gap-2">
+                        <ProviderIcon provider={p.id} className="size-3.5" />
+                        <span>{p.label}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>API Token</Label>
@@ -532,7 +542,7 @@ function ApiKeysTab() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10">
-                      <Key className="size-4 text-primary" />
+                      <ProviderIcon provider={p.provider} className="size-4 text-primary" />
                     </div>
                     <div>
                       <p className="text-sm font-medium">{p.provider}</p>

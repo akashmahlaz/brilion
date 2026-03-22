@@ -327,7 +327,7 @@ function ChatPage() {
     try {
       const dmPolicy = waSettings.accessMode === 'specific' ? 'allowlist' : waSettings.accessMode === 'all' ? 'open' : 'pairing'
       const allowFrom = waSettings.accessMode === 'specific'
-        ? waSettings.allowedNumbers.split(',').map(n => n.trim()).filter(Boolean)
+        ? waSettings.allowedNumbers.split(',').map(n => n.trim().replace(/\D/g, '')).filter(Boolean)
         : ['*']
 
       const res = await apiFetch('/api/whatsapp', {

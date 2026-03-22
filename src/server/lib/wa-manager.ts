@@ -438,6 +438,66 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
     }
   });
 
+  // Track contact updates (also has LID info)
+  sock.ev.on("contacts.update", (updates) => {
+    let cache = lidToPhoneCache.get(userId);
+    if (!cache) { cache = new Map(); lidToPhoneCache.set(userId, cache); }
+    let added = 0;
+    for (const update of updates) {
+      const cId = update.id || "";
+      const cLid = (update as any).lid || "";
+      if (cId && cLid) {
+        const phone = cId.replace(/:.*/, "").replace(/@.*/, "");
+        const lidNum = cLid.replace(/:.*/, "").replace(/@.*/, "");
+        if (phone && lidNum && phone !== lidNum) {
+          cache.set(lidNum, phone);
+          added++;
+        }
+      }
+    }
+    if (added > 0) {
+      log(`[contacts.update] LID→Phone cache updated: +${added} entries (total: ${cache.size})`);
+    }
+  });
+
+  // Track LID mapping updates (Baileys v6+ direct mapping events)
+  sock.ev.on("lid-mapping.update" as any, (mapping: any) => {
+    if (mapping?.lid && mapping?.pn) {
+      let cache = lidToPhoneCache.get(userId);
+      if (!cache) { cache = new Map(); lidToPhoneCache.set(userId, cache); }
+      const lidNum = mapping.lid.replace(/:.*/, "").replace(/@.*/, "");
+      const phone = mapping.pn.replace(/:.*/, "").replace(/@.*/, "");
+      if (lidNum && phone && lidNum !== phone) {
+        cache.set(lidNum, phone);
+        log(`[lid-mapping] ${lidNum} → ${phone}`);
+      }
+    }
+  });
+
+  // Track messaging history set (includes contacts from sync)
+  sock.ev.on("messaging-history.set" as any, (data: any) => {
+    const histContacts = data?.contacts;
+    if (!Array.isArray(histContacts) || histContacts.length === 0) return;
+    let cache = lidToPhoneCache.get(userId);
+    if (!cache) { cache = new Map(); lidToPhoneCache.set(userId, cache); }
+    let added = 0;
+    for (const contact of histContacts) {
+      const cId = contact.id || "";
+      const cLid = (contact as any).lid || (contact as any).phoneNumber || "";
+      if (cId && cLid && cId !== cLid) {
+        const phone = cId.replace(/:.*/, "").replace(/@.*/, "");
+        const lidNum = cLid.replace(/:.*/, "").replace(/@.*/, "");
+        if (phone && lidNum && phone !== lidNum) {
+          cache.set(lidNum, phone);
+          added++;
+        }
+      }
+    }
+    if (added > 0) {
+      log(`[messaging-history] LID→Phone cache updated: +${added} entries (total: ${cache.size})`);
+    }
+  });
+
   // Register message listener
   sock.ev.on("messages.upsert", async (update) => {
     const { type, messages: upsertMsgs } = update;
@@ -767,12 +827,37 @@ export function getOwnerLid(userId: string): string | null {
   return connections.get(userId)?.lid || null;
 }
 
-/** Resolve a LID number to a phone number using the contacts cache */
-export function resolvePhoneFromLid(userId: string, lidJid: string): string | null {
-  const cache = lidToPhoneCache.get(userId);
-  if (!cache) return null;
+/** Resolve a LID number to a phone number — uses Baileys signalRepository first, then cache */
+export async function resolvePhoneFromLid(userId: string, lidJid: string): Promise<string | null> {
   const lidNum = lidJid.replace(/:.*?@/, "@").split("@")[0];
-  return cache.get(lidNum) || null;
+  
+  // 1. Check in-memory cache first (fast)
+  const cache = lidToPhoneCache.get(userId);
+  if (cache?.has(lidNum)) return cache.get(lidNum)!;
+  
+  // 2. Try Baileys' built-in LID mapping store (authoritative)
+  const conn = connections.get(userId);
+  if (conn?.socket) {
+    try {
+      const repo = (conn.socket as any).signalRepository;
+      if (repo?.lidMapping?.getPNForLID) {
+        const pn = await repo.lidMapping.getPNForLID(lidJid);
+        if (pn) {
+          const phone = pn.replace(/:.*?@/, "@").split("@")[0];
+          // Cache for future use
+          let c = lidToPhoneCache.get(userId);
+          if (!c) { c = new Map(); lidToPhoneCache.set(userId, c); }
+          c.set(lidNum, phone);
+          log(`[lid] Resolved via signalRepository: ${lidNum} → ${phone}`);
+          return phone;
+        }
+      }
+    } catch (e) {
+      // signalRepository may not be available — fall through
+    }
+  }
+  
+  return null;
 }
 
 export async function send(userId: string, jid: string, text: string) {

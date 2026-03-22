@@ -96,45 +96,43 @@ function buildAdapter(
 ): AnyTextAdapter {
   switch (providerId) {
     case "github":
-      return createOpenaiChat({
-        model: modelId,
+      return createOpenaiChat(
+        modelId,
         apiKey,
-        baseUrl: baseUrl || "https://models.inference.ai.azure.com",
-      });
+        { baseUrl: baseUrl || "https://models.inference.ai.azure.com" },
+      );
     case "github-copilot":
-      return createOpenaiChat({
-        model: modelId,
+      return createOpenaiChat(
+        modelId,
         apiKey,
-        baseUrl: baseUrl || "https://api.githubcopilot.com",
-      });
+        { baseUrl: baseUrl || "https://api.githubcopilot.com" },
+      );
     case "openai":
-      return createOpenaiChat({ model: modelId, apiKey, baseUrl });
+      return createOpenaiChat(modelId, apiKey, baseUrl ? { baseUrl } : undefined);
     case "anthropic":
-      return createAnthropicChat({ model: modelId, apiKey, baseUrl });
+      return createAnthropicChat(modelId, apiKey, baseUrl ? { baseUrl } : undefined);
     case "google":
-      return createGeminiChat({ model: modelId, apiKey, baseUrl });
+      return createGeminiChat(modelId, apiKey, baseUrl ? { baseUrl } : undefined);
     case "xai":
-      // xAI uses OpenAI-compatible API
-      return createOpenaiChat({
-        model: modelId,
+      return createOpenaiChat(
+        modelId,
         apiKey,
-        baseUrl: baseUrl || "https://api.x.ai/v1",
-      });
+        { baseUrl: baseUrl || "https://api.x.ai/v1" },
+      );
     case "mistral":
-      // Mistral uses OpenAI-compatible API
-      return createOpenaiChat({
-        model: modelId,
+      return createOpenaiChat(
+        modelId,
         apiKey,
-        baseUrl: baseUrl || "https://api.mistral.ai/v1",
-      });
+        { baseUrl: baseUrl || "https://api.mistral.ai/v1" },
+      );
     case "openrouter":
-      return createOpenaiChat({
-        model: modelId,
+      return createOpenaiChat(
+        modelId,
         apiKey,
-        baseUrl: baseUrl || "https://openrouter.ai/api/v1",
-      });
+        { baseUrl: baseUrl || "https://openrouter.ai/api/v1" },
+      );
     default:
-      return createOpenaiChat({ model: modelId, apiKey, baseUrl });
+      return createOpenaiChat(modelId, apiKey, baseUrl ? { baseUrl } : undefined);
   }
 }
 

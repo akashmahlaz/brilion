@@ -105,7 +105,12 @@ export const Route = createFileRoute("/api/whatsapp")({
           if (phoneType) config.channels.whatsapp.phoneType = phoneType;
           if (dmPolicy) config.channels.whatsapp.dmPolicy = dmPolicy;
           if (selfChatMode !== undefined) config.channels.whatsapp.selfChatMode = selfChatMode;
-          if (allowFrom) config.channels.whatsapp.allowFrom = allowFrom;
+          if (allowFrom) {
+            // Normalize phone numbers: strip non-digits for robust matching
+            config.channels.whatsapp.allowFrom = (allowFrom as string[]).map(
+              (n: string) => n === "*" ? n : n.replace(/\D/g, "")
+            ).filter(Boolean);
+          }
           config.channels.whatsapp.onboarded = true;
 
           await saveConfig(config);

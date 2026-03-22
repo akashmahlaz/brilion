@@ -34,6 +34,16 @@ export const Route = createFileRoute("/api/config")({
         const userId = (session.user as any).id;
         const body = await request.json();
 
+        // Normalize phone number arrays (strip non-digits, keep + prefix for display)
+        const normalizePhoneList = (arr: unknown): string[] | null => {
+          if (!Array.isArray(arr)) return null;
+          return arr.map((n: string) => {
+            if (n === "*") return n;
+            // Keep only digits (strip +, spaces, dashes, parens)
+            return n.replace(/\D/g, "");
+          }).filter(Boolean);
+        };
+
         // Support nested path updates: { path: "agents.defaults.model.primary", value: "gpt-4o" }
         if (body.path && body.value !== undefined) {
           const config = await loadConfig(userId);
@@ -43,7 +53,13 @@ export const Route = createFileRoute("/api/config")({
             if (obj[keys[i]] === undefined) obj[keys[i]] = {};
             obj = obj[keys[i]];
           }
-          obj[keys[keys.length - 1]] = body.value;
+          // Normalize phone lists before saving
+          const lastKey = keys[keys.length - 1];
+          let value = body.value;
+          if (lastKey === "allowFrom" || lastKey === "groupAllowFrom") {
+            value = normalizePhoneList(value) ?? value;
+          }
+          obj[lastKey] = value;
           await saveConfig(config);
           return Response.json(config);
         }

@@ -95,12 +95,18 @@ function resolveAccess(
   }
 
   // Check allowlist (applies to both "allowlist" and "pairing" policies)
-  const inAllowlist = channelCfg.allowFrom.some(
-    (pattern) =>
-      pattern === "*" ||
-      pattern === sender ||
-      sender.includes(pattern.replace(/^\+/, ""))
-  );
+  // Normalize sender to digits-only for robust matching
+  const senderDigits = sender.replace(/\D/g, "");
+  const inAllowlist = channelCfg.allowFrom.some((pattern) => {
+    if (pattern === "*") return true;
+    // Strip all non-digit characters for comparison
+    const patternDigits = pattern.replace(/\D/g, "");
+    if (!patternDigits) return false;
+    // Match if digits are equal, or one contains the other (handle country code variants)
+    return senderDigits === patternDigits ||
+      senderDigits.endsWith(patternDigits) ||
+      patternDigits.endsWith(senderDigits);
+  });
 
   if (inAllowlist) {
     return { allowed: true };
@@ -323,10 +329,10 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   // Step 2: Channel access control (if not self-chat)
   if (!isSelfChat && channelCfg) {
     // Resolve LID to phone number for allowlist matching
-    let resolvedSenderId = msg.senderId;
+    let resolvedSenderId = normalizeJid(msg.senderId); // Strip device suffix + domain
     if (msg.channel === "whatsapp" && msg.remoteJid?.endsWith("@lid")) {
       const { resolvePhoneFromLid } = await import("./wa-manager");
-      const phone = resolvePhoneFromLid(ownerId, msg.senderId);
+      const phone = await resolvePhoneFromLid(ownerId, msg.senderId);
       if (phone) {
         resolvedSenderId = phone;
         log(`[route] LID resolved: ${normalizeJid(msg.senderId)} → ${phone}`);
@@ -505,12 +511,12 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   }
 
   // Call AI via TanStack AI chat()
+  const modelName = (agentConfig.adapter as any)?.model || "unknown";
+  const providerName = (agentConfig.adapter as any)?.provider || "unknown";
   log(`[route] 🤖 Calling chat() — model=${modelName} provider=${providerName}...`);
   const sysLogger = createLogger(ownerId, "router");
   let fullText: string;
   const startTime = Date.now();
-  const modelName = (agentConfig.adapter as any)?.model || "unknown";
-  const providerName = (agentConfig.adapter as any)?.provider || "unknown";
   try {
     fullText = await chat({
       adapter: adapterOverride ?? agentConfig.adapter,
