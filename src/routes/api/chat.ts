@@ -175,12 +175,15 @@ export const Route = createFileRoute("/api/chat")({
           conversationId,
         });
 
-        // Emit beforeChat hook
-        emit("beforeChat", {
+        // Emit llm_input hook (observability)
+        emit("llm_input", {
           userId,
           channel: "web",
+          model: modelName,
+          provider: providerName,
           messages: aiMessages,
           systemPrompts: agentConfig.systemPrompts,
+          toolCount: agentConfig.tools.length,
         }).catch(() => {});
 
         // Wrap stream for post-processing (usage tracking + conversation saving)
@@ -191,13 +194,23 @@ export const Route = createFileRoute("/api/chat")({
             const durationMs = Date.now() - startTime;
             logger.info("Web chat completed", { model: modelName, durationMs });
 
-            // Emit afterChat hook
-            emit("afterChat", {
+            // Emit llm_output + agent_end hooks
+            emit("llm_output", {
               userId,
               channel: "web",
+              model: modelName,
+              provider: providerName,
               response: fullText,
               durationMs,
+            }).catch(() => {});
+            emit("agent_end", {
+              userId,
+              channel: "web",
               model: modelName,
+              conversationId,
+              response: fullText,
+              durationMs,
+              toolCallCount: 0,
             }).catch(() => {});
 
             // Estimate tokens from character count (real usage not available without middleware)

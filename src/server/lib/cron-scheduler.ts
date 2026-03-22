@@ -7,6 +7,8 @@
  */
 import { CronJob } from "../models/cron-job";
 import { connectDB } from "../db";
+import { emit } from "./hooks";
+export { setHeartbeatWakeHandler, requestHeartbeatWake, WakeReason } from "./heartbeat-wake";
 
 const log = (...args: unknown[]) => console.log("[cron-scheduler]", ...args);
 const logErr = (...args: unknown[]) => console.error("[cron-scheduler]", ...args);
@@ -129,6 +131,22 @@ async function executeJob(job: InstanceType<typeof CronJob>): Promise<void> {
   }
 }
 
+/** OpenClaw-style check: is HEARTBEAT.md content effectively empty? */
+function isHeartbeatContentEffectivelyEmpty(content: string): boolean {
+  const lines = content.split("\n");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue; // blank
+    if (trimmed.startsWith("#")) continue; // header
+    if (/^-\s*\[\s*\]/.test(trimmed)) continue; // empty checkbox
+    if (/^\(.*\)$/.test(trimmed)) continue; // parenthetical note like "(None configured yet)"
+    if (/^-\s*$/.test(trimmed)) continue; // bare list marker
+    // Found a real content line
+    return false;
+  }
+  return true;
+}
+
 /** Execute heartbeat: read each active user's HEARTBEAT.md and let AI handle due tasks */
 async function runHeartbeats(): Promise<void> {
   try {
@@ -141,12 +159,10 @@ async function runHeartbeats(): Promise<void> {
 
     for (const hb of heartbeats as any[]) {
       const content = hb.content as string;
-      // Skip if it's just the default template with no real tasks
-      if (
-        content.includes("(None configured yet") &&
-        !content.includes("- [") && // no checklist items
-        content.split("\n").length < 12
-      ) {
+      // Skip if content is effectively empty (only headers, empty checkboxes, notes)
+      if (isHeartbeatContentEffectivelyEmpty(content)) {
+        const userId = hb.userId?.toString();
+        if (userId) emit("heartbeat_skip", { userId, reason: "empty" }).catch(() => {});
         continue;
       }
 
@@ -154,6 +170,8 @@ async function runHeartbeats(): Promise<void> {
       if (!userId) continue;
 
       log(`Heartbeat: executing for user ${userId}`);
+      emit("heartbeat_start", { userId, contentLength: content.length }).catch(() => {});
+      const hbStartTime = Date.now();
       try {
         const { chat, maxIterations } = await import("@tanstack/ai");
         const { getAgentConfig } = await import("./agent");
@@ -178,6 +196,7 @@ ${content}`;
 
         if (result && !result.toLowerCase().includes("no tasks due")) {
           log(`Heartbeat result for ${userId}: ${result.substring(0, 200)}`);
+          emit("heartbeat_result", { userId, result, durationMs: Date.now() - hbStartTime, delivered: false }).catch(() => {});
           // Deliver result via WhatsApp if connected
           try {
             const { sendWhatsAppMessage, isWhatsAppConnected } = await import("../channels/whatsapp");

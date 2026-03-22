@@ -23,6 +23,8 @@ const configSchema = new mongoose.Schema(
         thinkingDefault: { type: String, default: "off" },
         maxConcurrent: { type: Number, default: 4 },
         compaction: { mode: { type: String, default: "safeguard" } },
+        userTimezone: { type: String, default: "UTC" },
+        timeFormat: { type: String, default: "12" },
       },
     },
     channels: {

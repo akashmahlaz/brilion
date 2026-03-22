@@ -5,7 +5,7 @@ import { connectDB } from "../db";
 import { indexConversation } from "./memory-manager";
 import { createLogger } from "../models/log-entry";
 import { buildSystemPromptFromWorkspace } from "./workspace";
-import { emit } from "./hooks";
+import { emit, getHookRunner, hasHooks } from "./hooks";
 
 const log = (...args: unknown[]) => console.log("[compaction]", ...args);
 
@@ -113,6 +113,14 @@ export async function compactConversation(
 
   log(`Compacting ${middleMessages.length} messages (${estimateTokens(middleText)} est. tokens)`);
 
+  // Emit before_compaction hook
+  emit("before_compaction", {
+    userId,
+    conversationId,
+    messageCount: originalCount,
+    estimatedTokens: estimateTokens(middleText),
+  }).catch(() => {});
+
   // Use a fast/cheap model for summarization
   let adapter;
   try {
@@ -187,7 +195,7 @@ export async function compactConversation(
       summarizedMessages: middleMessages.length,
     });
 
-    emit("onCompaction", {
+    emit("after_compaction", {
       userId,
       conversationId,
       originalCount,

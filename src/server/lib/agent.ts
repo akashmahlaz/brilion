@@ -19,6 +19,7 @@ import { createMemoryTools } from "./tools/memory";
 import { loadSkillTools, getSkillContext } from "./skill-loader";
 import { createLogger } from "../models/log-entry";
 import { searchMemory } from "./memory-manager";
+import { getHookRunner, hasHooks } from "./hooks";
 
 const log = (...args: unknown[]) => console.log("[agent]", ...args);
 const logErr = (...args: unknown[]) => console.error("[agent]", ...args);
@@ -120,11 +121,25 @@ async function getSystemPrompt(
   }
 
   // --- Session Startup: Date/Time + Channel Awareness ---
+  // Use user's configured timezone (OpenClaw-style)
+  let userTimezone = "UTC";
+  try {
+    const cfg = await loadConfig(userId);
+    userTimezone = cfg.agents?.defaults?.userTimezone || "UTC";
+  } catch {
+    // ignore
+  }
+
   const now = new Date();
   const dateStr = now.toLocaleDateString("en-US", {
     weekday: "long", year: "numeric", month: "long", day: "numeric",
+    timeZone: userTimezone,
   });
-  const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  const timeStr = now.toLocaleTimeString("en-US", {
+    hour: "2-digit", minute: "2-digit",
+    timeZone: userTimezone,
+  });
+  const utcStr = now.toISOString().slice(0, 16).replace("T", " ") + " UTC";
 
   let channelDirective = "";
   if (options.channel === "whatsapp") {
@@ -147,7 +162,7 @@ async function getSystemPrompt(
 
   parts.push(`## Current Context
 Date: ${dateStr}
-Time: ${timeStr}
+Time: ${timeStr} (${userTimezone}) / ${utcStr}
 ${channelDirective}
 
 ## Session Startup — EXECUTE EVERY CONVERSATION
@@ -176,7 +191,26 @@ Use these memories naturally in your response. Don't say "according to my memory
     }
   }
 
-  return parts.join("\n\n---\n\n");
+  let assembled = parts.join("\n\n---\n\n");
+
+  // Run before_prompt_build modifying hook — plugins can prepend/append/replace the system prompt
+  if (hasHooks("before_prompt_build")) {
+    const hookResult = await getHookRunner().runBeforePromptBuild({
+      userId,
+      channel: options.channel || "web",
+      messages: [],
+      currentSystemPrompt: assembled,
+    });
+    if (hookResult.systemPrompt) assembled = hookResult.systemPrompt;
+    if (hookResult.prependContext || hookResult.prependSystemContext) {
+      assembled = (hookResult.prependContext || hookResult.prependSystemContext) + "\n\n" + assembled;
+    }
+    if (hookResult.appendSystemContext) {
+      assembled = assembled + "\n\n" + hookResult.appendSystemContext;
+    }
+  }
+
+  return assembled;
 }
 
 export async function getAgentConfig(
@@ -195,7 +229,18 @@ export async function getAgentConfig(
 
   let adapter: AnyTextAdapter;
   try {
-    adapter = await resolveModel(undefined, userId);
+    // Run before_model_resolve modifying hook — plugins can override model/provider
+    let modelSpec: string | undefined;
+    if (hasHooks("before_model_resolve")) {
+      const hookResult = await getHookRunner().runBeforeModelResolve({
+        userId,
+        channel: options.channel || "web",
+        requestedModel: undefined,
+      });
+      if (hookResult.modelOverride) modelSpec = hookResult.modelOverride;
+    }
+
+    adapter = await resolveModel(modelSpec, userId);
     const adapterModel = (adapter as any).model || "unknown";
     const adapterProvider = (adapter as any).provider || "unknown";
     log("Adapter resolved:", adapterModel);

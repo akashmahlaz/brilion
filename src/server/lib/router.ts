@@ -13,7 +13,7 @@ import { trackUsage, estimateTokens } from "./usage-tracker";
 import { createLogger } from "../models/log-entry";
 import { autoCompact } from "./compaction";
 import { indexConversation } from "./memory-manager";
-import { emit } from "./hooks";
+import { emit, getHookRunner, hasHooks } from "./hooks";
 
 const log = (...args: unknown[]) => console.log("[router]", ...args);
 const logErr = (...args: unknown[]) => console.error("[router]", ...args);
@@ -469,7 +469,7 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
       model: config.agents?.defaults?.model?.primary || "gpt-4o",
     });
     log(`[route] Created conversation: ${conv._id} title="${title}"`);
-    emit("sessionStart", {
+    emit("session_start", {
       userId: ownerId,
       channel: msg.channel,
       conversationId: conv._id.toString(),
@@ -556,6 +556,36 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
     }
   }
 
+  // Emit message_received void hook (observability)
+  emit("message_received", {
+    userId: ownerId,
+    channel: msg.channel,
+    senderId: msg.senderId,
+    senderName: msg.senderName,
+    text: msg.text,
+    hasImage: !!(msg.imageBase64),
+    isGroup: !!msg.isGroup,
+    conversationId: conv._id?.toString(),
+  }).catch(() => {});
+
+  // Inbound claim hook — plugins can intercept custom commands
+  if (hasHooks("inbound_claim")) {
+    const claim = await getHookRunner().runInboundClaim({
+      userId: ownerId,
+      channel: msg.channel,
+      senderId: msg.senderId,
+      text: msg.text,
+      isGroup: !!msg.isGroup,
+    });
+    if (claim?.handled) {
+      log(`[route] Inbound claim handled by plugin: ${claim.response || "(no response)"}`);
+      if (claim.response && msg.channel === "whatsapp") {
+        await sendWhatsAppMessage(ownerId, msg.senderId, claim.response);
+      }
+      return claim.response || "";
+    }
+  }
+
   // Send typing indicator before AI processes (OpenClaw-style)
   if (msg.channel === "whatsapp") {
     const replyJid = msg.isGroup && msg.groupId ? msg.groupId : msg.senderId;
@@ -598,13 +628,23 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
     log(`[route] ✅ AI response: ${fullText.length} chars in ${durationMs}ms`);
     log(`[route] Preview: "${fullText.substring(0, 200)}"`);
 
-    // Emit afterChat hook
-    emit("afterChat", {
+    // Emit llm_output + agent_end hooks
+    emit("llm_output", {
       userId: ownerId,
       channel: msg.channel,
+      model: actualModel,
+      provider: providerName,
       response: fullText,
       durationMs,
+    }).catch(() => {});
+    emit("agent_end", {
+      userId: ownerId,
+      channel: msg.channel,
       model: actualModel,
+      conversationId: conv._id?.toString(),
+      response: fullText,
+      durationMs,
+      toolCallCount: 0,
     }).catch(() => {});
 
     // Track usage
@@ -695,16 +735,35 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   // Send reply back through channel
   // For groups, reply to the group JID; for DMs, reply to the sender
   const replyTarget = msg.isGroup && msg.groupId ? msg.groupId : msg.senderId;
-  log(`[route] 📤 Sending reply via ${msg.channel} to ${replyTarget} (${fullText.length} chars)`);
+
+  // Run message_sending modifying hook — plugins can modify or cancel outgoing messages
+  let replyContent = fullText;
+  if (hasHooks("message_sending")) {
+    const sendResult = await getHookRunner().runMessageSending({
+      userId: ownerId,
+      channel: msg.channel,
+      recipientId: replyTarget,
+      content: fullText,
+      isGroup: !!msg.isGroup,
+    });
+    if (sendResult.cancel) {
+      log(`[route] Message sending cancelled by hook: ${sendResult.cancelReason || "(no reason)"}`);
+      return fullText; // Still return AI response even if delivery cancelled
+    }
+    if (sendResult.content) replyContent = sendResult.content;
+  }
+
+  log(`[route] 📤 Sending reply via ${msg.channel} to ${replyTarget} (${replyContent.length} chars)`);
 
   sysLogger.debug("Reply dispatch", {
     channel: msg.channel,
     replyTarget,
-    responseLength: fullText.length,
+    responseLength: replyContent.length,
   });
+  const sendStartTime = Date.now();
   switch (msg.channel) {
     case "whatsapp": {
-      const sendResult = await sendWhatsAppMessage(ownerId, replyTarget, fullText);
+      const sendResult = await sendWhatsAppMessage(ownerId, replyTarget, replyContent);
       log(`[route] WhatsApp send result: ${JSON.stringify(sendResult)}`);
       break;
     }
@@ -712,6 +771,15 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
       log("Telegram reply handled by caller (telegram.ts)");
       break;
   }
+
+  // Emit message_sent hook
+  emit("message_sent", {
+    userId: ownerId,
+    channel: msg.channel,
+    recipientId: replyTarget,
+    content: replyContent,
+    durationMs: Date.now() - sendStartTime,
+  }).catch(() => {});
 
   log("[route] ════════ routeMessage() DONE ════════");
   return fullText;
