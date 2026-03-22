@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { chat, maxIterations, toServerSentEventsResponse, streamToText } from "@tanstack/ai";
+import { chat, maxIterations, toServerSentEventsResponse } from "@tanstack/ai";
 import { connectDB } from "#/server/db";
 import { requireAuth } from "#/server/middleware";
 import { Conversation } from "#/server/models/conversation";
@@ -129,72 +129,84 @@ export const Route = createFileRoute("/api/chat")({
           stream: true,
         });
 
-        // Save conversation + track usage in background
+        // Wrap the stream to accumulate text while forwarding chunks to SSE.
+        // An async generator can only be iterated once, so we cannot call both
+        // streamToText() and toServerSentEventsResponse() on the same result.
         const startTime = Date.now();
         const modelName = (agentConfig.adapter as any)?.model || modelSpec || "unknown";
         const providerName = (agentConfig.adapter as any)?.provider || "unknown";
         const logger = createLogger(userId, "api");
+        let accumulatedText = "";
 
-        streamToText(result).then(async (fullText) => {
-          const durationMs = Date.now() - startTime;
-          // Track usage
-          const promptText = messages.map((m: any) => typeof m.content === "string" ? m.content : "").join("");
-          trackUsage({
-            userId,
-            conversationId,
-            channel: "web",
-            provider: providerName,
-            model: modelName,
-            promptTokens: estimateTokens(promptText),
-            completionTokens: estimateTokens(fullText),
-            durationMs,
-            success: true,
-          });
-          logger.info(`Web chat completed`, { model: modelName, durationMs });
-
-          // Save conversation
-          if (conversationId) {
-            try {
-              const lastUserMsg = messages[messages.length - 1];
-              const conv = await Conversation.findById(conversationId);
-              if (!conv) return;
-
-              conv.messages.push(
-                { role: lastUserMsg.role, content: lastUserMsg.content },
-                { role: "assistant", content: fullText }
-              );
-
-              if (
-                (conv.title === "New Chat" || !conv.title) &&
-                lastUserMsg.content
-              ) {
-                conv.title = generateTitle(lastUserMsg.content);
+        async function* teeStream() {
+          try {
+            for await (const chunk of result) {
+              if (chunk.type === "TEXT_MESSAGE_CONTENT" && chunk.delta) {
+                accumulatedText += chunk.delta;
               }
-
-              await conv.save();
-
-              // Auto-compact if conversation is getting long
-              autoCompact(userId, conversationId).catch(() => {});
-              // Index into memory for long-term recall
-              indexConversation(userId, conversationId).catch(() => {});
-            } catch (e) {
-              console.error("[chat] Failed to save conversation:", e);
+              yield chunk;
             }
-          }
-        }).catch((e) => {
-          trackUsage({
-            userId,
-            channel: "web",
-            provider: providerName,
-            model: modelName,
-            durationMs: Date.now() - startTime,
-            success: false,
-            error: e instanceof Error ? e.message : String(e),
-          });
-          logger.error("Web chat failed", { error: String(e) });
-        });
+          } finally {
+            // Stream finished — run background processing
+            const fullText = accumulatedText;
+            const durationMs = Date.now() - startTime;
 
-        return toServerSentEventsResponse(result);
+            Promise.resolve().then(async () => {
+              try {
+                const promptText = messages.map((m: any) => typeof m.content === "string" ? m.content : "").join("");
+                trackUsage({
+                  userId,
+                  conversationId,
+                  channel: "web",
+                  provider: providerName,
+                  model: modelName,
+                  promptTokens: estimateTokens(promptText),
+                  completionTokens: estimateTokens(fullText),
+                  durationMs,
+                  success: true,
+                });
+                logger.info(`Web chat completed`, { model: modelName, durationMs });
+
+                if (conversationId) {
+                  const lastUserMsg = messages[messages.length - 1];
+                  const conv = await Conversation.findById(conversationId);
+                  if (!conv) return;
+
+                  conv.messages.push(
+                    { role: lastUserMsg.role, content: lastUserMsg.content },
+                    { role: "assistant", content: fullText }
+                  );
+
+                  if (
+                    (conv.title === "New Chat" || !conv.title) &&
+                    lastUserMsg.content
+                  ) {
+                    conv.title = generateTitle(lastUserMsg.content);
+                  }
+
+                  await conv.save();
+                  autoCompact(userId, conversationId).catch(() => {});
+                  indexConversation(userId, conversationId).catch(() => {});
+                }
+              } catch (e) {
+                console.error("[chat] Background processing failed:", e);
+              }
+            }).catch((e) => {
+              trackUsage({
+                userId,
+                channel: "web",
+                provider: providerName,
+                model: modelName,
+                durationMs: Date.now() - startTime,
+                success: false,
+                error: e instanceof Error ? e.message : String(e),
+              });
+              logger.error("Web chat failed", { error: String(e) });
+            });
+          }
+        }
+
+        return toServerSentEventsResponse(teeStream());
       },
 
       // GET /api/chat — list conversations or get single

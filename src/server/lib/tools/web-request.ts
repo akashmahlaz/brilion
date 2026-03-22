@@ -17,13 +17,15 @@ export const webRequest = toolDefinition({
       .optional()
       .describe("HTTP method (default: GET)"),
     headers: z
-      .record(z.string(), z.string())
+      .string()
       .optional()
-      .describe("Additional request headers"),
+      .describe(
+        'Additional request headers as a JSON object string, e.g. \'{"Content-Type": "application/json"}\'. Common auth headers are added automatically via tokenProvider.'
+      ),
     body: z
-      .union([z.string(), z.record(z.string(), z.unknown())])
+      .string()
       .optional()
-      .describe("Request body — string or JSON object"),
+      .describe("Request body — plain text or JSON string"),
     tokenProvider: z
       .string()
       .optional()
@@ -31,7 +33,16 @@ export const webRequest = toolDefinition({
         "Provider name to auto-inject Bearer token from auth-profiles (e.g. 'vercel', 'netlify', 'github')"
       ),
   }),
-}).server(async ({ url, method = "GET", headers = {}, body, tokenProvider }) => {
+}).server(async ({ url, method = "GET", headers: headersJson, body, tokenProvider }) => {
+  // Parse headers from JSON string
+  let headers: Record<string, string> = {};
+  if (headersJson) {
+    try {
+      headers = JSON.parse(headersJson);
+    } catch {
+      return { error: "Invalid JSON for headers parameter" };
+    }
+  }
   // Validate URL to prevent SSRF — block private/internal ranges
   try {
     const parsed = new URL(url);
@@ -74,11 +85,7 @@ export const webRequest = toolDefinition({
     const res = await fetch(url, {
       method,
       headers: headers as HeadersInit,
-      body: body
-        ? typeof body === "string"
-          ? body
-          : JSON.stringify(body)
-        : undefined,
+      body: body || undefined,
     });
 
     const contentType = res.headers.get("content-type") || "";

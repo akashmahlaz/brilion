@@ -1,6 +1,12 @@
 import { Link } from '@tanstack/react-router'
-import { ArrowRight, Sparkles } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { motion } from 'framer-motion'
+
+const fadeUp = (delay: number, y = 16) => ({
+  initial: { opacity: 0, y },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.7, delay, ease: [0.25, 0.4, 0.25, 1] },
+})
 
 export function Hero() {
   return (
@@ -28,9 +34,7 @@ export function Hero() {
       <div className="relative z-10 flex flex-col items-center gap-8 px-6 max-w-4xl mx-auto text-center">
         {/* Badge */}
         <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.1 }}
+          {...fadeUp(0.1)}
           className="bg-white/70 backdrop-blur-lg px-5 py-2 rounded-full border border-gray-200/60 shadow-[0_0_40px_rgba(59,130,246,0.08)]"
         >
           <p className="text-[13px] font-semibold text-gray-600 tracking-wide flex items-center gap-2">
@@ -39,37 +43,25 @@ export function Hero() {
           </p>
         </motion.div>
 
-        {/* Headline */}
-        <motion.h1
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-          className="font-heading text-[48px] sm:text-[64px] lg:text-[78px] xl:text-[88px] font-extrabold text-gray-900 leading-[1.05] tracking-[-0.035em]"
-        >
+        {/* Headline — visible in SSR, animates after hydration */}
+        <h1 className="font-heading text-[48px] sm:text-[64px] lg:text-[78px] xl:text-[88px] font-extrabold text-gray-900 leading-[1.05] tracking-[-0.035em]">
           Everything automate
           <br />
           <span className="bg-linear-to-r from-gray-900 via-blue-700 to-blue-500 bg-clip-text text-transparent">
             from one message.
           </span>
-        </motion.h1>
+        </h1>
 
-        {/* Sub-heading */}
-        <motion.p
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.3 }}
-          className="text-[17px] sm:text-[19px] text-gray-500 leading-[1.75] max-w-135"
-        >
+        {/* Sub-heading — visible in SSR */}
+        <p className="text-[17px] sm:text-[19px] text-gray-500 leading-[1.75] max-w-135">
           Automate ads, coding, sales and meetings.
           <br className="hidden sm:block" />
           Trade, publish, deploy — one message.
-        </motion.p>
+        </p>
 
         {/* CTAs */}
         <motion.div
-          initial={{ opacity: 0, y: 16, scale: 0.97 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.8, delay: 0.4 }}
+          {...fadeUp(0.15)}
           className="flex flex-col sm:flex-row items-center gap-3"
         >
           <Link
@@ -90,7 +82,7 @@ export function Hero() {
           </a>
         </motion.div>
 
-     
+
       </div>
     </section>
   )

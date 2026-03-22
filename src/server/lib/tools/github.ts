@@ -228,19 +228,29 @@ export const githubDispatchWorkflow = toolDefinition({
       .describe("Workflow file name (e.g., 'deploy.yml') or ID"),
     ref: z.string().describe("Branch to run the workflow on"),
     inputs: z
-      .record(z.string(), z.string())
+      .string()
       .optional()
-      .describe("Workflow input parameters"),
+      .describe(
+        'Workflow input parameters as a JSON object string, e.g. \'{"deploy_target": "production"}\'. Omit if no inputs needed.'
+      ),
   }),
 }).server(async ({ owner, repo, workflowId, ref, inputs }) => {
   try {
     const token = await getToken();
+    let parsedInputs: Record<string, string> = {};
+    if (inputs) {
+      try {
+        parsedInputs = JSON.parse(inputs);
+      } catch {
+        return { error: "Invalid JSON for inputs parameter" };
+      }
+    }
     await githubFetch(
       `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/actions/workflows/${encodeURIComponent(workflowId)}/dispatches`,
       token,
       {
         method: "POST",
-        body: JSON.stringify({ ref, inputs: inputs || {} }),
+        body: JSON.stringify({ ref, inputs: parsedInputs }),
       }
     );
     return {
