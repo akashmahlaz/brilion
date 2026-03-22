@@ -19,6 +19,7 @@ import { Route as ApiUsageRouteImport } from './routes/api/usage'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
 import { Route as ApiTelegramRouteImport } from './routes/api/telegram'
 import { Route as ApiSkillsRouteImport } from './routes/api/skills'
+import { Route as ApiQueueRouteImport } from './routes/api/queue'
 import { Route as ApiPairingRouteImport } from './routes/api/pairing'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
 import { Route as ApiMemoryRouteImport } from './routes/api/memory'
@@ -99,6 +100,11 @@ const ApiTelegramRoute = ApiTelegramRouteImport.update({
 const ApiSkillsRoute = ApiSkillsRouteImport.update({
   id: '/api/skills',
   path: '/api/skills',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiQueueRoute = ApiQueueRouteImport.update({
+  id: '/api/queue',
+  path: '/api/queue',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPairingRoute = ApiPairingRouteImport.update({
@@ -299,6 +305,7 @@ export interface FileRoutesByFullPath {
   '/api/memory': typeof ApiMemoryRoute
   '/api/models': typeof ApiModelsRoute
   '/api/pairing': typeof ApiPairingRoute
+  '/api/queue': typeof ApiQueueRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/upload': typeof ApiUploadRoute
@@ -342,6 +349,7 @@ export interface FileRoutesByTo {
   '/api/memory': typeof ApiMemoryRoute
   '/api/models': typeof ApiModelsRoute
   '/api/pairing': typeof ApiPairingRoute
+  '/api/queue': typeof ApiQueueRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/upload': typeof ApiUploadRoute
@@ -388,6 +396,7 @@ export interface FileRoutesById {
   '/api/memory': typeof ApiMemoryRoute
   '/api/models': typeof ApiModelsRoute
   '/api/pairing': typeof ApiPairingRoute
+  '/api/queue': typeof ApiQueueRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/upload': typeof ApiUploadRoute
@@ -433,6 +442,7 @@ export interface FileRouteTypes {
     | '/api/memory'
     | '/api/models'
     | '/api/pairing'
+    | '/api/queue'
     | '/api/skills'
     | '/api/telegram'
     | '/api/upload'
@@ -476,6 +486,7 @@ export interface FileRouteTypes {
     | '/api/memory'
     | '/api/models'
     | '/api/pairing'
+    | '/api/queue'
     | '/api/skills'
     | '/api/telegram'
     | '/api/upload'
@@ -521,6 +532,7 @@ export interface FileRouteTypes {
     | '/api/memory'
     | '/api/models'
     | '/api/pairing'
+    | '/api/queue'
     | '/api/skills'
     | '/api/telegram'
     | '/api/upload'
@@ -548,6 +560,7 @@ export interface RootRouteChildren {
   ApiMemoryRoute: typeof ApiMemoryRoute
   ApiModelsRoute: typeof ApiModelsRoute
   ApiPairingRoute: typeof ApiPairingRoute
+  ApiQueueRoute: typeof ApiQueueRoute
   ApiSkillsRoute: typeof ApiSkillsRoute
   ApiTelegramRoute: typeof ApiTelegramRoute
   ApiUploadRoute: typeof ApiUploadRoute
@@ -630,6 +643,13 @@ declare module '@tanstack/react-router' {
       path: '/api/skills'
       fullPath: '/api/skills'
       preLoaderRoute: typeof ApiSkillsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/queue': {
+      id: '/api/queue'
+      path: '/api/queue'
+      fullPath: '/api/queue'
+      preLoaderRoute: typeof ApiQueueRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/pairing': {
@@ -935,6 +955,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMemoryRoute: ApiMemoryRoute,
   ApiModelsRoute: ApiModelsRoute,
   ApiPairingRoute: ApiPairingRoute,
+  ApiQueueRoute: ApiQueueRoute,
   ApiSkillsRoute: ApiSkillsRoute,
   ApiTelegramRoute: ApiTelegramRoute,
   ApiUploadRoute: ApiUploadRoute,
@@ -949,12 +970,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

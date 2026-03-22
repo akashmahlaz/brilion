@@ -367,25 +367,26 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
         msg.message?.imageMessage?.caption ||
         "";
       
-      // Check for media messages (image, audio, video, document)
+      // Check for media messages (image, audio, video, document, sticker)
       const imageMsg = msg.message?.imageMessage;
       const audioMsg = msg.message?.audioMessage;
       const videoMsg = msg.message?.videoMessage;
       const documentMsg = msg.message?.documentMessage;
+      const stickerMsg = msg.message?.stickerMessage;
       let imageBase64: string | undefined;
       let imageMime: string | undefined;
       let mediaType: string | undefined;
       let mediaFileName: string | undefined;
 
-      const mediaSource = imageMsg || audioMsg || videoMsg || documentMsg;
+      const mediaSource = imageMsg || audioMsg || videoMsg || documentMsg || stickerMsg;
       if (mediaSource) {
         try {
-          mediaType = imageMsg ? "image" : audioMsg ? "audio" : videoMsg ? "video" : "document";
+          mediaType = imageMsg ? "image" : audioMsg ? "audio" : videoMsg ? "video" : stickerMsg ? "sticker" : "document";
           mediaFileName = documentMsg?.fileName || undefined;
           log(`  Downloading ${mediaType} media...`);
           const buffer = await downloadMediaMessage(msg, "buffer", {});
           imageBase64 = Buffer.from(buffer as Buffer).toString("base64");
-          imageMime = mediaSource.mimetype || (imageMsg ? "image/jpeg" : audioMsg ? "audio/ogg" : videoMsg ? "video/mp4" : "application/octet-stream");
+          imageMime = mediaSource.mimetype || (imageMsg ? "image/jpeg" : audioMsg ? "audio/ogg" : videoMsg ? "video/mp4" : stickerMsg ? "image/webp" : "application/octet-stream");
           log(`  ${mediaType} downloaded:`, Math.round((imageBase64.length * 3) / 4 / 1024), "KB", imageMime);
         } catch (e) {
           logErr(`  Failed to download ${mediaType}:`, e);
@@ -665,6 +666,79 @@ export async function markRead(
     ]);
   } catch (e) {
     log("markRead failed (non-fatal):", e);
+  }
+}
+
+/** Send a reaction emoji to a message */
+export async function sendReaction(
+  userId: string,
+  remoteJid: string,
+  messageId: string,
+  emoji: string,
+  participant?: string,
+): Promise<void> {
+  const conn = connections.get(userId);
+  if (!conn?.socket || conn.status !== "connected") return;
+  try {
+    await conn.socket.sendMessage(remoteJid, {
+      react: {
+        text: emoji,
+        key: {
+          remoteJid,
+          id: messageId,
+          ...(participant ? { participant } : {}),
+        },
+      },
+    });
+    log("Reaction sent:", emoji, "to", messageId);
+  } catch (e) {
+    log("sendReaction failed (non-fatal):", e);
+  }
+}
+
+/** Delete / revoke a message we sent */
+export async function deleteMessage(
+  userId: string,
+  remoteJid: string,
+  messageId: string,
+): Promise<void> {
+  const conn = connections.get(userId);
+  if (!conn?.socket || conn.status !== "connected") return;
+  try {
+    await conn.socket.sendMessage(remoteJid, {
+      delete: {
+        remoteJid,
+        id: messageId,
+        fromMe: true,
+      },
+    });
+    log("Message deleted:", messageId);
+  } catch (e) {
+    log("deleteMessage failed (non-fatal):", e);
+  }
+}
+
+/** Edit a message we previously sent */
+export async function editMessage(
+  userId: string,
+  remoteJid: string,
+  messageId: string,
+  newText: string,
+): Promise<void> {
+  const conn = connections.get(userId);
+  if (!conn?.socket || conn.status !== "connected") return;
+  try {
+    await conn.socket.sendMessage(remoteJid, {
+      text: newText,
+      edit: {
+        remoteJid,
+        id: messageId,
+        fromMe: true,
+      },
+    });
+    log("Message edited:", messageId);
+  } catch (e) {
+    log("editMessage failed (non-fatal):", e);
   }
 }
 

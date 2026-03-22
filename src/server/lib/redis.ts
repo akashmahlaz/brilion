@@ -53,8 +53,9 @@ export function createRedisConnection(): Redis {
 }
 
 /** Get raw connection options (for BullMQ which bundles its own ioredis) */
-export function getRedisConnectionOpts(): RedisOptions {
-  return parseRedisOpts();
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function getRedisConnectionOpts(): Record<string, any> {
+  return { ...parseRedisOpts() };
 }
 
 /** Check if Redis is configured */

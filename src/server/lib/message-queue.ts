@@ -55,16 +55,16 @@ export interface CronJobData {
 
 // ─── Queue Instances ───────────────────────────────────
 
-let inboundQueue: Queue<InboundJobData> | null = null;
-let cronQueue: Queue<CronJobData> | null = null;
-let inboundWorker: Worker<InboundJobData> | null = null;
-let cronWorker: Worker<CronJobData> | null = null;
+let inboundQueue: Queue | null = null;
+let cronQueue: Queue | null = null;
+let inboundWorker: Worker | null = null;
+let cronWorker: Worker | null = null;
 
 /** Get or create the inbound message queue */
 export function getInboundQueue(): Queue<InboundJobData> | null {
   if (!isRedisConfigured()) return null;
   if (!inboundQueue) {
-    inboundQueue = new Queue<InboundJobData>(INBOUND_QUEUE, {
+    inboundQueue = new Queue(INBOUND_QUEUE, {
       connection: getRedisConnectionOpts(),
       defaultJobOptions: {
         attempts: 3,
@@ -82,7 +82,7 @@ export function getInboundQueue(): Queue<InboundJobData> | null {
 export function getCronQueue(): Queue<CronJobData> | null {
   if (!isRedisConfigured()) return null;
   if (!cronQueue) {
-    cronQueue = new Queue<CronJobData>(CRON_QUEUE, {
+    cronQueue = new Queue(CRON_QUEUE, {
       connection: getRedisConnectionOpts(),
       defaultJobOptions: {
         attempts: 2,
@@ -137,10 +137,10 @@ export async function enqueueCronJob(data: CronJobData): Promise<string | null> 
 export function startInboundWorker(): void {
   if (!isRedisConfigured() || inboundWorker) return;
 
-  inboundWorker = new Worker<InboundJobData>(
+  inboundWorker = new Worker(
     INBOUND_QUEUE,
-    async (job: Job<InboundJobData>) => {
-      const { data } = job;
+    async (job: Job) => {
+      const data = job.data as InboundJobData;
       const waitMs = Date.now() - data.enqueuedAt;
       log(`Processing inbound job ${job.id} (waited ${waitMs}ms): ${data.channel}/${data.senderId}`);
 
@@ -190,10 +190,10 @@ export function startInboundWorker(): void {
 export function startCronWorker(): void {
   if (!isRedisConfigured() || cronWorker) return;
 
-  cronWorker = new Worker<CronJobData>(
+  cronWorker = new Worker(
     CRON_QUEUE,
-    async (job: Job<CronJobData>) => {
-      const { data } = job;
+    async (job: Job) => {
+      const data = job.data as CronJobData;
       log(`Processing cron job ${job.id}: "${data.name}" for user ${data.userId}`);
 
       const { CronJob } = await import("../models/cron-job");
