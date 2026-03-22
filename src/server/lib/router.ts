@@ -13,6 +13,7 @@ import { trackUsage, estimateTokens } from "./usage-tracker";
 import { createLogger } from "../models/log-entry";
 import { autoCompact } from "./compaction";
 import { indexConversation } from "./memory-manager";
+import { emit } from "./hooks";
 
 const log = (...args: unknown[]) => console.log("[router]", ...args);
 const logErr = (...args: unknown[]) => console.error("[router]", ...args);
@@ -468,6 +469,12 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
       model: config.agents?.defaults?.model?.primary || "gpt-4o",
     });
     log(`[route] Created conversation: ${conv._id} title="${title}"`);
+    emit("sessionStart", {
+      userId: ownerId,
+      channel: msg.channel,
+      conversationId: conv._id.toString(),
+      isNew: true,
+    }).catch(() => {});
   } else {
     log(`[route] Found existing conversation: ${conv._id} messages=${conv.messages?.length}`);
   }
@@ -497,20 +504,24 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   if (msg.imageBase64 && msg.imageMime) {
     const parts: any[] = [];
     if (msg.text && msg.text !== "[User sent an image]") {
-      parts.push({ type: "text", text: msg.text });
+      parts.push({ type: "text", content: msg.text });
     }
-    parts.push({ type: "image", image: msg.imageBase64, mimeType: msg.imageMime });
+    parts.push({ type: "image", source: { type: "data", value: msg.imageBase64, mimeType: msg.imageMime } });
     history.push({ role: "user" as const, content: parts });
   } else {
     history.push({ role: "user" as const, content: msg.text });
   }
   log(`[route] Message history: ${history.length} messages (last 20 + current)`);
 
+  // Initialize workspace files (BOOTSTRAP.md, SOUL.md, USER.md) for personalization
+  const { ensureWorkspace } = await import("./workspace");
+  await ensureWorkspace(ownerId);
+
   // Get agent config (model + tools + system prompt)
   log("[route] Getting agent config...");
   let agentConfig;
   try {
-    agentConfig = await getAgentConfig(ownerId);
+    agentConfig = await getAgentConfig(ownerId, { channel: msg.channel, userMessage: msg.text });
     const toolNames = Object.keys(agentConfig.tools || {});
     log(`[route] Agent config ready — adapter=${(agentConfig.adapter as any)?.model || "unknown"}, tools=[${toolNames.join(", ")}], systemPromptLen=${agentConfig.systemPrompts?.[0]?.length || 0}`);
 
@@ -586,6 +597,15 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
     const durationMs = Date.now() - startTime;
     log(`[route] ✅ AI response: ${fullText.length} chars in ${durationMs}ms`);
     log(`[route] Preview: "${fullText.substring(0, 200)}"`);
+
+    // Emit afterChat hook
+    emit("afterChat", {
+      userId: ownerId,
+      channel: msg.channel,
+      response: fullText,
+      durationMs,
+      model: actualModel,
+    }).catch(() => {});
 
     // Track usage
     const promptText = history.map((m: any) => typeof m.content === "string" ? m.content : "").join("");

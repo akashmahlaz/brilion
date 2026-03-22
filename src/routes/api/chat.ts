@@ -13,6 +13,7 @@ import { createLogger } from "#/server/models/log-entry";
 import { autoCompact } from "#/server/lib/compaction";
 import { indexConversation } from "#/server/lib/memory-manager";
 import { initAIObservability } from "#/server/lib/ai-observability";
+import { emit } from "#/server/lib/hooks";
 import path from "node:path";
 import fs from "node:fs/promises";
 
@@ -139,11 +140,18 @@ export const Route = createFileRoute("/api/chat")({
         const session = await requireAuth(request);
         await connectDB();
         const userId = (session.user as any).id;
+        
+        // Initialize workspace files (BOOTSTRAP.md, SOUL.md, USER.md) for personalization
+        const { ensureWorkspace } = await import("#/server/lib/workspace");
+        await ensureWorkspace(userId);
 
         const body = await request.json();
         const { messages, conversationId, model: modelSpec } = body;
 
-        const agentConfig = await getAgentConfig(userId);
+        // Extract last user message for memory pre-fetch
+        const lastUserMsg = messages[messages.length - 1];
+        const userMessageText = typeof lastUserMsg?.content === "string" ? lastUserMsg.content : "";
+        const agentConfig = await getAgentConfig(userId, { channel: "web", userMessage: userMessageText });
         const adapterOverride = modelSpec
           ? await (
               await import("#/server/lib/providers")
@@ -167,6 +175,14 @@ export const Route = createFileRoute("/api/chat")({
           conversationId,
         });
 
+        // Emit beforeChat hook
+        emit("beforeChat", {
+          userId,
+          channel: "web",
+          messages: aiMessages,
+          systemPrompts: agentConfig.systemPrompts,
+        }).catch(() => {});
+
         // Wrap stream for post-processing (usage tracking + conversation saving)
         const trackedStream = withPostProcessing(
           rawStream,
@@ -174,6 +190,15 @@ export const Route = createFileRoute("/api/chat")({
           async (fullText: string) => {
             const durationMs = Date.now() - startTime;
             logger.info("Web chat completed", { model: modelName, durationMs });
+
+            // Emit afterChat hook
+            emit("afterChat", {
+              userId,
+              channel: "web",
+              response: fullText,
+              durationMs,
+              model: modelName,
+            }).catch(() => {});
 
             // Estimate tokens from character count (real usage not available without middleware)
             const estimatedCompletionTokens = Math.ceil(fullText.length / 4);
@@ -308,8 +333,10 @@ export const Route = createFileRoute("/api/chat")({
       PUT: async ({ request }) => {
         const session = await requireAuth(request);
         await connectDB();
-        const userId = (session.user as any).id;
-
+        const userId = (session.user as any).id;        
+        // Initialize workspace files (BOOTSTRAP.md, SOUL.md, USER.md) for personalization
+        const { ensureWorkspace } = await import("#/server/lib/workspace");
+        await ensureWorkspace(userId);
         const body = await request.json();
         const conv = await Conversation.create({
           userId,

@@ -4,6 +4,8 @@ import { Conversation } from "../models/conversation";
 import { connectDB } from "../db";
 import { indexConversation } from "./memory-manager";
 import { createLogger } from "../models/log-entry";
+import { buildSystemPromptFromWorkspace } from "./workspace";
+import { emit } from "./hooks";
 
 const log = (...args: unknown[]) => console.log("[compaction]", ...args);
 
@@ -15,9 +17,11 @@ RULES:
 3. Preserve recent decisions and the reasoning behind them
 4. Preserve user commitments, deadlines, and open questions
 5. Preserve user preferences and personality traits you've learned
-6. Use a structured format with clear headers
-7. Be concise but never omit important context
-8. Write in past tense for completed items, present tense for active items
+6. Preserve batch/task progress with exact counts (e.g., "processed 47/100 items")
+7. Preserve pending user asks that haven't been resolved yet
+8. Use a structured format with clear headers
+9. Be concise but never omit important context
+10. Write in past tense for completed items, present tense for active items
 
 OUTPUT FORMAT:
 ## Summary of Earlier Conversation
@@ -25,7 +29,10 @@ OUTPUT FORMAT:
 - [bullet points of important facts, identifiers, decisions]
 
 ### Active Tasks
-- [any ongoing work or commitments]
+- [any ongoing work, batch progress with exact counts]
+
+### Pending User Asks
+- [questions or requests the user made that aren't resolved yet]
 
 ### User Preferences Learned
 - [any preferences, style notes, or personal info discovered]
@@ -142,12 +149,25 @@ export async function compactConversation(
 
     log(`Summary generated: ${summary.length} chars (from ${middleText.length} chars)`);
 
-    // Replace middle with summary
+    // Build persona anchor from workspace to prevent identity drift after compaction
+    let personaAnchor = "";
+    try {
+      const wsPrompt = await buildSystemPromptFromWorkspace(userId);
+      if (wsPrompt && wsPrompt.length > 50) {
+        // Extract a short identity reminder (first ~500 chars of workspace prompt)
+        const anchorText = wsPrompt.length > 500 ? wsPrompt.slice(0, 500) + "…" : wsPrompt;
+        personaAnchor = `\n\n---\n[Identity Anchor — you are this person's personal AI. Resume naturally.]\n${anchorText}`;
+      }
+    } catch {
+      // Workspace unavailable — skip anchor
+    }
+
+    // Replace middle with summary + persona anchor
     conv.messages = [
       ...firstMessages,
       {
         role: "system",
-        content: summary,
+        content: summary + personaAnchor,
         createdAt: new Date(),
       },
       ...recentMessages,
@@ -166,6 +186,14 @@ export async function compactConversation(
       newCount: conv.messages.length,
       summarizedMessages: middleMessages.length,
     });
+
+    emit("onCompaction", {
+      userId,
+      conversationId,
+      originalCount,
+      newCount: conv.messages.length,
+      summarizedMessages: middleMessages.length,
+    }).catch(() => {});
 
     return { compacted: true, originalCount, newCount: conv.messages.length };
   } catch (e) {

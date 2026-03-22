@@ -18,6 +18,7 @@ import { webRequest, getToken } from "./tools/web-request";
 import { createMemoryTools } from "./tools/memory";
 import { loadSkillTools, getSkillContext } from "./skill-loader";
 import { createLogger } from "../models/log-entry";
+import { searchMemory } from "./memory-manager";
 
 const log = (...args: unknown[]) => console.log("[agent]", ...args);
 const logErr = (...args: unknown[]) => console.error("[agent]", ...args);
@@ -90,7 +91,10 @@ export async function buildToolSet(userId: string): Promise<Array<Tool>> {
   return [...builtInTools, ...metaTools, ...memoryTools, ...skillTools];
 }
 
-async function getSystemPrompt(userId: string): Promise<string> {
+async function getSystemPrompt(
+  userId: string,
+  options: { channel?: string; userMessage?: string } = {}
+): Promise<string> {
   const parts: string[] = [];
 
   try {
@@ -115,10 +119,70 @@ async function getSystemPrompt(userId: string): Promise<string> {
     // ignore
   }
 
+  // --- Session Startup: Date/Time + Channel Awareness ---
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("en-US", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric",
+  });
+  const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+
+  let channelDirective = "";
+  if (options.channel === "whatsapp") {
+    channelDirective = `\n## Active Channel: WHATSAPP
+- Keep replies SHORT and punchy — max 2-3 sentences unless asked for detail
+- Use line breaks, not paragraphs
+- Emoji is OK if it matches user's style
+- No markdown headers or code blocks (WhatsApp doesn't render them)`;
+  } else if (options.channel === "telegram") {
+    channelDirective = `\n## Active Channel: TELEGRAM
+- Medium-length replies — more room than WhatsApp but stay concise
+- Telegram supports basic markdown (bold, italic, code)
+- Use formatting sparingly`;
+  } else {
+    channelDirective = `\n## Active Channel: WEB DASHBOARD
+- You can use longer, richer replies with full markdown formatting
+- Use headers, lists, code blocks, tables when helpful
+- Be thorough but conversational`;
+  }
+
+  parts.push(`## Current Context
+Date: ${dateStr}
+Time: ${timeStr}
+${channelDirective}
+
+## Session Startup — EXECUTE EVERY CONVERSATION
+1. Mentally recall who the user is from your loaded system prompt (USER.md / SOUL.md)
+2. If this is a NEW conversation (first message), greet them BY NAME warmly
+3. Reference something you remember about them (a project, preference, recent topic) if available
+4. If USER.md says "(No preferences set yet)" — run the FIRST-RUN PROTOCOL from BOOTSTRAP.md
+5. NEVER say "Hello! How can I assist you today?" — that's a generic bot. You are PERSONAL.
+6. Match their communication style from SOUL.md
+7. When you learn something new about the user, IMMEDIATELY update USER.md using write_workspace_file`);
+
+  // --- Memory Pre-fetch: Auto-recall relevant context ---
+  if (options.userMessage && options.userMessage.length > 5) {
+    try {
+      const results = await searchMemory(userId, options.userMessage, { topK: 3 });
+      if (results.length > 0) {
+        const memoryBlock = results
+          .map(r => `- [${r.source}] ${r.text.slice(0, 300)}`)
+          .join("\n");
+        parts.push(`## Auto-Recalled Memories (relevant to this message)
+${memoryBlock}
+Use these memories naturally in your response. Don't say "according to my memory" — just know it.`);
+      }
+    } catch {
+      // Memory search failed — continue without
+    }
+  }
+
   return parts.join("\n\n---\n\n");
 }
 
-export async function getAgentConfig(userId: string) {
+export async function getAgentConfig(
+  userId: string,
+  options: { channel?: string; userMessage?: string } = {}
+) {
   log("getAgentConfig() called, userId:", userId || "none");
   const sysLogger = createLogger(userId, "agent");
 
@@ -126,7 +190,7 @@ export async function getAgentConfig(userId: string) {
   const toolNames = tools.map((t) => t.name);
   log("Tools built, count:", tools.length);
 
-  const systemPrompt = await getSystemPrompt(userId);
+  const systemPrompt = await getSystemPrompt(userId, options);
   log("System prompt built, length:", systemPrompt.length);
 
   let adapter: AnyTextAdapter;

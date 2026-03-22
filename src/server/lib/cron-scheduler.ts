@@ -12,7 +12,9 @@ const log = (...args: unknown[]) => console.log("[cron-scheduler]", ...args);
 const logErr = (...args: unknown[]) => console.error("[cron-scheduler]", ...args);
 
 const TICK_INTERVAL_MS = 60_000; // Check every 60 seconds
+const HEARTBEAT_EVERY_N_TICKS = 5; // Run heartbeat every 5 ticks (~5 min)
 let tickTimer: NodeJS.Timeout | null = null;
+let tickCount = 0;
 
 /** Parse a simple cron expression and return the next run date */
 function nextCronRun(schedule: string, _timezone: string, after = new Date()): Date | null {
@@ -79,7 +81,7 @@ async function executeJob(job: InstanceType<typeof CronJob>): Promise<void> {
     const { chat, maxIterations } = await import("@tanstack/ai");
     const { getAgentConfig } = await import("./agent");
 
-    const agentConfig = await getAgentConfig(job.userId);
+    const agentConfig = await getAgentConfig(job.userId, { channel: "cron" });
 
     const result = await chat({
       adapter: agentConfig.adapter,
@@ -127,11 +129,89 @@ async function executeJob(job: InstanceType<typeof CronJob>): Promise<void> {
   }
 }
 
+/** Execute heartbeat: read each active user's HEARTBEAT.md and let AI handle due tasks */
+async function runHeartbeats(): Promise<void> {
+  try {
+    const { WorkspaceFile } = await import("../models/workspace-file");
+    // Find all HEARTBEAT.md files that have actual content beyond the default template
+    const heartbeats = await WorkspaceFile.find({
+      filename: "HEARTBEAT.md",
+      content: { $exists: true, $ne: "" },
+    }).lean();
+
+    for (const hb of heartbeats as any[]) {
+      const content = hb.content as string;
+      // Skip if it's just the default template with no real tasks
+      if (
+        content.includes("(None configured yet") &&
+        !content.includes("- [") && // no checklist items
+        content.split("\n").length < 12
+      ) {
+        continue;
+      }
+
+      const userId = hb.userId?.toString();
+      if (!userId) continue;
+
+      log(`Heartbeat: executing for user ${userId}`);
+      try {
+        const { chat, maxIterations } = await import("@tanstack/ai");
+        const { getAgentConfig } = await import("./agent");
+        const agentConfig = await getAgentConfig(userId, { channel: "cron" });
+
+        const now = new Date();
+        const prompt = `[HEARTBEAT CHECK — ${now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} ${now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}]
+
+Review your HEARTBEAT.md for any tasks that are DUE NOW or OVERDUE. Execute them using your available tools. If nothing is due, respond with just "No tasks due." and nothing else.
+
+Current HEARTBEAT.md contents:
+${content}`;
+
+        const result = await chat({
+          adapter: agentConfig.adapter,
+          messages: [{ role: "user", content: prompt }],
+          systemPrompts: agentConfig.systemPrompts,
+          tools: agentConfig.tools,
+          agentLoopStrategy: maxIterations(agentConfig.maxSteps ?? 10),
+          stream: false,
+        }) as string;
+
+        if (result && !result.toLowerCase().includes("no tasks due")) {
+          log(`Heartbeat result for ${userId}: ${result.substring(0, 200)}`);
+          // Deliver result via WhatsApp if connected
+          try {
+            const { sendWhatsAppMessage, isWhatsAppConnected } = await import("../channels/whatsapp");
+            const { getOwnerJid } = await import("./wa-manager");
+            if (isWhatsAppConnected(userId)) {
+              const ownerJid = getOwnerJid(userId);
+              if (ownerJid) {
+                await sendWhatsAppMessage(userId, ownerJid, `💓 *Heartbeat*\n\n${result}`);
+              }
+            }
+          } catch {
+            // Channel delivery failed — non-critical
+          }
+        }
+      } catch (e) {
+        logErr(`Heartbeat failed for user ${userId}:`, e);
+      }
+    }
+  } catch (e) {
+    logErr("Heartbeat scan failed:", e);
+  }
+}
+
 /** Main scheduler tick — find and execute due jobs */
 async function tick(): Promise<void> {
   try {
     await connectDB();
     const now = new Date();
+    tickCount++;
+
+    // Run heartbeat every N ticks (~5 min)
+    if (tickCount % HEARTBEAT_EVERY_N_TICKS === 0) {
+      runHeartbeats().catch(logErr);
+    }
 
     // Find all active jobs that are due
     const dueJobs = await CronJob.find({
