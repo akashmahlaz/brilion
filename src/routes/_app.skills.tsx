@@ -41,6 +41,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import { apiFetch } from '#/lib/api'
 import { toast } from 'sonner'
+import { useForm } from '@tanstack/react-form'
 
 interface Skill {
   _id: string
@@ -465,52 +466,81 @@ function SkillForm({
   onSave: (data: { name: string; description: string; content: string }) => void
   onCancel: () => void
 }) {
-  const [name, setName] = useState(initial?.name ?? '')
-  const [description, setDescription] = useState(initial?.description ?? '')
-  const [content, setContent] = useState(initial?.content ?? '')
+  const form = useForm({
+    defaultValues: {
+      name: initial?.name ?? '',
+      description: initial?.description ?? '',
+      content: initial?.content ?? '',
+    },
+    onSubmit: ({ value }) => {
+      onSave(value)
+    },
+  })
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="skill-name">Name</Label>
-        <Input
-          id="skill-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g., code-reviewer"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="skill-desc">Description</Label>
-        <Input
-          id="skill-desc"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="What this skill does"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="skill-content">Instructions</Label>
-        <Textarea
-          id="skill-content"
-          value={content}
-          onChange={(e) => setContent(e.target.value)}
-          placeholder="You are a code reviewer. When reviewing code, focus on..."
-          rows={8}
-          className="font-mono text-sm"
-        />
-      </div>
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        form.handleSubmit()
+      }}
+      className="space-y-4"
+    >
+      <form.Field name="name">
+        {(field) => (
+          <div className="space-y-2">
+            <Label htmlFor="skill-name">Name</Label>
+            <Input
+              id="skill-name"
+              value={field.state.value}
+              onChange={(e) => field.handleChange(e.target.value)}
+              onBlur={field.handleBlur}
+              placeholder="e.g., code-reviewer"
+            />
+          </div>
+        )}
+      </form.Field>
+      <form.Field name="description">
+        {(field) => (
+          <div className="space-y-2">
+            <Label htmlFor="skill-desc">Description</Label>
+            <Input
+              id="skill-desc"
+              value={field.state.value}
+              onChange={(e) => field.handleChange(e.target.value)}
+              onBlur={field.handleBlur}
+              placeholder="What this skill does"
+            />
+          </div>
+        )}
+      </form.Field>
+      <form.Field name="content">
+        {(field) => (
+          <div className="space-y-2">
+            <Label htmlFor="skill-content">Instructions</Label>
+            <Textarea
+              id="skill-content"
+              value={field.state.value}
+              onChange={(e) => field.handleChange(e.target.value)}
+              onBlur={field.handleBlur}
+              placeholder="You are a code reviewer. When reviewing code, focus on..."
+              rows={8}
+              className="font-mono text-sm"
+            />
+          </div>
+        )}
+      </form.Field>
       <div className="flex gap-2 justify-end">
-        <Button variant="outline" onClick={onCancel}>
+        <Button variant="outline" type="button" onClick={onCancel}>
           <X className="mr-1 size-4" /> Cancel
         </Button>
-        <Button
-          onClick={() => onSave({ name, description, content })}
-          disabled={!name || !content}
-        >
-          <Save className="mr-1 size-4" /> Save
-        </Button>
+        <form.Subscribe selector={(s) => s.values}>
+          {(values) => (
+            <Button type="submit" disabled={!values.name || !values.content}>
+              <Save className="mr-1 size-4" /> Save
+            </Button>
+          )}
+        </form.Subscribe>
       </div>
-    </div>
+    </form>
   )
 }

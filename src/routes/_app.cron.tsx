@@ -42,6 +42,7 @@ import {
 } from '#/components/ui/dropdown-menu'
 import { toast } from 'sonner'
 import { apiFetch } from '#/lib/api'
+import { useForm } from '@tanstack/react-form'
 
 export const Route = createFileRoute('/_app/cron')({
   component: CronPage,
@@ -67,11 +68,39 @@ function CronPage() {
   const [jobs, setJobs] = useState<CronJob[]>([])
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [newJob, setNewJob] = useState({
-    name: '',
-    schedule: '',
-    channel: '',
-    prompt: '',
+
+  const cronForm = useForm({
+    defaultValues: {
+      name: '',
+      schedule: '',
+      channel: '',
+      prompt: '',
+    },
+    onSubmit: async ({ value }) => {
+      if (!value.name || !value.schedule || !value.prompt) {
+        toast.error('Name, schedule, and prompt are required')
+        return
+      }
+      try {
+        const res = await apiFetch('/api/cron', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(value),
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setJobs((prev) => [data.job, ...prev])
+          setDialogOpen(false)
+          cronForm.reset()
+          toast.success('Cron job created')
+        } else {
+          const err = await res.json()
+          toast.error(err.error || 'Failed to create job')
+        }
+      } catch {
+        toast.error('Failed to create job')
+      }
+    },
   })
 
   async function loadJobs() {
@@ -122,32 +151,6 @@ function CronPage() {
     }
   }
 
-  async function addJob() {
-    if (!newJob.name || !newJob.schedule || !newJob.prompt) {
-      toast.error('Name, schedule, and prompt are required')
-      return
-    }
-    try {
-      const res = await apiFetch('/api/cron', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newJob),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        setJobs((prev) => [data.job, ...prev])
-        setDialogOpen(false)
-        setNewJob({ name: '', schedule: '', channel: '', prompt: '' })
-        toast.success('Cron job created')
-      } else {
-        const err = await res.json()
-        toast.error(err.error || 'Failed to create job')
-      }
-    } catch {
-      toast.error('Failed to create job')
-    }
-  }
-
   function formatDate(dateStr: string | null) {
     if (!dateStr) return '—'
     return new Date(dateStr).toLocaleString()
@@ -183,51 +186,77 @@ function CronPage() {
                       Schedule a recurring AI prompt execution.
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="grid gap-2">
-                      <Label>Name</Label>
-                      <Input
-                        value={newJob.name}
-                        onChange={(e) => setNewJob((p) => ({ ...p, name: e.target.value }))}
-                        placeholder="Daily Summary"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label>Schedule (cron expression)</Label>
-                      <Input
-                        value={newJob.schedule}
-                        onChange={(e) => setNewJob((p) => ({ ...p, schedule: e.target.value }))}
-                        placeholder="0 9 * * *"
-                        className="font-mono"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Standard cron syntax: minute hour day month weekday
-                      </p>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label>Channel (optional)</Label>
-                      <Input
-                        value={newJob.channel}
-                        onChange={(e) => setNewJob((p) => ({ ...p, channel: e.target.value }))}
-                        placeholder="web, whatsapp, telegram"
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label>Prompt</Label>
-                      <Textarea
-                        value={newJob.prompt}
-                        onChange={(e) => setNewJob((p) => ({ ...p, prompt: e.target.value }))}
-                        placeholder="What should the AI do on this schedule?"
-                        rows={3}
-                      />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                    <Button onClick={addJob}>Create Job</Button>
-                  </DialogFooter>
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      cronForm.handleSubmit()
+                    }}
+                    className="space-y-4"
+                  >
+                    <cronForm.Field name="name">
+                      {(field) => (
+                        <div className="grid gap-2">
+                          <Label>Name</Label>
+                          <Input
+                            value={field.state.value}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                            onBlur={field.handleBlur}
+                            placeholder="Daily Summary"
+                          />
+                        </div>
+                      )}
+                    </cronForm.Field>
+                    <cronForm.Field name="schedule">
+                      {(field) => (
+                        <div className="grid gap-2">
+                          <Label>Schedule (cron expression)</Label>
+                          <Input
+                            value={field.state.value}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                            onBlur={field.handleBlur}
+                            placeholder="0 9 * * *"
+                            className="font-mono"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            Standard cron syntax: minute hour day month weekday
+                          </p>
+                        </div>
+                      )}
+                    </cronForm.Field>
+                    <cronForm.Field name="channel">
+                      {(field) => (
+                        <div className="grid gap-2">
+                          <Label>Channel (optional)</Label>
+                          <Input
+                            value={field.state.value}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                            onBlur={field.handleBlur}
+                            placeholder="web, whatsapp, telegram"
+                          />
+                        </div>
+                      )}
+                    </cronForm.Field>
+                    <cronForm.Field name="prompt">
+                      {(field) => (
+                        <div className="grid gap-2">
+                          <Label>Prompt</Label>
+                          <Textarea
+                            value={field.state.value}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                            onBlur={field.handleBlur}
+                            placeholder="What should the AI do on this schedule?"
+                            rows={3}
+                          />
+                        </div>
+                      )}
+                    </cronForm.Field>
+                    <DialogFooter>
+                      <Button variant="outline" type="button" onClick={() => setDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button type="submit">Create Job</Button>
+                    </DialogFooter>
+                  </form>
                 </DialogContent>
               </Dialog>
             </div>

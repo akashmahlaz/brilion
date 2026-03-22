@@ -9,6 +9,8 @@ import { Conversation } from "../models/conversation";
 import { connectDB } from "../db";
 import { trackUsage, estimateTokens } from "./usage-tracker";
 import { createLogger } from "../models/log-entry";
+import { autoCompact } from "./compaction";
+import { indexConversation } from "./memory-manager";
 
 const log = (...args: unknown[]) => console.log("[router]", ...args);
 const logErr = (...args: unknown[]) => console.error("[router]", ...args);
@@ -472,11 +474,14 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
     );
     await conv.save();
     log("Conversation saved. Total messages:", conv.messages.length);
+
+    // Auto-compact if conversation is getting long + index for memory
+    autoCompact(ownerId, conv._id.toString()).catch(() => {});
+    indexConversation(ownerId, conv._id.toString()).catch(() => {});
   } catch (e) {
     logErr("Failed to save conversation:", e);
   }
 
-  // Send reply back through channel
   // Send reply back through channel
   // For groups, reply to the group JID; for DMs, reply to the sender
   const replyTarget = msg.isGroup && msg.groupId ? msg.groupId : msg.senderId;

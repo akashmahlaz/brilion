@@ -1,5 +1,4 @@
 import { createFileRoute, Link, Outlet, redirect, useRouter } from '@tanstack/react-router'
-import { useState } from 'react'
 import {
   MessageSquare,
   Globe2,
@@ -28,6 +27,8 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
 import { HotkeysProvider, useHotkey } from '@tanstack/react-hotkeys'
+import { useStore } from '@tanstack/react-store'
+import { appStore, toggleSidebar, setSidebarExpanded } from '#/lib/app-store'
 
 export const Route = createFileRoute('/_app')({
   beforeLoad: async () => {
@@ -62,7 +63,7 @@ function AppLayout() {
   const pathname = router.state.location.pathname
   const { data: session } = useSession()
   const user = session?.user
-  const [expanded, setExpanded] = useState(false)
+  const expanded = useStore(appStore, (s) => s.sidebarExpanded)
 
   // Global keyboard shortcuts
   useHotkey('mod+shift+c', () => router.navigate({ to: '/chat' }))
@@ -70,7 +71,7 @@ function AppLayout() {
   useHotkey('mod+shift+l', () => router.navigate({ to: '/logs' }))
   useHotkey('mod+shift+u', () => router.navigate({ to: '/usage' }))
   useHotkey('mod+shift+o', () => router.navigate({ to: '/overview' }))
-  useHotkey('mod+b', () => setExpanded((e) => !e))
+  useHotkey('mod+b', () => toggleSidebar())
 
   const isSettings = pathname.startsWith('/settings') || pathname.startsWith('/channels') ||
     pathname.startsWith('/agents') || pathname.startsWith('/config') ||
@@ -108,7 +109,7 @@ function AppLayout() {
             {expanded && <span className="font-heading text-[15px] font-bold text-foreground tracking-tight">Brilion</span>}
           </Link>
           {expanded && (
-            <button onClick={() => setExpanded(false)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+            <button onClick={() => setSidebarExpanded(false)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
               <PanelLeftClose className="size-4" />
             </button>
           )}
@@ -116,7 +117,7 @@ function AppLayout() {
 
         {!expanded && (
           <div className="flex justify-center mb-2">
-            <button onClick={() => setExpanded(true)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+            <button onClick={() => setSidebarExpanded(true)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
               <PanelLeft className="size-4" />
             </button>
           </div>

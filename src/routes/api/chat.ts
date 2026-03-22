@@ -6,6 +6,8 @@ import { Conversation } from "#/server/models/conversation";
 import { getAgentConfig } from "#/server/lib/agent";
 import { trackUsage, estimateTokens } from "#/server/lib/usage-tracker";
 import { createLogger } from "#/server/models/log-entry";
+import { autoCompact } from "#/server/lib/compaction";
+import { indexConversation } from "#/server/lib/memory-manager";
 import path from "node:path";
 import fs from "node:fs/promises";
 
@@ -170,6 +172,11 @@ export const Route = createFileRoute("/api/chat")({
               }
 
               await conv.save();
+
+              // Auto-compact if conversation is getting long
+              autoCompact(userId, conversationId).catch(() => {});
+              // Index into memory for long-term recall
+              indexConversation(userId, conversationId).catch(() => {});
             } catch (e) {
               console.error("[chat] Failed to save conversation:", e);
             }

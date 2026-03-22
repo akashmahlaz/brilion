@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   RefreshCw,
   TrendingUp,
@@ -18,6 +18,14 @@ import {
 } from '#/components/ui/card'
 import { Button } from '#/components/ui/button'
 import { apiFetch } from '#/lib/api'
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  createColumnHelper,
+  flexRender,
+  type SortingState,
+} from '@tanstack/react-table'
 
 export const Route = createFileRoute('/_app/usage')({
   component: UsagePage,
@@ -49,6 +57,8 @@ interface DailyPoint {
   cost: number
 }
 
+const modelColumnHelper = createColumnHelper<ModelBreakdown>()
+
 const PERIOD_DAYS: Record<string, number> = { today: 1, '7d': 7, '30d': 30 }
 
 function UsagePage() {
@@ -57,6 +67,7 @@ function UsagePage() {
   const [summary, setSummary] = useState<UsageSummary | null>(null)
   const [models, setModels] = useState<ModelBreakdown[]>([])
   const [daily, setDaily] = useState<DailyPoint[]>([])
+  const [modelSorting, setModelSorting] = useState<SortingState>([{ id: 'tokens', desc: true }])
 
   async function loadUsage(days: number) {
     setLoading(true)
@@ -223,60 +234,134 @@ function UsagePage() {
             </CardContent>
           </Card>
 
-          {/* Model Breakdown Table */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Model Breakdown</CardTitle>
-              <CardDescription>Token usage and cost per model</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-1">
-                <div className="grid grid-cols-[1fr_120px_100px_100px_1fr] gap-3 text-xs font-medium text-muted-foreground border-b pb-2 px-3">
-                  <span>Model</span>
-                  <span className="text-right">Tokens</span>
-                  <span className="text-right">Cost</span>
-                  <span className="text-right">Requests</span>
-                  <span>Share</span>
-                </div>
-                {models.map((model) => {
-                  const share = totalTokens > 0 ? (model.tokens / totalTokens) * 100 : 0
-                  return (
-                    <div
-                      key={model._id}
-                      className="grid grid-cols-[1fr_120px_100px_100px_1fr] gap-3 items-center text-sm px-3 py-2 rounded-lg hover:bg-accent/50 transition-colors"
-                    >
-                      <span className="font-mono text-xs">{model._id}</span>
-                      <span className="text-right font-mono text-xs">
-                        {formatTokens(model.tokens)}
-                      </span>
-                      <span className="text-right font-mono text-xs">
-                        ${model.cost.toFixed(2)}
-                      </span>
-                      <span className="text-right font-mono text-xs">{model.requests}</span>
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 bg-muted rounded-full h-2 overflow-hidden">
-                          <div
-                            className="bg-primary h-full rounded-full transition-all"
-                            style={{ width: `${share}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-muted-foreground w-10 text-right">
-                          {share.toFixed(0)}%
-                        </span>
-                      </div>
-                    </div>
-                  )
-                })}
-                {models.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-6">
-                    No model usage data yet.
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+          {/* Model Breakdown Table — TanStack Table */}
+          <ModelBreakdownTable
+            models={models}
+            totalTokens={totalTokens}
+            formatTokens={formatTokens}
+            sorting={modelSorting}
+            onSortingChange={setModelSorting}
+          />
         </div>
       </div>
     </div>
+  )
+}
+
+function ModelBreakdownTable({
+  models,
+  totalTokens,
+  formatTokens,
+  sorting,
+  onSortingChange,
+}: {
+  models: ModelBreakdown[]
+  totalTokens: number
+  formatTokens: (n: number) => string
+  sorting: SortingState
+  onSortingChange: (s: SortingState) => void
+}) {
+  const columns = useMemo(
+    () => [
+      modelColumnHelper.accessor('_id', {
+        header: 'Model',
+        cell: (info) => <span className="font-mono text-xs">{info.getValue()}</span>,
+      }),
+      modelColumnHelper.accessor('tokens', {
+        header: 'Tokens',
+        cell: (info) => (
+          <span className="text-right font-mono text-xs block">{formatTokens(info.getValue())}</span>
+        ),
+      }),
+      modelColumnHelper.accessor('cost', {
+        header: 'Cost',
+        cell: (info) => (
+          <span className="text-right font-mono text-xs block">${info.getValue().toFixed(2)}</span>
+        ),
+      }),
+      modelColumnHelper.accessor('requests', {
+        header: 'Requests',
+        cell: (info) => (
+          <span className="text-right font-mono text-xs block">{info.getValue()}</span>
+        ),
+      }),
+      modelColumnHelper.display({
+        id: 'share',
+        header: 'Share',
+        cell: ({ row }) => {
+          const share = totalTokens > 0 ? (row.original.tokens / totalTokens) * 100 : 0
+          return (
+            <div className="flex items-center gap-2">
+              <div className="flex-1 bg-muted rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-primary h-full rounded-full transition-all"
+                  style={{ width: `${share}%` }}
+                />
+              </div>
+              <span className="text-xs text-muted-foreground w-10 text-right">
+                {share.toFixed(0)}%
+              </span>
+            </div>
+          )
+        },
+      }),
+    ],
+    [totalTokens, formatTokens],
+  )
+
+  const table = useReactTable({
+    data: models,
+    columns,
+    state: { sorting },
+    onSortingChange: onSortingChange as any,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  })
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Model Breakdown</CardTitle>
+        <CardDescription>Token usage and cost per model</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-1">
+          {table.getHeaderGroups().map((headerGroup) => (
+            <div
+              key={headerGroup.id}
+              className="grid grid-cols-[1fr_120px_100px_100px_1fr] gap-3 text-xs font-medium text-muted-foreground border-b pb-2 px-3"
+            >
+              {headerGroup.headers.map((header) => (
+                <span
+                  key={header.id}
+                  className={header.column.getCanSort() ? 'cursor-pointer select-none hover:text-foreground' : ''}
+                  onClick={header.column.getToggleSortingHandler()}
+                >
+                  {flexRender(header.column.columnDef.header, header.getContext())}
+                  {{ asc: ' ↑', desc: ' ↓' }[header.column.getIsSorted() as string] ?? ''}
+                </span>
+              ))}
+            </div>
+          ))}
+          {table.getRowModel().rows.map((row) => (
+            <div
+              key={row.id}
+              className="grid grid-cols-[1fr_120px_100px_100px_1fr] gap-3 items-center text-sm px-3 py-2 rounded-lg hover:bg-accent/50 transition-colors"
+            >
+              {row.getVisibleCells().map((cell) => (
+                <div key={cell.id}>
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </div>
+              ))}
+            </div>
+          ))}
+          {models.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-6">
+              No model usage data yet.
+            </p>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   )
 }

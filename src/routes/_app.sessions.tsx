@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Users,
   RefreshCw,
@@ -28,6 +28,14 @@ import {
 } from '#/components/ui/dropdown-menu'
 import { toast } from 'sonner'
 import { apiFetch } from '#/lib/api'
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  createColumnHelper,
+  flexRender,
+  type SortingState,
+} from '@tanstack/react-table'
 
 export const Route = createFileRoute('/_app/sessions')({
   component: SessionsPage,
@@ -56,9 +64,22 @@ const CHANNEL_COLOR: Record<string, string> = {
   telegram: 'text-sky-500',
 }
 
+const columnHelper = createColumnHelper<ConversationSession>()
+
+function formatTimeAgo(dateStr: string) {
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  return `${Math.floor(hours / 24)}d ago`
+}
+
 function SessionsPage() {
   const [sessions, setSessions] = useState<ConversationSession[]>([])
   const [loading, setLoading] = useState(true)
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'updatedAt', desc: true }])
 
   async function loadSessions() {
     setLoading(true)
@@ -96,7 +117,6 @@ function SessionsPage() {
 
   async function resetSession(id: string) {
     try {
-      // Delete and let it re-create on next message
       await apiFetch(`/api/chat?id=${id}`, { method: 'DELETE' })
       setSessions((prev) => prev.filter((s) => s._id !== id))
       toast.success('Session reset')
@@ -109,22 +129,100 @@ function SessionsPage() {
     loadSessions()
   }, [])
 
-  function formatTimeAgo(dateStr: string) {
-    const diff = Date.now() - new Date(dateStr).getTime()
-    const mins = Math.floor(diff / 60000)
-    if (mins < 1) return 'just now'
-    if (mins < 60) return `${mins}m ago`
-    const hours = Math.floor(mins / 60)
-    if (hours < 24) return `${hours}h ago`
-    return `${Math.floor(hours / 24)}d ago`
-  }
+  const columns = useMemo(
+    () => [
+      columnHelper.accessor('title', {
+        header: 'Conversation',
+        cell: (info) => {
+          const s = info.row.original
+          const Icon = CHANNEL_ICON[s.channel] || MessageSquare
+          return (
+            <div className="flex items-center gap-2 min-w-0">
+              <Icon className={`size-4 shrink-0 ${CHANNEL_COLOR[s.channel]}`} />
+              <span className="truncate">{info.getValue()}</span>
+            </div>
+          )
+        },
+      }),
+      columnHelper.accessor('channel', {
+        header: 'Channel',
+        cell: (info) => (
+          <Badge variant="outline" className="w-fit text-xs capitalize">
+            {info.getValue()}
+          </Badge>
+        ),
+      }),
+      columnHelper.accessor('foreignId', {
+        header: 'Contact',
+        cell: (info) => (
+          <span className="font-mono text-xs truncate text-muted-foreground">
+            {info.getValue() || '—'}
+          </span>
+        ),
+      }),
+      columnHelper.accessor('messageCount', {
+        header: 'Messages',
+        cell: (info) => (
+          <span className="text-xs text-muted-foreground">{info.getValue()}</span>
+        ),
+      }),
+      columnHelper.accessor('updatedAt', {
+        header: 'Last Active',
+        cell: (info) => (
+          <span className="text-xs text-muted-foreground">
+            {formatTimeAgo(info.getValue())}
+          </span>
+        ),
+      }),
+      columnHelper.display({
+        id: 'actions',
+        cell: ({ row }) => (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                onClick={(e) => e.preventDefault()}
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={(e) => { e.preventDefault(); resetSession(row.original._id) }}>
+                <RotateCcw className="mr-2 size-4" />
+                Reset session
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={(e) => { e.preventDefault(); deleteSession(row.original._id) }}
+              >
+                <Trash2 className="mr-2 size-4" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        ),
+      }),
+    ],
+    [],
+  )
+
+  const table = useReactTable({
+    data: sessions,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  })
 
   const channelCounts = sessions.reduce(
     (acc, s) => {
       acc[s.channel] = (acc[s.channel] || 0) + 1
       return acc
     },
-    {} as Record<string, number>
+    {} as Record<string, number>,
   )
 
   return (
@@ -168,7 +266,7 @@ function SessionsPage() {
             })}
           </div>
 
-          {/* Sessions Table */}
+          {/* Sessions Table — TanStack Table */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-base">All Conversations</CardTitle>
@@ -179,68 +277,39 @@ function SessionsPage() {
             <CardContent>
               <div className="space-y-1">
                 {/* Table Header */}
-                <div className="grid grid-cols-[1fr_100px_180px_80px_100px_40px] gap-3 text-xs font-medium text-muted-foreground border-b pb-2 px-3">
-                  <span>Conversation</span>
-                  <span>Channel</span>
-                  <span>Contact</span>
-                  <span>Messages</span>
-                  <span>Last Active</span>
-                  <span></span>
-                </div>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <div
+                    key={headerGroup.id}
+                    className="grid grid-cols-[1fr_100px_180px_80px_100px_40px] gap-3 text-xs font-medium text-muted-foreground border-b pb-2 px-3"
+                  >
+                    {headerGroup.headers.map((header) => (
+                      <span
+                        key={header.id}
+                        className={header.column.getCanSort() ? 'cursor-pointer select-none hover:text-foreground' : ''}
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {{ asc: ' ↑', desc: ' ↓' }[header.column.getIsSorted() as string] ?? ''}
+                      </span>
+                    ))}
+                  </div>
+                ))}
 
-                {sessions.map((session) => {
-                  const Icon = CHANNEL_ICON[session.channel] || MessageSquare
-                  return (
-                    <Link
-                      key={session._id}
-                      to="/chat"
-                      search={{ id: session._id }}
-                      className="grid grid-cols-[1fr_100px_180px_80px_100px_40px] gap-3 items-center text-sm rounded-lg px-3 py-2.5 hover:bg-accent/50 transition-colors cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Icon className={`size-4 shrink-0 ${CHANNEL_COLOR[session.channel]}`} />
-                        <span className="truncate">{session.title}</span>
+                {/* Table Body */}
+                {table.getRowModel().rows.map((row) => (
+                  <Link
+                    key={row.id}
+                    to="/chat"
+                    search={{ id: row.original._id }}
+                    className="grid grid-cols-[1fr_100px_180px_80px_100px_40px] gap-3 items-center text-sm rounded-lg px-3 py-2.5 hover:bg-accent/50 transition-colors cursor-pointer"
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <div key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </div>
-                      <Badge variant="outline" className="w-fit text-xs capitalize">
-                        {session.channel}
-                      </Badge>
-                      <span className="font-mono text-xs truncate text-muted-foreground">
-                        {session.foreignId || '—'}
-                      </span>
-                      <span className="text-xs text-muted-foreground text-center">
-                        {session.messageCount}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {formatTimeAgo(session.updatedAt)}
-                      </span>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-7"
-                            onClick={(e) => e.preventDefault()}
-                          >
-                            <MoreHorizontal className="size-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={(e) => { e.preventDefault(); resetSession(session._id) }}>
-                            <RotateCcw className="mr-2 size-4" />
-                            Reset session
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={(e) => { e.preventDefault(); deleteSession(session._id) }}
-                          >
-                            <Trash2 className="mr-2 size-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </Link>
-                  )
-                })}
+                    ))}
+                  </Link>
+                ))}
 
                 {sessions.length === 0 && !loading && (
                   <div className="text-center py-12 text-sm text-muted-foreground">

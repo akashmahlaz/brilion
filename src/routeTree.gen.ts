@@ -21,6 +21,7 @@ import { Route as ApiTelegramRouteImport } from './routes/api/telegram'
 import { Route as ApiSkillsRouteImport } from './routes/api/skills'
 import { Route as ApiPairingRouteImport } from './routes/api/pairing'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
+import { Route as ApiMemoryRouteImport } from './routes/api/memory'
 import { Route as ApiLogsRouteImport } from './routes/api/logs'
 import { Route as ApiKeysRouteImport } from './routes/api/keys'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
@@ -108,6 +109,11 @@ const ApiPairingRoute = ApiPairingRouteImport.update({
 const ApiModelsRoute = ApiModelsRouteImport.update({
   id: '/api/models',
   path: '/api/models',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMemoryRoute = ApiMemoryRouteImport.update({
+  id: '/api/memory',
+  path: '/api/memory',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiLogsRoute = ApiLogsRouteImport.update({
@@ -290,6 +296,7 @@ export interface FileRoutesByFullPath {
   '/api/health': typeof ApiHealthRoute
   '/api/keys': typeof ApiKeysRoute
   '/api/logs': typeof ApiLogsRoute
+  '/api/memory': typeof ApiMemoryRoute
   '/api/models': typeof ApiModelsRoute
   '/api/pairing': typeof ApiPairingRoute
   '/api/skills': typeof ApiSkillsRoute
@@ -332,6 +339,7 @@ export interface FileRoutesByTo {
   '/api/health': typeof ApiHealthRoute
   '/api/keys': typeof ApiKeysRoute
   '/api/logs': typeof ApiLogsRoute
+  '/api/memory': typeof ApiMemoryRoute
   '/api/models': typeof ApiModelsRoute
   '/api/pairing': typeof ApiPairingRoute
   '/api/skills': typeof ApiSkillsRoute
@@ -377,6 +385,7 @@ export interface FileRoutesById {
   '/api/health': typeof ApiHealthRoute
   '/api/keys': typeof ApiKeysRoute
   '/api/logs': typeof ApiLogsRoute
+  '/api/memory': typeof ApiMemoryRoute
   '/api/models': typeof ApiModelsRoute
   '/api/pairing': typeof ApiPairingRoute
   '/api/skills': typeof ApiSkillsRoute
@@ -421,6 +430,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/keys'
     | '/api/logs'
+    | '/api/memory'
     | '/api/models'
     | '/api/pairing'
     | '/api/skills'
@@ -463,6 +473,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/keys'
     | '/api/logs'
+    | '/api/memory'
     | '/api/models'
     | '/api/pairing'
     | '/api/skills'
@@ -507,6 +518,7 @@ export interface FileRouteTypes {
     | '/api/health'
     | '/api/keys'
     | '/api/logs'
+    | '/api/memory'
     | '/api/models'
     | '/api/pairing'
     | '/api/skills'
@@ -533,6 +545,7 @@ export interface RootRouteChildren {
   ApiHealthRoute: typeof ApiHealthRoute
   ApiKeysRoute: typeof ApiKeysRoute
   ApiLogsRoute: typeof ApiLogsRoute
+  ApiMemoryRoute: typeof ApiMemoryRoute
   ApiModelsRoute: typeof ApiModelsRoute
   ApiPairingRoute: typeof ApiPairingRoute
   ApiSkillsRoute: typeof ApiSkillsRoute
@@ -631,6 +644,13 @@ declare module '@tanstack/react-router' {
       path: '/api/models'
       fullPath: '/api/models'
       preLoaderRoute: typeof ApiModelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/memory': {
+      id: '/api/memory'
+      path: '/api/memory'
+      fullPath: '/api/memory'
+      preLoaderRoute: typeof ApiMemoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/logs': {
@@ -912,6 +932,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthRoute: ApiHealthRoute,
   ApiKeysRoute: ApiKeysRoute,
   ApiLogsRoute: ApiLogsRoute,
+  ApiMemoryRoute: ApiMemoryRoute,
   ApiModelsRoute: ApiModelsRoute,
   ApiPairingRoute: ApiPairingRoute,
   ApiSkillsRoute: ApiSkillsRoute,

@@ -15,6 +15,7 @@ import {
   githubDispatchWorkflow,
 } from "./tools/github";
 import { webRequest, getToken } from "./tools/web-request";
+import { createMemoryTools } from "./tools/memory";
 import { loadSkillTools, getSkillContext } from "./skill-loader";
 
 const log = (...args: unknown[]) => console.log("[agent]", ...args);
@@ -31,6 +32,14 @@ const DEFAULT_SYSTEM_PROMPT = `You are an AI agency assistant with full self-man
 - **GitHub**: Read/write files, list repos, create repos, trigger workflows
 - **Web Request**: Call ANY external API using stored tokens (Vercel, Netlify, Slack, etc.)
 - **Skills**: Dynamic capabilities loaded from user-installed skills
+- **Memory**: Search your long-term memory for past conversations, user preferences, and decisions
+
+## MEMORY RECALL — CRITICAL
+Before answering about prior work, decisions, people, preferences, projects, or todos:
+1. Run memory_search(query) to find relevant memories
+2. Use memory_get(filename, startLine, numLines) to pull exact content
+3. After updating workspace files (SOUL.md, USER.md, MEMORY.md), run memory_index() to make changes searchable
+4. Always check USER.md for user preferences before giving advice
 
 ## SELF-EDITING
 You can modify your own behavior by:
@@ -55,6 +64,7 @@ Always be helpful, concise, and action-oriented.`;
 
 export async function buildToolSet(userId: string): Promise<Array<Tool>> {
   const metaTools = createMetaTools(userId);
+  const memoryTools = createMemoryTools(userId);
 
   const builtInTools: Tool[] = [
     tavilySearch,
@@ -76,7 +86,7 @@ export async function buildToolSet(userId: string): Promise<Array<Tool>> {
     // skills not loaded — proceed without
   }
 
-  return [...builtInTools, ...metaTools, ...skillTools];
+  return [...builtInTools, ...metaTools, ...memoryTools, ...skillTools];
 }
 
 async function getSystemPrompt(userId: string): Promise<string> {
