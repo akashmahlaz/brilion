@@ -3,8 +3,6 @@ import {
   chat,
   maxIterations,
   toServerSentEventsResponse,
-  toolCacheMiddleware,
-  type ChatMiddleware,
 } from "@tanstack/ai";
 import { connectDB } from "#/server/db";
 import { requireAuth } from "#/server/middleware";
@@ -20,6 +18,28 @@ import fs from "node:fs/promises";
 
 // Initialize observability once on first import
 initAIObservability();
+
+/** Stream wrapper that intercepts chunks for post-processing */
+async function* withPostProcessing(
+  stream: AsyncIterable<any>,
+  onComplete: (fullText: string) => Promise<void>,
+  onError: (err: unknown) => void
+): AsyncGenerator<any> {
+  let fullText = "";
+  try {
+    for await (const chunk of stream) {
+      if (chunk.type === "content" && chunk.delta) {
+        fullText += chunk.delta;
+      }
+      yield chunk;
+    }
+    // Stream completed — fire-and-forget background tasks
+    onComplete(fullText).catch(onError);
+  } catch (err) {
+    onError(err);
+    throw err;
+  }
+}
 
 const UPLOAD_DIR = path.resolve("uploads");
 const ATTACHMENT_RE = /\[(Image|File):\s*([^\]]+)\]\(([^)]+)\)/g;
@@ -136,89 +156,87 @@ export const Route = createFileRoute("/api/chat")({
         const modelName = (agentConfig.adapter as any)?.model || modelSpec || "unknown";
         const providerName = (agentConfig.adapter as any)?.provider || "unknown";
         const logger = createLogger(userId, "api");
+        const startTime = Date.now();
 
-        // --- Middleware: Usage tracking + conversation saving ---
-        const brilionMiddleware: ChatMiddleware = {
-          name: "brilion-lifecycle",
-          onUsage: (ctx, usage) => {
-            trackUsage({
-              userId,
-              conversationId,
-              channel: "web",
-              provider: providerName,
-              model: modelName,
-              promptTokens: usage.promptTokens,
-              completionTokens: usage.completionTokens,
-              durationMs: 0, // filled in onFinish
-              success: true,
-            });
-          },
-          onFinish: (ctx, info) => {
-            logger.info("Web chat completed", { model: modelName, durationMs: info.duration });
-            if (conversationId) {
-              ctx.defer((async () => {
-                try {
-                  const lastUserMsg = messages[messages.length - 1];
-                  const conv = await Conversation.findById(conversationId);
-                  if (!conv) return;
-
-                  conv.messages.push(
-                    { role: lastUserMsg.role, content: lastUserMsg.content },
-                    { role: "assistant", content: info.content || "" },
-                  );
-
-                  if (
-                    (conv.title === "New Chat" || !conv.title) &&
-                    lastUserMsg.content
-                  ) {
-                    conv.title = generateTitle(
-                      typeof lastUserMsg.content === "string"
-                        ? lastUserMsg.content
-                        : "Image conversation",
-                    );
-                  }
-
-                  await conv.save();
-                  await autoCompact(userId, conversationId).catch(() => {});
-                  await indexConversation(userId, conversationId).catch(() => {});
-                } catch (e) {
-                  console.error("[chat] Background processing failed:", e);
-                }
-              })());
-            }
-          },
-          onError: (ctx, info) => {
-            logger.error("Web chat failed", { error: String(info.error), durationMs: info.duration });
-            trackUsage({
-              userId,
-              channel: "web",
-              provider: providerName,
-              model: modelName,
-              durationMs: info.duration,
-              success: false,
-              error: info.error instanceof Error ? info.error.message : String(info.error),
-            });
-          },
-        };
-
-        const stream = chat({
+        const rawStream = chat({
           adapter: adapterOverride ?? agentConfig.adapter,
           messages: aiMessages,
           systemPrompts: agentConfig.systemPrompts,
           tools: agentConfig.tools,
           agentLoopStrategy: maxIterations(agentConfig.maxSteps ?? 20),
           conversationId,
-          middleware: [
-            brilionMiddleware,
-            toolCacheMiddleware({
-              ttl: 120_000,
-              maxSize: 50,
-              toolNames: ["tavily_search", "memory_search", "memory_stats"],
-            }),
-          ],
         });
 
-        return toServerSentEventsResponse(stream);
+        // Wrap stream for post-processing (usage tracking + conversation saving)
+        const trackedStream = withPostProcessing(
+          rawStream,
+          // onComplete — save conversation and index
+          async (fullText: string) => {
+            const durationMs = Date.now() - startTime;
+            logger.info("Web chat completed", { model: modelName, durationMs });
+
+            // Estimate tokens from character count (real usage not available without middleware)
+            const estimatedCompletionTokens = Math.ceil(fullText.length / 4);
+            trackUsage({
+              userId,
+              conversationId,
+              channel: "web",
+              provider: providerName,
+              model: modelName,
+              promptTokens: 0, // Can't get real prompt tokens
+              completionTokens: estimatedCompletionTokens,
+              durationMs,
+              success: true,
+            });
+
+            // Save conversation
+            if (conversationId) {
+              try {
+                const lastUserMsg = messages[messages.length - 1];
+                const conv = await Conversation.findById(conversationId);
+                if (!conv) return;
+
+                conv.messages.push(
+                  { role: lastUserMsg.role, content: lastUserMsg.content },
+                  { role: "assistant", content: fullText },
+                );
+
+                if (
+                  (conv.title === "New Chat" || !conv.title) &&
+                  lastUserMsg.content
+                ) {
+                  conv.title = generateTitle(
+                    typeof lastUserMsg.content === "string"
+                      ? lastUserMsg.content
+                      : "Image conversation",
+                  );
+                }
+
+                await conv.save();
+                await autoCompact(userId, conversationId).catch(() => {});
+                await indexConversation(userId, conversationId).catch(() => {});
+              } catch (e) {
+                console.error("[chat] Background processing failed:", e);
+              }
+            }
+          },
+          // onError
+          (err) => {
+            const durationMs = Date.now() - startTime;
+            logger.error("Web chat failed", { error: String(err), durationMs });
+            trackUsage({
+              userId,
+              channel: "web",
+              provider: providerName,
+              model: modelName,
+              durationMs,
+              success: false,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        );
+
+        return toServerSentEventsResponse(trackedStream);
       },
 
       // GET /api/chat — list conversations or get single

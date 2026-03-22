@@ -39,7 +39,6 @@ export const githubReadFile = toolDefinition({
   name: "github_read_file",
   description:
     "Read a file from a GitHub repository. Returns the file content decoded from base64.",
-  lazy: true,
   inputSchema: z.object({
     owner: z.string().describe("Repository owner (user or org)"),
     repo: z.string().describe("Repository name"),
@@ -68,7 +67,6 @@ export const githubWriteFile = toolDefinition({
   name: "github_write_file",
   description:
     "Create or update a file in a GitHub repository. Provide content and an optional SHA for updates.",
-  lazy: true,
   needsApproval: true,
   inputSchema: z.object({
     owner: z.string().describe("Repository owner"),
@@ -112,7 +110,6 @@ export const githubListRepoContents = toolDefinition({
   name: "github_list_repo_contents",
   description:
     "List files and directories in a GitHub repo path.",
-  lazy: true,
   inputSchema: z.object({
     owner: z.string().describe("Repository owner"),
     repo: z.string().describe("Repository name"),
@@ -148,7 +145,6 @@ export const githubListRepoContents = toolDefinition({
 export const githubCreateRepo = toolDefinition({
   name: "github_create_repo",
   description: "Create a new GitHub repository.",
-  lazy: true,
   needsApproval: true,
   inputSchema: z.object({
     name: z.string().describe("Repository name"),
@@ -184,7 +180,6 @@ export const githubCreateRepo = toolDefinition({
 export const githubListRepos = toolDefinition({
   name: "github_list_repos",
   description: "List the authenticated user's GitHub repositories.",
-  lazy: true,
   inputSchema: z.object({
     sort: z
       .enum(["updated", "created", "pushed", "full_name"])
@@ -227,7 +222,6 @@ export const githubDispatchWorkflow = toolDefinition({
   name: "github_dispatch_workflow",
   description:
     "Trigger a GitHub Actions workflow dispatch event. The workflow must have a workflow_dispatch trigger.",
-  lazy: true,
   needsApproval: true,
   inputSchema: z.object({
     owner: z.string().describe("Repository owner"),
