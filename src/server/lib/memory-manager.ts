@@ -3,6 +3,7 @@ import { WorkspaceFile } from "../models/workspace-file";
 import { Conversation } from "../models/conversation";
 import { connectDB } from "../db";
 import { embedText, embedBatch } from "./embeddings";
+import { emit } from "./hooks";
 
 const log = (...args: unknown[]) => console.log("[memory]", ...args);
 
@@ -145,6 +146,7 @@ export async function indexWorkspaceFile(
 
   await MemoryChunk.insertMany(docs);
   log(`Indexed ${docs.length} chunks from ${filename} for user ${userId}`);
+  emit("memory_indexed", { userId, source: "workspace", sourceId: filename, chunksIndexed: docs.length }).catch(() => {});
   return docs.length;
 }
 
@@ -194,6 +196,7 @@ export async function indexConversation(
 
   await MemoryChunk.insertMany(docs);
   log(`Indexed ${docs.length} chunks from conversation ${conversationId}`);
+  emit("memory_indexed", { userId, source: "session", sourceId: conversationId, chunksIndexed: docs.length }).catch(() => {});
   return docs.length;
 }
 
@@ -347,10 +350,13 @@ export async function searchMemory(
     }
   }
 
-  return Array.from(merged.values())
+  const results = Array.from(merged.values())
     .filter((r) => r.score >= minScore)
     .sort((a, b) => b.score - a.score)
     .slice(0, topK);
+
+  emit("memory_searched", { userId, query, resultCount: results.length, durationMs: 0 }).catch(() => {});
+  return results;
 }
 
 /**

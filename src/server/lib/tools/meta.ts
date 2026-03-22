@@ -8,6 +8,7 @@ import {
   listWorkspaceFiles,
   ensureWorkspace,
 } from "../workspace";
+import { indexWorkspaceFile } from "../memory-manager";
 import {
   listAuthProfiles,
   upsertAuthProfile,
@@ -212,7 +213,9 @@ export function createMetaTools(userId: string) {
   }).server(async ({ file, content }) => {
     if (!file.endsWith(".md")) return { error: "Only .md files allowed" };
     await writeWorkspaceFile(file, content, userId);
-    return { status: "ok", file, length: content.length };
+    // Auto-reindex into memory so changes become searchable immediately
+    const chunksIndexed = await indexWorkspaceFile(userId, file).catch(() => 0);
+    return { status: "ok", file, length: content.length, chunksIndexed };
   });
 
   const listWorkspaceFilesT = toolDefinition({

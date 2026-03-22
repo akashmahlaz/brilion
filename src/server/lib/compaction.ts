@@ -241,6 +241,42 @@ export async function autoCompact(
 
   if (needsCompaction(messages)) {
     log(`Auto-compacting conversation ${conversationId} (${messages.length} messages)`);
+
+    // Pre-compaction memory flush (OpenClaw-inspired): run a silent agentic turn
+    // to let the AI save important learnings before they get summarized away
+    try {
+      const { chat: chatFn, maxIterations } = await import("@tanstack/ai");
+      const recentMessages = conv.messages.slice(-10).map((m: any) => ({
+        role: m.role as string,
+        content: typeof m.content === "string" ? m.content : "[content]",
+      }));
+      const flushPrompt = `[SYSTEM — PRE-COMPACTION MEMORY FLUSH]
+This conversation is about to be compacted. Review recent messages and IMMEDIATELY save any important learnings, preferences, or facts about the user to USER.md or SOUL.md using write_workspace_file.
+
+Do NOT reply to the user. Only write files if there's something worth remembering. If nothing important, respond with "NO_FLUSH" and nothing else.`;
+
+      const flushAdapter = await resolveModel("gpt-4.1-mini", userId).catch(() =>
+        resolveModel(undefined, userId)
+      );
+      // Lazy import of tools for the flush turn
+      const { buildToolSet } = await import("./agent");
+      const flushTools = await buildToolSet(userId);
+
+      await chatFn({
+        adapter: flushAdapter,
+        messages: [
+          ...recentMessages,
+          { role: "user", content: flushPrompt },
+        ],
+        tools: flushTools,
+        agentLoopStrategy: maxIterations(3),
+        stream: false,
+      });
+      log(`Pre-compaction memory flush completed for ${conversationId}`);
+    } catch (e) {
+      log("Pre-compaction flush failed (non-critical):", e);
+    }
+
     await compactConversation(userId, conversationId);
   }
 }
