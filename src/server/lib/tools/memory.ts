@@ -56,6 +56,7 @@ export function createMemoryTools(userId: string) {
     description:
       "Get specific content from a workspace file by filename and optional line range. " +
       "Use after memory_search returns a result — you can pull the exact lines for more context.",
+    lazy: true,
     inputSchema: z.object({
       filename: z.string().describe("The workspace file to read (e.g. MEMORY.md, USER.md, SOUL.md)"),
       startLine: z
@@ -88,6 +89,7 @@ export function createMemoryTools(userId: string) {
     description:
       "Re-index your workspace files into vector memory. Run this after writing or updating workspace files " +
       "so the changes become searchable. This creates embeddings for semantic search.",
+    lazy: true,
     inputSchema: z.object({}),
   }).server(async () => {
     const count = await indexAllWorkspaceFiles(userId);
@@ -97,6 +99,7 @@ export function createMemoryTools(userId: string) {
   const memoryStats = toolDefinition({
     name: "memory_stats",
     description: "Get statistics about your long-term memory: total chunks, sources breakdown.",
+    lazy: true,
     inputSchema: z.object({}),
   }).server(async () => {
     return getMemoryStats(userId);

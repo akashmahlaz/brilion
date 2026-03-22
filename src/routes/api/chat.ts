@@ -1,15 +1,25 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { chat, maxIterations, toServerSentEventsResponse } from "@tanstack/ai";
+import {
+  chat,
+  maxIterations,
+  toServerSentEventsResponse,
+  toolCacheMiddleware,
+  type ChatMiddleware,
+} from "@tanstack/ai";
 import { connectDB } from "#/server/db";
 import { requireAuth } from "#/server/middleware";
 import { Conversation } from "#/server/models/conversation";
 import { getAgentConfig } from "#/server/lib/agent";
-import { trackUsage, estimateTokens } from "#/server/lib/usage-tracker";
+import { trackUsage } from "#/server/lib/usage-tracker";
 import { createLogger } from "#/server/models/log-entry";
 import { autoCompact } from "#/server/lib/compaction";
 import { indexConversation } from "#/server/lib/memory-manager";
+import { initAIObservability } from "#/server/lib/ai-observability";
 import path from "node:path";
 import fs from "node:fs/promises";
+
+// Initialize observability once on first import
+initAIObservability();
 
 const UPLOAD_DIR = path.resolve("uploads");
 const ATTACHMENT_RE = /\[(Image|File):\s*([^\]]+)\]\(([^)]+)\)/g;
@@ -59,24 +69,27 @@ async function transformMessages(messages: any[]): Promise<any[]> {
       const [full, type, _name, url] = match;
       // Add preceding text
       const before = msg.content.slice(lastIndex, match.index).trim();
-      if (before) parts.push({ type: "text", text: before });
+      if (before) parts.push({ type: "text", content: before });
 
       if (type === "Image") {
         const img = await readUploadedImage(url);
         if (img) {
-          parts.push({ type: "image", image: img.data, mimeType: img.mimeType });
+          parts.push({
+            type: "image",
+            source: { type: "data", value: img.data, mimeType: img.mimeType },
+          });
         } else {
-          parts.push({ type: "text", text: `[Image attached: ${_name}]` });
+          parts.push({ type: "text", content: `[Image attached: ${_name}]` });
         }
       } else {
-        parts.push({ type: "text", text: `[File attached: ${_name}]` });
+        parts.push({ type: "text", content: `[File attached: ${_name}]` });
       }
       lastIndex = match.index + full.length;
     }
 
     // Remaining text
     const remaining = msg.content.slice(lastIndex).trim();
-    if (remaining) parts.push({ type: "text", text: remaining });
+    if (remaining) parts.push({ type: "text", content: remaining });
 
     // If no parts extracted, keep original
     result.push(parts.length > 0 ? { ...msg, content: parts } : msg);
@@ -120,93 +133,92 @@ export const Route = createFileRoute("/api/chat")({
         // Transform messages — convert [Image: name](url) to actual multimodal image parts
         const aiMessages = await transformMessages(messages);
 
-        const result = chat({
-          adapter: adapterOverride ?? agentConfig.adapter,
-          messages: aiMessages,
-          systemPrompts: agentConfig.systemPrompts,
-          tools: agentConfig.tools,
-          agentLoopStrategy: maxIterations(agentConfig.maxSteps ?? 20),
-          stream: true,
-        });
-
-        // Wrap the stream to accumulate text while forwarding chunks to SSE.
-        // An async generator can only be iterated once, so we cannot call both
-        // streamToText() and toServerSentEventsResponse() on the same result.
-        const startTime = Date.now();
         const modelName = (agentConfig.adapter as any)?.model || modelSpec || "unknown";
         const providerName = (agentConfig.adapter as any)?.provider || "unknown";
         const logger = createLogger(userId, "api");
-        let accumulatedText = "";
 
-        async function* teeStream() {
-          try {
-            for await (const chunk of result) {
-              if (chunk.type === "TEXT_MESSAGE_CONTENT" && chunk.delta) {
-                accumulatedText += chunk.delta;
-              }
-              yield chunk;
-            }
-          } finally {
-            // Stream finished — run background processing
-            const fullText = accumulatedText;
-            const durationMs = Date.now() - startTime;
-
-            Promise.resolve().then(async () => {
-              try {
-                const promptText = messages.map((m: any) => typeof m.content === "string" ? m.content : "").join("");
-                trackUsage({
-                  userId,
-                  conversationId,
-                  channel: "web",
-                  provider: providerName,
-                  model: modelName,
-                  promptTokens: estimateTokens(promptText),
-                  completionTokens: estimateTokens(fullText),
-                  durationMs,
-                  success: true,
-                });
-                logger.info(`Web chat completed`, { model: modelName, durationMs });
-
-                if (conversationId) {
+        // --- Middleware: Usage tracking + conversation saving ---
+        const brilionMiddleware: ChatMiddleware = {
+          name: "brilion-lifecycle",
+          onUsage: (ctx, usage) => {
+            trackUsage({
+              userId,
+              conversationId,
+              channel: "web",
+              provider: providerName,
+              model: modelName,
+              promptTokens: usage.promptTokens,
+              completionTokens: usage.completionTokens,
+              durationMs: 0, // filled in onFinish
+              success: true,
+            });
+          },
+          onFinish: (ctx, info) => {
+            logger.info("Web chat completed", { model: modelName, durationMs: info.duration });
+            if (conversationId) {
+              ctx.defer((async () => {
+                try {
                   const lastUserMsg = messages[messages.length - 1];
                   const conv = await Conversation.findById(conversationId);
                   if (!conv) return;
 
                   conv.messages.push(
                     { role: lastUserMsg.role, content: lastUserMsg.content },
-                    { role: "assistant", content: fullText }
+                    { role: "assistant", content: info.content || "" },
                   );
 
                   if (
                     (conv.title === "New Chat" || !conv.title) &&
                     lastUserMsg.content
                   ) {
-                    conv.title = generateTitle(lastUserMsg.content);
+                    conv.title = generateTitle(
+                      typeof lastUserMsg.content === "string"
+                        ? lastUserMsg.content
+                        : "Image conversation",
+                    );
                   }
 
                   await conv.save();
-                  autoCompact(userId, conversationId).catch(() => {});
-                  indexConversation(userId, conversationId).catch(() => {});
+                  await autoCompact(userId, conversationId).catch(() => {});
+                  await indexConversation(userId, conversationId).catch(() => {});
+                } catch (e) {
+                  console.error("[chat] Background processing failed:", e);
                 }
-              } catch (e) {
-                console.error("[chat] Background processing failed:", e);
-              }
-            }).catch((e) => {
-              trackUsage({
-                userId,
-                channel: "web",
-                provider: providerName,
-                model: modelName,
-                durationMs: Date.now() - startTime,
-                success: false,
-                error: e instanceof Error ? e.message : String(e),
-              });
-              logger.error("Web chat failed", { error: String(e) });
+              })());
+            }
+          },
+          onError: (ctx, info) => {
+            logger.error("Web chat failed", { error: String(info.error), durationMs: info.duration });
+            trackUsage({
+              userId,
+              channel: "web",
+              provider: providerName,
+              model: modelName,
+              durationMs: info.duration,
+              success: false,
+              error: info.error instanceof Error ? info.error.message : String(info.error),
             });
-          }
-        }
+          },
+        };
 
-        return toServerSentEventsResponse(teeStream());
+        const stream = chat({
+          adapter: adapterOverride ?? agentConfig.adapter,
+          messages: aiMessages,
+          systemPrompts: agentConfig.systemPrompts,
+          tools: agentConfig.tools,
+          agentLoopStrategy: maxIterations(agentConfig.maxSteps ?? 20),
+          conversationId,
+          middleware: [
+            brilionMiddleware,
+            toolCacheMiddleware({
+              ttl: 120_000,
+              maxSize: 50,
+              toolNames: ["tavily_search", "memory_search", "memory_stats"],
+            }),
+          ],
+        });
+
+        return toServerSentEventsResponse(stream);
       },
 
       // GET /api/chat — list conversations or get single
