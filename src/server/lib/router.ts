@@ -282,6 +282,20 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   await connectDB();
 
   const ownerId = msg.userId;
+  const sysLogger = createLogger(ownerId, "router");
+
+  // ── Deep log: incoming user message ──
+  sysLogger.info("Incoming message", {
+    channel: msg.channel,
+    senderId: msg.senderId,
+    senderName: msg.senderName || null,
+    text: msg.text,
+    textLength: msg.text?.length || 0,
+    hasImage: !!msg.imageBase64,
+    isGroup: !!msg.isGroup,
+    groupId: msg.groupId || null,
+    messageId: msg.messageId || null,
+  });
   
   log("[route] Loading config for userId:", ownerId);
   const config = await loadConfig(ownerId);
@@ -289,6 +303,7 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   
   if (!config || !config.userId) {
     logErr("[route] ❌ NO CONFIG for userId:", ownerId, "— user must open dashboard first");
+    sysLogger.warn("No config found — user must open dashboard", { senderId: msg.senderId });
     return "[error] Agent not configured yet. Open the dashboard first.";
   }
 
@@ -347,6 +362,15 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
     });
     log(`[route] Access decision: allowed=${access.allowed}${!access.allowed ? ` reason=${(access as any).reason}` : ""}`);
 
+    sysLogger.info("Access decision", {
+      senderId: msg.senderId,
+      resolvedSenderId,
+      allowed: access.allowed,
+      reason: !access.allowed ? (access as any).reason : "allowed",
+      isGroup: !!msg.isGroup,
+      dmPolicy: channelCfg.dmPolicy,
+    });
+
     if (!access.allowed) {
       if (access.action === "pairing") {
         // Issue pairing challenge
@@ -397,6 +421,12 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
     const cmdResult = await handleChatCommand(msg.text, msg, ownerId);
     if (cmdResult !== null) {
       log("[route] Command result:", cmdResult);
+      sysLogger.info("Chat command executed", {
+        command: msg.text.split(/\s+/)[0],
+        fullCommand: msg.text,
+        senderId: msg.senderId,
+        result: cmdResult.substring(0, 500),
+      });
       if (msg.channel === "whatsapp") {
         await sendWhatsAppMessage(ownerId, msg.senderId, cmdResult);
       }
@@ -481,9 +511,20 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   let agentConfig;
   try {
     agentConfig = await getAgentConfig(ownerId);
-    log(`[route] Agent config ready — adapter=${(agentConfig.adapter as any)?.model || "unknown"}, tools=[${Object.keys(agentConfig.tools || {}).join(", ")}], systemPromptLen=${agentConfig.systemPrompts?.[0]?.length || 0}`);
+    const toolNames = Object.keys(agentConfig.tools || {});
+    log(`[route] Agent config ready — adapter=${(agentConfig.adapter as any)?.model || "unknown"}, tools=[${toolNames.join(", ")}], systemPromptLen=${agentConfig.systemPrompts?.[0]?.length || 0}`);
+
+    sysLogger.debug("Agent config resolved", {
+      model: (agentConfig.adapter as any)?.model || "unknown",
+      provider: (agentConfig.adapter as any)?.provider || "unknown",
+      toolCount: toolNames.length,
+      tools: toolNames,
+      systemPromptLength: agentConfig.systemPrompts?.[0]?.length || 0,
+      maxSteps: agentConfig.maxSteps ?? 20,
+    });
   } catch (e) {
     logErr("[route] ❌ getAgentConfig FAILED:", e);
+    sysLogger.error("Agent config failed", { error: e instanceof Error ? e.message : String(e) });
     const errMsg = `Error: ${e instanceof Error ? e.message : String(e)}`;
     if (msg.channel === "whatsapp") {
       await sendWhatsAppMessage(ownerId, msg.senderId, errMsg);
@@ -513,13 +554,29 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   // Call AI via TanStack AI chat()
   const modelName = (agentConfig.adapter as any)?.model || "unknown";
   const providerName = (agentConfig.adapter as any)?.provider || "unknown";
-  log(`[route] 🤖 Calling chat() — model=${modelName} provider=${providerName}...`);
-  const sysLogger = createLogger(ownerId, "router");
+  const usedAdapter = adapterOverride ?? agentConfig.adapter;
+  const actualModel = (usedAdapter as any)?.model || modelName;
+  log(`[route] 🤖 Calling chat() — model=${actualModel} provider=${providerName}...`);
+
+  // ── Deep log: AI invocation request ──
+  sysLogger.info("AI request", {
+    channel: msg.channel,
+    senderId: msg.senderId,
+    senderName: msg.senderName || null,
+    userMessage: msg.text,
+    model: actualModel,
+    provider: providerName,
+    hasModelOverride: !!adapterOverride,
+    historyLength: history.length,
+    isGroup: !!msg.isGroup,
+    conversationId: conv._id?.toString(),
+  });
+
   let fullText: string;
   const startTime = Date.now();
   try {
     fullText = await chat({
-      adapter: adapterOverride ?? agentConfig.adapter,
+      adapter: usedAdapter,
       messages: history,
       systemPrompts: agentConfig.systemPrompts,
       tools: agentConfig.tools,
@@ -537,14 +594,28 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
       conversationId: conv._id?.toString(),
       channel: msg.channel,
       provider: providerName,
-      model: modelName,
+      model: actualModel,
       promptTokens: estimateTokens(promptText),
       completionTokens: estimateTokens(fullText),
       durationMs,
       success: true,
     });
-    sysLogger.info(`Chat completed via ${msg.channel}`, {
-      model: modelName, durationMs, responseLength: fullText.length,
+
+    // ── Deep log: AI response ──
+    sysLogger.info("AI response", {
+      channel: msg.channel,
+      senderId: msg.senderId,
+      senderName: msg.senderName || null,
+      userMessage: msg.text,
+      aiResponse: fullText,
+      responseLength: fullText.length,
+      model: actualModel,
+      provider: providerName,
+      durationMs,
+      promptTokensEst: estimateTokens(promptText),
+      completionTokensEst: estimateTokens(fullText),
+      conversationId: conv._id?.toString(),
+      historyLength: history.length,
     });
   } catch (e) {
     const durationMs = Date.now() - startTime;
@@ -553,12 +624,24 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
       userId: ownerId,
       channel: msg.channel,
       provider: providerName,
-      model: modelName,
+      model: actualModel,
       durationMs,
       success: false,
       error: e instanceof Error ? e.message : String(e),
     });
-    sysLogger.error(`Chat failed via ${msg.channel}`, { error: String(e) });
+
+    // ── Deep log: AI failure ──
+    sysLogger.error("AI request failed", {
+      channel: msg.channel,
+      senderId: msg.senderId,
+      userMessage: msg.text,
+      model: actualModel,
+      provider: providerName,
+      durationMs,
+      error: e instanceof Error ? e.message : String(e),
+      errorStack: e instanceof Error ? e.stack?.split("\n").slice(0, 5).join("\n") : undefined,
+      conversationId: conv._id?.toString(),
+    });
     const errMsg = `AI Error: ${e instanceof Error ? e.message : String(e)}`;
     if (msg.channel === "whatsapp") {
       await sendWhatsAppMessage(ownerId, msg.senderId, errMsg);
@@ -576,17 +659,29 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
     await conv.save();
     log(`[route] Conversation saved. Total messages: ${conv.messages.length}`);
 
+    sysLogger.debug("Conversation saved", {
+      conversationId: conv._id?.toString(),
+      totalMessages: conv.messages.length,
+    });
+
     // Auto-compact if conversation is getting long + index for memory
     autoCompact(ownerId, conv._id.toString()).catch(() => {});
     indexConversation(ownerId, conv._id.toString()).catch(() => {});
   } catch (e) {
     logErr("[route] ❌ Failed to save conversation:", e);
+    sysLogger.error("Failed to save conversation", { error: e instanceof Error ? e.message : String(e) });
   }
 
   // Send reply back through channel
   // For groups, reply to the group JID; for DMs, reply to the sender
   const replyTarget = msg.isGroup && msg.groupId ? msg.groupId : msg.senderId;
   log(`[route] 📤 Sending reply via ${msg.channel} to ${replyTarget} (${fullText.length} chars)`);
+
+  sysLogger.debug("Reply dispatch", {
+    channel: msg.channel,
+    replyTarget,
+    responseLength: fullText.length,
+  });
   switch (msg.channel) {
     case "whatsapp": {
       const sendResult = await sendWhatsAppMessage(ownerId, replyTarget, fullText);

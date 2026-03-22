@@ -4,6 +4,7 @@ import { createGeminiChat } from "@tanstack/ai-gemini";
 import type { AnyTextAdapter } from "@tanstack/ai";
 import { resolveProviderKey, resolveProviderBaseUrl } from "./auth-profiles";
 import { loadConfig } from "./config";
+import { createLogger } from "../models/log-entry";
 
 export interface ProviderEntry {
   id: string;
@@ -94,6 +95,7 @@ function buildAdapter(
   apiKey: string,
   baseUrl?: string
 ): AnyTextAdapter {
+  console.log(`[providers] buildAdapter: provider=${providerId} model=${modelId} baseUrl=${baseUrl || "default"} apiKeyPresent=${!!apiKey} apiKeyLen=${apiKey?.length || 0}`);
   switch (providerId) {
     case "github":
       return createOpenaiChat(
@@ -147,6 +149,17 @@ export async function resolveModel(modelSpec?: string, userId?: string): Promise
   const fallbacks: string[] = config.agents?.defaults?.model?.fallbacks || [];
   console.log("[providers] resolved spec:", spec, "fallbacks:", fallbacks);
 
+  // Deep diagnostic: log the full model resolution chain
+  if (userId) {
+    const sysLogger = createLogger(userId, "agent");
+    sysLogger.info("Model resolution started", {
+      requestedSpec: modelSpec || null,
+      resolvedSpec: spec,
+      fallbacks,
+      configPrimary: config.agents?.defaults?.model?.primary || null,
+    });
+  }
+
   // Try primary first, then each fallback
   const specs = [spec, ...fallbacks];
   let lastError: Error | null = null;
@@ -157,10 +170,28 @@ export async function resolveModel(modelSpec?: string, userId?: string): Promise
       if (currentSpec !== spec) {
         console.log("[providers] Failover succeeded with:", currentSpec);
       }
+      // Log successful resolution
+      if (userId) {
+        const sysLogger = createLogger(userId, "agent");
+        sysLogger.info("Model resolved successfully", {
+          spec: currentSpec,
+          model: (adapter as any)?.model || "unknown",
+          provider: currentSpec.includes("/") ? currentSpec.split("/")[0] : "auto",
+          wasFailover: currentSpec !== spec,
+        });
+      }
       return adapter;
     } catch (e) {
       lastError = e instanceof Error ? e : new Error(String(e));
       console.log("[providers] Failed to resolve", currentSpec, ":", lastError.message);
+      if (userId) {
+        const sysLogger = createLogger(userId, "agent");
+        sysLogger.warn("Model resolution failed, trying next", {
+          spec: currentSpec,
+          error: lastError.message,
+          remainingFallbacks: specs.slice(specs.indexOf(currentSpec) + 1),
+        });
+      }
     }
   }
 

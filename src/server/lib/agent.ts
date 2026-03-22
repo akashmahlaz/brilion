@@ -17,6 +17,7 @@ import {
 import { webRequest, getToken } from "./tools/web-request";
 import { createMemoryTools } from "./tools/memory";
 import { loadSkillTools, getSkillContext } from "./skill-loader";
+import { createLogger } from "../models/log-entry";
 
 const log = (...args: unknown[]) => console.log("[agent]", ...args);
 const logErr = (...args: unknown[]) => console.error("[agent]", ...args);
@@ -119,17 +120,37 @@ async function getSystemPrompt(userId: string): Promise<string> {
 
 export async function getAgentConfig(userId: string) {
   log("getAgentConfig() called, userId:", userId || "none");
+  const sysLogger = createLogger(userId, "agent");
+
   const tools = await buildToolSet(userId);
+  const toolNames = tools.map((t) => t.name);
   log("Tools built, count:", tools.length);
+
   const systemPrompt = await getSystemPrompt(userId);
   log("System prompt built, length:", systemPrompt.length);
 
   let adapter: AnyTextAdapter;
   try {
     adapter = await resolveModel(undefined, userId);
-    log("Adapter resolved:", (adapter as any).model || "unknown");
+    const adapterModel = (adapter as any).model || "unknown";
+    const adapterProvider = (adapter as any).provider || "unknown";
+    log("Adapter resolved:", adapterModel);
+
+    // Deep diagnostic log: full agent config summary
+    sysLogger.info("Agent config built", {
+      model: adapterModel,
+      provider: adapterProvider,
+      toolCount: tools.length,
+      tools: toolNames,
+      systemPromptLength: systemPrompt.length,
+      maxSteps: 20,
+      adapterType: adapter?.constructor?.name || typeof adapter,
+    });
   } catch (e) {
     logErr("resolveModel() failed:", e);
+    sysLogger.error("Agent config failed — no AI provider", {
+      error: e instanceof Error ? e.message : String(e),
+    });
     throw new Error("No AI provider configured. Set an API key first.");
   }
 

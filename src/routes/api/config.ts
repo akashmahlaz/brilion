@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { connectDB } from "#/server/db";
 import { requireAuth } from "#/server/middleware";
 import { loadConfig, saveConfig } from "#/server/lib/config";
+import { createLogger } from "#/server/models/log-entry";
 
 export const Route = createFileRoute("/api/config")({
   server: {
@@ -44,6 +45,8 @@ export const Route = createFileRoute("/api/config")({
           }).filter(Boolean);
         };
 
+        const sysLogger = createLogger(userId, "api");
+
         // Support nested path updates: { path: "agents.defaults.model.primary", value: "gpt-4o" }
         if (body.path && body.value !== undefined) {
           const config = await loadConfig(userId);
@@ -61,6 +64,20 @@ export const Route = createFileRoute("/api/config")({
           }
           obj[lastKey] = value;
           await saveConfig(config);
+
+          // Log model changes specifically
+          if (body.path.includes("model")) {
+            sysLogger.info("Model configuration changed", {
+              path: body.path,
+              value: body.value,
+              previousModel: body.path === "agents.defaults.model.primary"
+                ? config.agents?.defaults?.model?.primary
+                : undefined,
+            });
+          } else {
+            sysLogger.debug("Config updated", { path: body.path });
+          }
+
           return Response.json(config);
         }
 

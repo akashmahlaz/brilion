@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useRouter } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   Key,
   Plus,
@@ -27,6 +27,9 @@ import {
   Zap,
   BookOpen,
   Palette,
+  Copy,
+  Loader2,
+  LogIn,
 } from 'lucide-react'
 import {
   Card,
@@ -192,10 +195,39 @@ function ModelConfigTab() {
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const [keyInput, setKeyInput] = useState('')
   const [savingKey, setSavingKey] = useState(false)
+  const [currentModel, setCurrentModel] = useState<string | null>(null)
+
+  // Copilot device flow state
+  const [copilotFlow, setCopilotFlow] = useState<{
+    userCode: string
+    verificationUri: string
+    deviceCode: string
+    expiresIn: number
+  } | null>(null)
+  const [copilotPolling, setCopilotPolling] = useState(false)
+  const [copilotSuccess, setCopilotSuccess] = useState(false)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     loadProviders()
+    loadCurrentModel()
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current)
+    }
   }, [])
+
+  async function loadCurrentModel() {
+    try {
+      const res = await apiFetch('/api/config')
+      if (res.ok) {
+        const config = await res.json()
+        const model = config.agents?.defaults?.model?.primary || 'gpt-4o'
+        setCurrentModel(model)
+      }
+    } catch {
+      /* */
+    }
+  }
 
   async function loadProviders() {
     try {
@@ -210,9 +242,26 @@ function ModelConfigTab() {
     setSelectedProvider(id)
     setModels([])
     setSelectedModel(null)
+    setKeyInput('')
+    setCopilotFlow(null)
+    setCopilotSuccess(false)
+    setCopilotPolling(false)
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+
+    // Auto-load models if provider already configured
+    const provider = providers.find((p) => p.id === id)
+    if (provider?.configured) {
+      await fetchModels(id)
+    }
+  }
+
+  async function fetchModels(providerId: string) {
     setLoadingModels(true)
     try {
-      const res = await apiFetch(`/api/models?provider=${id}`)
+      const res = await apiFetch(`/api/models?provider=${providerId}`)
       if (res.ok) setModels(await res.json())
     } catch {
       /* */
@@ -221,7 +270,7 @@ function ModelConfigTab() {
     }
   }
 
-  async function saveKey() {
+  async function saveKeyAndFetchModels() {
     if (!selectedProvider || !keyInput) return
     setSavingKey(true)
     try {
@@ -233,14 +282,84 @@ function ModelConfigTab() {
       setKeyInput('')
       toast.success('API key saved')
       await loadProviders()
-      // Reload models for this provider now that key is set
-      await selectProvider(selectedProvider)
+      await fetchModels(selectedProvider)
     } catch {
       toast.error('Failed to save key')
     } finally {
       setSavingKey(false)
     }
   }
+
+  // GitHub Copilot device login flow
+  const startCopilotLogin = useCallback(async () => {
+    setCopilotFlow(null)
+    setCopilotSuccess(false)
+    try {
+      const res = await apiFetch('/api/keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'copilot-device-code' }),
+      })
+      if (!res.ok) throw new Error('Failed to start device flow')
+      const data = await res.json()
+      setCopilotFlow({
+        userCode: data.user_code,
+        verificationUri: data.verification_uri,
+        deviceCode: data.device_code,
+        expiresIn: data.expires_in,
+      })
+
+      // Start polling for authorization
+      setCopilotPolling(true)
+      const interval = (data.interval || 5) * 1000
+      pollRef.current = setInterval(async () => {
+        try {
+          const checkRes = await apiFetch('/api/keys', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'copilot-check',
+              deviceCode: data.device_code,
+            }),
+          })
+          const checkData = await checkRes.json()
+          if (checkData.access_token) {
+            // Success!
+            if (pollRef.current) clearInterval(pollRef.current)
+            pollRef.current = null
+            setCopilotPolling(false)
+            setCopilotSuccess(true)
+            toast.success('GitHub Copilot connected!')
+            await loadProviders()
+            await fetchModels('github-copilot')
+          } else if (
+            checkData.error &&
+            checkData.error !== 'authorization_pending' &&
+            checkData.error !== 'slow_down'
+          ) {
+            // Failed (expired, denied, etc.)
+            if (pollRef.current) clearInterval(pollRef.current)
+            pollRef.current = null
+            setCopilotPolling(false)
+            toast.error(`Login failed: ${checkData.error}`)
+          }
+        } catch {
+          /* keep polling */
+        }
+      }, interval)
+
+      // Auto-stop after expiry
+      setTimeout(() => {
+        if (pollRef.current) {
+          clearInterval(pollRef.current)
+          pollRef.current = null
+          setCopilotPolling(false)
+        }
+      }, data.expires_in * 1000)
+    } catch (e) {
+      toast.error('Failed to start Copilot login')
+    }
+  }, [])
 
   async function selectModel(modelId: string) {
     if (!selectedProvider) return
@@ -255,6 +374,7 @@ function ModelConfigTab() {
           value: spec,
         }),
       })
+      setCurrentModel(spec)
       toast.success(`Model set to ${spec}`)
     } catch {
       toast.error('Failed to update model')
@@ -262,15 +382,36 @@ function ModelConfigTab() {
   }
 
   const currentProvider = providers.find((p) => p.id === selectedProvider)
+  const isCopilotProvider = selectedProvider === 'github-copilot'
 
   return (
     <div className="space-y-6">
+      {/* Current Model Banner */}
+      <div className="flex items-center gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
+        <Cpu className="size-4 text-primary shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-semibold text-primary">Current Model</p>
+          <p className="text-sm font-mono text-foreground truncate">
+            {currentModel || 'Not configured'}
+          </p>
+        </div>
+        {currentModel && (
+          <Badge variant="outline" className="shrink-0 text-[10px]">
+            <ProviderIcon
+              provider={currentModel.includes('/') ? currentModel.split('/')[0] : 'openai'}
+              className="size-3 mr-1"
+            />
+            {currentModel.includes('/') ? currentModel.split('/')[0] : 'auto'}
+          </Badge>
+        )}
+      </div>
+
       {/* Step 1: Pick Provider */}
       <Card>
         <CardHeader>
           <CardTitle>1. Choose Provider</CardTitle>
           <CardDescription>
-            Select an AI provider. Add your API key if not configured yet.
+            Select an AI provider, add your API key, and pick a model.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -305,39 +446,135 @@ function ModelConfigTab() {
         </CardContent>
       </Card>
 
-      {/* Step 2: API Key (if not configured) */}
-      {currentProvider && !currentProvider.configured && (
+      {/* Step 2: API Key / Copilot Login */}
+      {selectedProvider && (
         <Card>
           <CardHeader>
-            <CardTitle>2. Add API Key for {currentProvider.name}</CardTitle>
+            <CardTitle>
+              2. {isCopilotProvider ? 'Connect GitHub Copilot' : `API Key for ${currentProvider?.name || selectedProvider}`}
+            </CardTitle>
             <CardDescription>
-              Get your key from{' '}
-              <a
-                href={currentProvider.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary hover:underline inline-flex items-center gap-1"
-              >
-                {currentProvider.website}
-                <ExternalLink className="size-3" />
-              </a>
+              {isCopilotProvider ? (
+                'Sign in with your GitHub account to use Copilot models for free.'
+              ) : (
+                <>
+                  {currentProvider?.configured ? 'Key is configured. Enter a new key to replace it, or skip to step 3.' : 'Enter your API key to fetch available models.'}{' '}
+                  <a
+                    href={currentProvider?.website || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    Get a key
+                    <ExternalLink className="size-3" />
+                  </a>
+                </>
+              )}
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex gap-3">
-            <Input
-              type="password"
-              placeholder="Enter API key..."
-              value={keyInput}
-              onChange={(e) => setKeyInput(e.target.value)}
-              className="rounded-xl"
-            />
-            <Button
-              onClick={saveKey}
-              disabled={savingKey || !keyInput}
-              className="rounded-xl shrink-0"
-            >
-              {savingKey ? 'Saving...' : 'Save Key'}
-            </Button>
+          <CardContent>
+            {isCopilotProvider ? (
+              /* GitHub Copilot Device Login Flow */
+              <div className="space-y-4">
+                {!copilotFlow && !copilotSuccess && (
+                  <Button
+                    onClick={startCopilotLogin}
+                    className="rounded-xl gap-2"
+                  >
+                    <LogIn className="size-4" />
+                    Login with GitHub Device Code
+                  </Button>
+                )}
+
+                {copilotFlow && !copilotSuccess && (
+                  <div className="space-y-4">
+                    <div className="rounded-xl border-2 border-dashed border-primary/30 bg-primary/5 p-6 text-center space-y-3">
+                      <p className="text-sm text-muted-foreground">
+                        Go to{' '}
+                        <a
+                          href={copilotFlow.verificationUri}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary font-medium hover:underline"
+                        >
+                          {copilotFlow.verificationUri}
+                        </a>{' '}
+                        and enter this code:
+                      </p>
+                      <div className="flex items-center justify-center gap-3">
+                        <code className="text-3xl font-bold font-mono tracking-widest text-foreground">
+                          {copilotFlow.userCode}
+                        </code>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8"
+                          onClick={() => {
+                            navigator.clipboard.writeText(copilotFlow.userCode)
+                            toast.success('Code copied!')
+                          }}
+                        >
+                          <Copy className="size-4" />
+                        </Button>
+                      </div>
+                      {copilotPolling && (
+                        <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                          <Loader2 className="size-3 animate-spin" />
+                          Waiting for authorization...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {copilotSuccess && (
+                  <div className="flex items-center gap-2 rounded-xl bg-green-500/10 border border-green-500/20 p-3">
+                    <Check className="size-4 text-green-600" />
+                    <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                      GitHub Copilot connected successfully!
+                    </span>
+                  </div>
+                )}
+
+                {currentProvider?.configured && !copilotFlow && !copilotSuccess && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
+                    <Check className="size-3 text-green-600" />
+                    Already connected. Click above to re-authenticate.
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Standard API Key Input */
+              <div className="space-y-3">
+                <div className="flex gap-3">
+                  <Input
+                    type="password"
+                    placeholder={currentProvider?.configured ? 'Enter new key to replace...' : 'Enter API key...'}
+                    value={keyInput}
+                    onChange={(e) => setKeyInput(e.target.value)}
+                    className="rounded-xl"
+                  />
+                  <Button
+                    onClick={saveKeyAndFetchModels}
+                    disabled={savingKey || !keyInput}
+                    className="rounded-xl shrink-0 gap-2"
+                  >
+                    {savingKey ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Key className="size-3.5" />
+                    )}
+                    {savingKey ? 'Saving...' : 'Save & Fetch Models'}
+                  </Button>
+                </div>
+                {currentProvider?.configured && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <Check className="size-3 text-green-600" />
+                    Key is active. Models are loaded below.
+                  </p>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -348,9 +585,7 @@ function ModelConfigTab() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>
-                  {currentProvider?.configured ? '2' : '3'}. Select Model
-                </CardTitle>
+                <CardTitle>3. Select Model</CardTitle>
                 <CardDescription>
                   {models.length} models available from {currentProvider?.name}
                 </CardDescription>
@@ -359,7 +594,7 @@ function ModelConfigTab() {
                 variant="outline"
                 size="sm"
                 className="rounded-xl"
-                onClick={() => selectProvider(selectedProvider)}
+                onClick={() => fetchModels(selectedProvider)}
               >
                 <RefreshCw className="mr-2 size-3.5" />
                 Refresh
@@ -368,29 +603,46 @@ function ModelConfigTab() {
           </CardHeader>
           <CardContent>
             {loadingModels ? (
-              <div className="flex items-center justify-center py-8">
-                <RefreshCw className="size-5 animate-spin text-muted-foreground" />
+              <div className="flex items-center justify-center gap-2 py-8">
+                <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Fetching models...</span>
               </div>
             ) : models.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
-                No models found. Make sure the API key is correct.
+                No models found. Make sure your API key is correct.
               </p>
             ) : (
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {models.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => selectModel(m.id)}
-                    className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-colors hover:bg-accent ${selectedModel === m.id ? 'border-primary bg-primary/5' : ''}`}
-                  >
-                    {selectedModel === m.id && (
-                      <Check className="size-3.5 text-primary shrink-0" />
-                    )}
-                    <span className="truncate font-mono text-xs">
-                      {m.name || m.id}
-                    </span>
-                  </button>
-                ))}
+                {models.map((m) => {
+                  const isActive = currentModel === `${selectedProvider}/${m.id}`
+                  return (
+                    <button
+                      key={m.id}
+                      onClick={() => selectModel(m.id)}
+                      className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors hover:bg-accent ${
+                        selectedModel === m.id
+                          ? 'border-primary bg-primary/5'
+                          : isActive
+                            ? 'border-green-500/50 bg-green-500/5'
+                            : ''
+                      }`}
+                    >
+                      {selectedModel === m.id ? (
+                        <Check className="size-3.5 text-primary shrink-0" />
+                      ) : isActive ? (
+                        <Zap className="size-3.5 text-green-600 shrink-0" />
+                      ) : null}
+                      <span className="truncate font-mono text-xs">
+                        {m.name || m.id}
+                      </span>
+                      {isActive && selectedModel !== m.id && (
+                        <Badge variant="outline" className="ml-auto text-[9px] px-1 py-0 text-green-600 border-green-500/30">
+                          current
+                        </Badge>
+                      )}
+                    </button>
+                  )
+                })}
               </div>
             )}
           </CardContent>

@@ -10,6 +10,7 @@ import {
   startDeviceCodeFlow,
   checkDeviceCode,
 } from "#/server/lib/copilot-auth";
+import { createLogger } from "#/server/models/log-entry";
 
 export const Route = createFileRoute("/api/keys")({
   server: {
@@ -31,9 +32,13 @@ export const Route = createFileRoute("/api/keys")({
 
         const body = await request.json();
 
+        const sysLogger = createLogger(userId, "api");
+
         // Copilot device flow endpoints
         if (body.action === "copilot-device-code") {
+          sysLogger.info("Copilot device login started");
           const data = await startDeviceCodeFlow();
+          sysLogger.debug("Copilot device code issued", { userCode: data.user_code, expiresIn: data.expires_in });
           return Response.json(data);
         }
         if (body.action === "copilot-check") {
@@ -44,6 +49,9 @@ export const Route = createFileRoute("/api/keys")({
               provider: "github-copilot",
               token: data.access_token,
             }, userId);
+            sysLogger.info("Copilot device login successful — token saved", { provider: "github-copilot" });
+          } else if (data.error && data.error !== "authorization_pending") {
+            sysLogger.warn("Copilot device login failed", { error: data.error });
           }
           return Response.json(data);
         }
@@ -64,6 +72,7 @@ export const Route = createFileRoute("/api/keys")({
           baseUrl,
         }, userId);
 
+        sysLogger.info("API key saved", { provider, hasBaseUrl: !!baseUrl });
         return Response.json({ ok: true });
       },
 
