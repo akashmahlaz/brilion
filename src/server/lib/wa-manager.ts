@@ -17,6 +17,7 @@ interface UserConnection {
   socket: WASocket | null;
   status: "disconnected" | "connecting" | "connected" | "failed";
   jid: string | null;
+  lid: string | null; // WhatsApp Linked Identity (LID) — different number than phone
   clearAuthState: (() => Promise<void>) | null;
 }
 
@@ -49,6 +50,9 @@ const messageHandlers: MessageHandler[] = [];
 
 /** Track message IDs sent by our bot to prevent self-chat infinite loops */
 const sentByUs = new Set<string>();
+
+/** LID → Phone cache per user (WhatsApp Linked Identity resolution) */
+const lidToPhoneCache = new Map<string, Map<string, string>>();
 
 /** Content-based echo detection (OpenClaw-style: track recently sent text) */
 const recentlySentText = new Map<string, number>(); // text → timestamp
@@ -253,7 +257,7 @@ function startHeartbeat(userId: string): void {
 function getOrCreateConnection(userId: string): UserConnection {
   let conn = connections.get(userId);
   if (!conn) {
-    conn = { socket: null, status: "disconnected", jid: null, clearAuthState: null };
+    conn = { socket: null, status: "disconnected", jid: null, lid: null, clearAuthState: null };
     connections.set(userId, conn);
   }
   return conn;
@@ -364,6 +368,7 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
     if (connection === "open") {
       conn.status = "connected";
       conn.jid = sock.user?.id || null;
+      conn.lid = (sock.user as any)?.lid || null;
       connectTimeMs = Date.now();
       clearDecryptionErrors(userId);
       log("╔══════════════════════════════════════╗");
@@ -371,6 +376,7 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
       log("╚══════════════════════════════════════╝");
       log("  User:", userId);
       log("  JID:", conn.jid);
+      log("  LID:", conn.lid || "(not available)");
       log("  WhatsApp user:", JSON.stringify(sock.user));
       log("  Registered handlers:", messageHandlers.length);
 
@@ -394,8 +400,41 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
         logErr("  ❌ FAILED to init message router:", e);
       }
 
+      // Seed self LID→phone cache
+      if (conn.jid && conn.lid) {
+        const ownPhone = conn.jid.replace(/:.*/, "").replace(/@.*/, "");
+        const ownLidNum = conn.lid.replace(/:.*/, "").replace(/@.*/, "");
+        let cache = lidToPhoneCache.get(userId);
+        if (!cache) { cache = new Map(); lidToPhoneCache.set(userId, cache); }
+        cache.set(ownLidNum, ownPhone);
+        log(`  LID cache seeded: ${ownLidNum} → ${ownPhone}`);
+      }
+
       // Start heartbeat (OpenClaw-style: log health every 60s)
       startHeartbeat(userId);
+    }
+  });
+
+  // ═══ Track contacts for LID→Phone resolution ═══
+  sock.ev.on("contacts.upsert", (contacts) => {
+    let cache = lidToPhoneCache.get(userId);
+    if (!cache) { cache = new Map(); lidToPhoneCache.set(userId, cache); }
+    let added = 0;
+    for (const contact of contacts) {
+      const cId = contact.id || "";
+      const cLid = (contact as any).lid || "";
+      // contact.id is usually phone@s.whatsapp.net, contact.lid is LID@lid
+      if (cId && cLid) {
+        const phone = cId.replace(/:.*/, "").replace(/@.*/, "");
+        const lidNum = cLid.replace(/:.*/, "").replace(/@.*/, "");
+        if (phone && lidNum && phone !== lidNum) {
+          cache.set(lidNum, phone);
+          added++;
+        }
+      }
+    }
+    if (added > 0) {
+      log(`[contacts] LID→Phone cache updated: +${added} entries (total: ${cache.size})`);
     }
   });
 
@@ -460,16 +499,23 @@ async function connectForUser(userId: string, session?: LoginSession): Promise<v
         continue;
       }
       
-      // ═══ Self-chat detection ═══
+      // ═══ Self-chat detection (LID-aware) ═══
       let isSelfChat = false;
       if (fromMe) {
-        const normalizeJid = (jid: string) =>
-          jid.replace(/:\d+@/, "@").split("@")[0];
-        const ownJid = conn.jid ? normalizeJid(conn.jid) : "";
-        const remoteNorm = remoteJid ? normalizeJid(remoteJid) : "";
-        isSelfChat = ownJid !== "" && remoteNorm === ownJid;
+        const extractNum = (jid: string) =>
+          jid.replace(/:.*?@/, "@").split("@")[0];
+        const ownPhone = conn.jid ? extractNum(conn.jid) : "";
+        const ownLidNum = conn.lid ? extractNum(conn.lid) : "";
+        const remoteNum = remoteJid ? extractNum(remoteJid) : "";
+        const isLidJid = remoteJid.endsWith("@lid");
         
-        log(`[inbound]   Self-chat check: own="${ownJid}" remote="${remoteNorm}" match=${isSelfChat}`);
+        // Match against phone JID OR LID
+        isSelfChat = remoteNum !== "" && (
+          (ownPhone !== "" && remoteNum === ownPhone) ||
+          (ownLidNum !== "" && remoteNum === ownLidNum)
+        );
+        
+        log(`[inbound]   Self-chat check: ownPhone="${ownPhone}" ownLid="${ownLidNum}" remote="${remoteNum}" isLid=${isLidJid} match=${isSelfChat}`);
         
         if (!isSelfChat) {
           log(`[inbound]   ⏭ SKIP: fromMe=true but NOT self-chat (outbound DM/group)`);
@@ -715,6 +761,18 @@ export function getStatus(userId: string): string {
 
 export function getOwnerJid(userId: string): string | null {
   return connections.get(userId)?.jid || null;
+}
+
+export function getOwnerLid(userId: string): string | null {
+  return connections.get(userId)?.lid || null;
+}
+
+/** Resolve a LID number to a phone number using the contacts cache */
+export function resolvePhoneFromLid(userId: string, lidJid: string): string | null {
+  const cache = lidToPhoneCache.get(userId);
+  if (!cache) return null;
+  const lidNum = lidJid.replace(/:.*?@/, "@").split("@")[0];
+  return cache.get(lidNum) || null;
 }
 
 export async function send(userId: string, jid: string, text: string) {

@@ -298,14 +298,17 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   // --- Access control hierarchy (OpenClaw-style) ---
   let isSelfChat = false;
 
-  // Step 1: Self-chat detection (owner bypass)
+  // Step 1: Self-chat detection (owner bypass) — LID-aware
   if (msg.channel === "whatsapp") {
-    const { getOwnerJid } = await import("./wa-manager");
+    const { getOwnerJid, getOwnerLid } = await import("./wa-manager");
     const ownerJid = getOwnerJid(ownerId);
-    isSelfChat = ownerJid
-      ? normalizeJid(msg.senderId) === normalizeJid(ownerJid)
-      : false;
-    log(`[route] Self-chat: senderId="${normalizeJid(msg.senderId)}" ownerJid="${ownerJid ? normalizeJid(ownerJid) : "null"}" → isSelfChat=${isSelfChat}`);
+    const ownerLid = getOwnerLid(ownerId);
+    const senderNorm = normalizeJid(msg.senderId);
+    const ownerJidNorm = ownerJid ? normalizeJid(ownerJid) : "";
+    const ownerLidNorm = ownerLid ? normalizeJid(ownerLid) : "";
+    isSelfChat = (ownerJidNorm !== "" && senderNorm === ownerJidNorm) ||
+                 (ownerLidNorm !== "" && senderNorm === ownerLidNorm);
+    log(`[route] Self-chat: senderId="${senderNorm}" ownerJid="${ownerJidNorm}" ownerLid="${ownerLidNorm}" → isSelfChat=${isSelfChat}`);
 
     if (isSelfChat) {
       const selfChatEnabled = config.channels?.whatsapp?.selfChatMode !== false;
@@ -319,7 +322,20 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
 
   // Step 2: Channel access control (if not self-chat)
   if (!isSelfChat && channelCfg) {
-    const access = resolveAccess(msg.senderId, channelCfg, {
+    // Resolve LID to phone number for allowlist matching
+    let resolvedSenderId = msg.senderId;
+    if (msg.channel === "whatsapp" && msg.remoteJid?.endsWith("@lid")) {
+      const { resolvePhoneFromLid } = await import("./wa-manager");
+      const phone = resolvePhoneFromLid(ownerId, msg.senderId);
+      if (phone) {
+        resolvedSenderId = phone;
+        log(`[route] LID resolved: ${normalizeJid(msg.senderId)} → ${phone}`);
+      } else {
+        log(`[route] ⚠️ Could not resolve LID ${normalizeJid(msg.senderId)} to phone — allowlist may not match`);
+      }
+    }
+
+    const access = resolveAccess(resolvedSenderId, channelCfg, {
       isGroup: msg.isGroup,
       groupId: msg.groupId,
     });
