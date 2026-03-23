@@ -169,6 +169,7 @@ function ChatPage() {
       ?.filter((p: any) => p.type === 'text')
       .map((p: any) => p.content)
       .join('') ?? '',
+    createdAt: (m as any).createdAt,
   }))
 
   // Extract pending tool approvals from chat messages
@@ -279,12 +280,15 @@ function ChatPage() {
         const res = await apiFetch(`/api/chat?id=${encodeURIComponent(conversationId)}`)
         if (res.ok) {
           const data = await res.json()
-          const loaded = (data.messages || []).map((m: { role: string; content: string }, i: number) => ({
-            id: String(i),
-            role: m.role as 'user' | 'assistant',
-            content: m.content,
-            parts: [{ type: 'text' as const, content: m.content }],
-          }))
+          const loaded = (data.messages || [])
+            .filter((m: any) => m.role !== 'system' || m.content)
+            .map((m: { role: string; content: string; createdAt?: string }, i: number) => ({
+              id: String(i),
+              role: m.role as 'user' | 'assistant',
+              content: m.content || '',
+              parts: [{ type: 'text' as const, content: m.content || '' }],
+              createdAt: m.createdAt,
+            }))
           setChatMessages(loaded)
         }
       } catch { /* ignore */ }
@@ -364,12 +368,15 @@ function ChatPage() {
       setConversationId(data._id)
       convIdRef.current = data._id
       setActiveChannel(data.channel || 'web')
-      const loaded = (data.messages || []).map((m: { role: string; content: string; createdAt?: string }, i: number) => ({
-        id: String(i),
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-        parts: [{ type: 'text' as const, content: m.content }],
-      }))
+      const loaded = (data.messages || [])
+        .filter((m: any) => m.role !== 'system' || m.content)
+        .map((m: { role: string; content: string; createdAt?: string }, i: number) => ({
+          id: String(i),
+          role: m.role as 'user' | 'assistant',
+          content: m.content || '',
+          parts: [{ type: 'text' as const, content: m.content || '' }],
+          createdAt: m.createdAt,
+        }))
       setChatMessages(loaded)
       requestAnimationFrame(() => scrollToBottom(true))
     } catch {
@@ -1276,18 +1283,24 @@ function ChatPage() {
                         })()
                       ) : (
                         <div className="prose prose-sm max-w-none text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 prose-p:my-1.5 prose-pre:my-2.5 prose-pre:rounded-xl prose-pre:bg-muted prose-pre:text-foreground prose-code:before:content-none prose-code:after:content-none prose-code:bg-muted prose-code:text-foreground prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-xs prose-headings:text-foreground prose-headings:font-heading wrap-break-word leading-relaxed">
-                          <Markdown
-                            remarkPlugins={[remarkGfm]}
-                            components={{
-                              img: ({ src, alt, ...props }) => (
-                                <a href={src} target="_blank" rel="noopener noreferrer" className="block my-2">
-                                  <img src={src} alt={alt || ''} {...props} className="max-w-80 max-h-60 rounded-lg object-cover border border-border" loading="lazy" />
-                                </a>
-                              ),
-                            }}
-                          >
-                            {msg.content || '…'}
-                          </Markdown>
+                          {msg.content ? (
+                            <Markdown
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                img: ({ src, alt, ...props }) => (
+                                  <a href={src} target="_blank" rel="noopener noreferrer" className="block my-2">
+                                    <img src={src} alt={alt || ''} {...props} className="max-w-80 max-h-60 rounded-lg object-cover border border-border" loading="lazy" />
+                                  </a>
+                                ),
+                              }}
+                            >
+                              {msg.content}
+                            </Markdown>
+                          ) : isLoading && i === messages.length - 1 ? (
+                            <span className="text-muted-foreground text-sm animate-pulse">…</span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs italic">used tools</span>
+                          )}
                         </div>
                       )}
                       {msg.content && !isUser && <CopyButton text={msg.content} />}

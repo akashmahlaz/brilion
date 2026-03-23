@@ -21,6 +21,7 @@ import { createSubagentTool, ensureDefaultAgents } from "./tools/subagent";
 import { createImageGenTool } from "./tools/image-gen";
 import { createTTSTool } from "./tools/tts";
 import { createStructuredOutputTool } from "./tools/structured";
+import { createAutoSkillTool } from "./tools/auto-skill";
 import { createLogger } from "../models/log-entry";
 import { searchMemory } from "./memory-manager";
 import { getHookRunner, hasHooks } from "./hooks";
@@ -44,6 +45,13 @@ const DEFAULT_SYSTEM_PROMPT = `You are an AI agency assistant with full self-man
 - **Text-to-Speech**: Convert text to audio using text_to_speech — great for voice messages
 - **Structured Output**: Generate structured JSON data using structured_output
 - **Sub-Agents**: Delegate complex tasks to specialized agents using spawn_subagent (researcher, coder, planner, writer)
+- **Auto-Skills**: When you notice recurring patterns in the user's requests, use auto_create_skill to save reusable instructions that persist across all future conversations
+
+## SKILL LEARNING — PROACTIVE
+When you notice the user repeatedly asks for similar things (same format, same workflow, same style):
+1. Use auto_create_skill to save the pattern as a reusable skill
+2. The skill will automatically load in all future conversations
+3. Examples: "always review code in this format", "draft emails in my style", "summarize meetings with action items"
 
 ## MEMORY RECALL — CRITICAL
 Before answering about prior work, decisions, people, preferences, projects, or todos:
@@ -89,12 +97,13 @@ export async function buildToolSet(userId: string, conversationId?: string): Pro
     getToken,
   ];
 
-  // AI-powered tools (image gen, TTS, structured output, sub-agents)
+  // AI-powered tools (image gen, TTS, structured output, sub-agents, auto-skills)
   const aiTools: Tool[] = [
     createImageGenTool(userId),
     createTTSTool(userId),
     createStructuredOutputTool(userId),
     createSubagentTool(userId, conversationId),
+    createAutoSkillTool(userId),
   ];
 
   // Ensure default agent profiles exist for sub-agent tool

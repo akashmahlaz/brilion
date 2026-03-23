@@ -236,7 +236,7 @@ export const Route = createFileRoute("/api/chat")({
 
                 conv.messages.push(
                   { role: lastUserMsg.role, content: lastUserMsg.content },
-                  { role: "assistant", content: fullText },
+                  ...(fullText ? [{ role: "assistant" as const, content: fullText }] : []),
                 );
 
                 if (

@@ -205,7 +205,6 @@ export function createMetaTools(userId: string) {
   const writeWorkspaceFileT = toolDefinition({
     name: "write_workspace_file",
     description: "Write/update a workspace file to modify the agent's behavior.",
-    needsApproval: true,
     inputSchema: z.object({
       file: z.string().describe("Filename to write"),
       content: z.string().describe("New file content"),
