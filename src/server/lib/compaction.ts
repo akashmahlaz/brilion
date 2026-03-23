@@ -1,11 +1,13 @@
-import { chat } from "@tanstack/ai";
+import { chat, summarize } from "@tanstack/ai";
 import { resolveModel } from "./providers";
+import { createOpenaiSummarize } from "@tanstack/ai-openai";
 import { Conversation } from "../models/conversation";
 import { connectDB } from "../db";
 import { indexConversation } from "./memory-manager";
 import { createLogger } from "../models/log-entry";
 import { buildSystemPromptFromWorkspace } from "./workspace";
-import { emit, getHookRunner, hasHooks } from "./hooks";
+import { emit } from "./hooks";
+import { resolveProviderKey } from "./auth-profiles";
 
 const log = (...args: unknown[]) => console.log("[compaction]", ...args);
 
@@ -121,11 +123,9 @@ export async function compactConversation(
     estimatedTokens: estimateTokens(middleText),
   }).catch(() => {});
 
-  // Use a fast/cheap model for summarization
-  let adapter;
+  // Check if we can resolve any model — if not, fall back to simple truncation
   try {
-    // Try to use a fast model for compaction
-    adapter = await resolveModel("gpt-4.1-mini", userId).catch(() =>
+    await resolveModel("gpt-4.1-mini", userId).catch(() =>
       resolveModel(undefined, userId)
     );
   } catch {
@@ -145,15 +145,38 @@ export async function compactConversation(
   }
 
   try {
-    const summary = await chat({
-      adapter,
-      messages: [
-        { role: "user", content: `Summarize this conversation segment:\n\n${middleText}` },
-      ],
-      systemPrompts: [COMPACTION_PROMPT],
-      tools: [],
-      stream: false,
-    }) as string;
+    // Use TanStack AI's native summarize() for compaction
+    let summary: string;
+    try {
+      let apiKey = await resolveProviderKey("openai", userId).catch(() => undefined);
+      let baseUrl: string | undefined;
+      if (!apiKey) {
+        apiKey = await resolveProviderKey("github", userId).catch(() => undefined);
+        baseUrl = apiKey ? "https://models.inference.ai.azure.com" : undefined;
+      }
+      if (!apiKey) throw new Error("No API key for summarize");
+      const summarizeAdapter = createOpenaiSummarize("gpt-4.1-mini", apiKey, baseUrl ? { baseURL: baseUrl } : undefined);
+
+      const result = await summarize({
+        adapter: summarizeAdapter,
+        text: `${COMPACTION_PROMPT}\n\nConversation to summarize:\n\n${middleText}`,
+      });
+      summary = result.summary;
+    } catch {
+      // Fallback to chat-based summarization
+      const adapter = await resolveModel("gpt-4.1-mini", userId).catch(() =>
+        resolveModel(undefined, userId)
+      );
+      summary = await chat({
+        adapter,
+        messages: [
+          { role: "user", content: `Summarize this conversation segment:\n\n${middleText}` },
+        ],
+        systemPrompts: [COMPACTION_PROMPT],
+        tools: [],
+        stream: false,
+      }) as string;
+    }
 
     log(`Summary generated: ${summary.length} chars (from ${middleText.length} chars)`);
 

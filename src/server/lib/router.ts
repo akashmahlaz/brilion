@@ -14,6 +14,7 @@ import { createLogger } from "../models/log-entry";
 import { autoCompact } from "./compaction";
 import { indexConversation } from "./memory-manager";
 import { emit, getHookRunner, hasHooks } from "./hooks";
+import { transcribeAudio } from "./tools/transcription";
 
 const log = (...args: unknown[]) => console.log("[router]", ...args);
 const logErr = (...args: unknown[]) => console.error("[router]", ...args);
@@ -501,6 +502,23 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   }
 
   // Build the current user message — multimodal if image attached
+  // Audio transcription: if the message is an audio/voice note, transcribe it to text
+  if (msg.imageBase64 && msg.imageMime?.startsWith("audio/")) {
+    log("[route] 🎤 Audio message detected — attempting transcription...");
+    const transcribed = await transcribeAudio(ownerId, msg.imageBase64, msg.imageMime);
+    if (transcribed) {
+      log(`[route] 🎤 Transcribed: "${transcribed.slice(0, 100)}..."`);
+      sysLogger.info("Audio transcribed", { length: transcribed.length, mime: msg.imageMime });
+      // Replace the placeholder text with the actual transcription
+      msg.text = transcribed;
+      // Clear the audio data — we've converted it to text
+      msg.imageBase64 = undefined;
+      msg.imageMime = undefined;
+    } else {
+      log("[route] 🎤 Transcription failed — sending audio as-is with placeholder text");
+    }
+  }
+
   if (msg.imageBase64 && msg.imageMime) {
     const parts: any[] = [];
     if (msg.text && msg.text !== "[User sent an image]") {

@@ -17,6 +17,10 @@ import {
 import { webRequest, getToken } from "./tools/web-request";
 import { createMemoryTools } from "./tools/memory";
 import { loadSkillTools, getSkillContext } from "./skill-loader";
+import { createSubagentTool, ensureDefaultAgents } from "./tools/subagent";
+import { createImageGenTool } from "./tools/image-gen";
+import { createTTSTool } from "./tools/tts";
+import { createStructuredOutputTool } from "./tools/structured";
 import { createLogger } from "../models/log-entry";
 import { searchMemory } from "./memory-manager";
 import { getHookRunner, hasHooks } from "./hooks";
@@ -36,6 +40,10 @@ const DEFAULT_SYSTEM_PROMPT = `You are an AI agency assistant with full self-man
 - **Web Request**: Call ANY external API using stored tokens (Vercel, Netlify, Slack, etc.)
 - **Skills**: Dynamic capabilities loaded from user-installed skills
 - **Memory**: Search your long-term memory for past conversations, user preferences, and decisions
+- **Image Generation**: Generate images from text prompts using generate_image (DALL-E)
+- **Text-to-Speech**: Convert text to audio using text_to_speech — great for voice messages
+- **Structured Output**: Generate structured JSON data using structured_output
+- **Sub-Agents**: Delegate complex tasks to specialized agents using spawn_subagent (researcher, coder, planner, writer)
 
 ## MEMORY RECALL — CRITICAL
 Before answering about prior work, decisions, people, preferences, projects, or todos:
@@ -65,7 +73,7 @@ Instead of running commands locally, use web_request with stored tokens to:
 
 Always be helpful, concise, and action-oriented.`;
 
-export async function buildToolSet(userId: string): Promise<Array<Tool>> {
+export async function buildToolSet(userId: string, conversationId?: string): Promise<Array<Tool>> {
   const metaTools = createMetaTools(userId);
   const memoryTools = createMemoryTools(userId);
 
@@ -81,6 +89,17 @@ export async function buildToolSet(userId: string): Promise<Array<Tool>> {
     getToken,
   ];
 
+  // AI-powered tools (image gen, TTS, structured output, sub-agents)
+  const aiTools: Tool[] = [
+    createImageGenTool(userId),
+    createTTSTool(userId),
+    createStructuredOutputTool(userId),
+    createSubagentTool(userId, conversationId),
+  ];
+
+  // Ensure default agent profiles exist for sub-agent tool
+  ensureDefaultAgents(userId).catch(() => {});
+
   // Load dynamic skill tools from user's installed skills
   let skillTools: Tool[] = [];
   try {
@@ -89,7 +108,7 @@ export async function buildToolSet(userId: string): Promise<Array<Tool>> {
     // skills not loaded — proceed without
   }
 
-  return [...builtInTools, ...metaTools, ...memoryTools, ...skillTools];
+  return [...builtInTools, ...metaTools, ...memoryTools, ...aiTools, ...skillTools];
 }
 
 async function getSystemPrompt(

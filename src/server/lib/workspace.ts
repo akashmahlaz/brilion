@@ -93,6 +93,12 @@ export async function ensureWorkspace(userId: string) {
       await WorkspaceFile.create({ ...file, userId });
     }
   }
+
+  // Install default skills for new users (idempotent)
+  const { installDefaultSkills } = await import("./default-skills");
+  installDefaultSkills(userId).catch((err) => {
+    console.error("[workspace] Failed to install default skills:", err);
+  });
 }
 
 export async function readWorkspaceFile(

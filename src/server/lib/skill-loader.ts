@@ -2,6 +2,7 @@ import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import { UserSkill } from "../models/user-skill";
 import { connectDB } from "../db";
+import { on, type HookEvent } from "./hooks";
 
 export interface ParsedSkill {
   slug: string;
@@ -9,6 +10,7 @@ export interface ParsedSkill {
   description: string;
   emoji?: string;
   envVars: string[];
+  hooks: string[];
   rawContent: string;
 }
 
@@ -33,8 +35,9 @@ export function parseSkillContent(
   const description = yamlVal(fm, "description") || "";
   const emoji = yamlVal(fm, "emoji") || undefined;
   const envVars = yamlList(fm, "env");
+  const hooks = yamlList(fm, "hooks");
 
-  return { slug, name, description, emoji, envVars, rawContent: content };
+  return { slug, name, description, emoji, envVars, hooks, rawContent: content };
 }
 
 function yamlVal(yaml: string, key: string): string {
@@ -80,6 +83,29 @@ export async function loadSkillTools(
       skill.description,
       skill.content
     ));
+
+    // Register hooks declared in skill YAML frontmatter
+    const parsed = parseSkillContent(skill.content, skill.name);
+    if (parsed.hooks.length > 0) {
+      for (const hookName of parsed.hooks) {
+        // Only register valid hook events to prevent injection
+        const validHooks: HookEvent[] = [
+          "message_received", "message_sending", "message_sent",
+          "llm_input", "llm_output", "agent_end",
+          "session_start", "session_end",
+          "before_compaction", "after_compaction",
+          "memory_indexed", "memory_searched",
+        ];
+        if (validHooks.includes(hookName as HookEvent)) {
+          on(hookName as HookEvent, async (_payload) => {
+            // Execute the skill's instructions when its hook fires
+            console.log(`[skill-hook] Skill "${skill.name}" hook "${hookName}" fired`);
+            // Future: invoke skill content as a context injection or tool call
+            // For now, skill hooks serve as logging/observability triggers
+          });
+        }
+      }
+    }
   }
 
   return tools;

@@ -17,6 +17,8 @@ import {
   Store,
   Package,
   Loader2,
+  Star,
+  Filter,
 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
@@ -49,7 +51,12 @@ interface Skill {
   description: string
   content: string
   isEnabled: boolean
-  createdBy: 'system' | 'user' | 'ai'
+  category?: string
+  version?: string
+  downloads?: number
+  rating?: number
+  ratingCount?: number
+  createdBy: 'system' | 'user' | 'ai' | 'marketplace'
   createdAt: string
 }
 
@@ -107,32 +114,54 @@ function SkillsPage() {
 
 function InstalledSkillsTab() {
   const [skills, setSkills] = useState<Skill[]>([])
+  const [categories, setCategories] = useState<string[]>([])
+  const [selectedCategory, setSelectedCategory] = useState('all')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [sortBy, setSortBy] = useState('createdAt')
   const [loading, setLoading] = useState(true)
   const [editingSkill, setEditingSkill] = useState<Skill | null>(null)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
 
   const loadSkills = useCallback(async () => {
     try {
-      const res = await apiFetch('/api/skills')
-      if (res.ok) setSkills(await res.json())
+      const params = new URLSearchParams()
+      if (selectedCategory !== 'all') params.set('category', selectedCategory)
+      if (searchQuery) params.set('q', searchQuery)
+      if (sortBy) params.set('sort', sortBy)
+      const qs = params.toString() ? `?${params.toString()}` : ''
+      const res = await apiFetch(`/api/skills${qs}`)
+      if (res.ok) {
+        const data = await res.json()
+        // Handle both old (array) and new (object) formats
+        if (Array.isArray(data)) {
+          setSkills(data)
+        } else {
+          setSkills(data.skills || [])
+          setCategories(data.categories || [])
+        }
+      }
     } catch {
       /* server error */
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [selectedCategory, searchQuery, sortBy])
 
   useEffect(() => {
     loadSkills()
   }, [loadSkills])
 
-  async function toggleSkill(id: string) {
-    await apiFetch(`/api/skills/${id}/toggle`, { method: 'PATCH' })
+  async function toggleSkill(id: string, currentState: boolean) {
+    await apiFetch('/api/skills', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'toggle', skillId: id, isEnabled: !currentState }),
+    })
     await loadSkills()
   }
 
   async function deleteSkill(id: string) {
-    await apiFetch(`/api/skills/${id}`, { method: 'DELETE' })
+    await apiFetch(`/api/skills?id=${id}`, { method: 'DELETE' })
     await loadSkills()
   }
 
@@ -149,7 +178,43 @@ function InstalledSkillsTab() {
 
   return (
     <>
-      <div className="flex justify-end mb-4">
+      <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search skills..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 h-8 text-sm"
+            />
+          </div>
+          {categories.length > 0 && (
+            <div className="flex items-center gap-1">
+              <Filter className="size-3.5 text-muted-foreground" />
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="h-8 rounded-md border bg-background px-2 text-sm"
+              >
+                <option value="all">All categories</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="h-8 rounded-md border bg-background px-2 text-sm"
+          >
+            <option value="createdAt">Newest</option>
+            <option value="name">Name</option>
+            <option value="downloads">Downloads</option>
+            <option value="rating">Rating</option>
+          </select>
+        </div>
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button size="sm">
@@ -219,12 +284,17 @@ function InstalledSkillsTab() {
                     {skill.name}
                   </CardTitle>
                   <div className="flex items-center gap-1.5">
+                    {skill.category && skill.category !== 'general' && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        {skill.category}
+                      </Badge>
+                    )}
                     <Badge variant="outline" className="text-xs gap-1">
                       {creatorIcon(skill.createdBy)}
                       {skill.createdBy}
                     </Badge>
                     <button
-                      onClick={() => toggleSkill(skill._id)}
+                      onClick={() => toggleSkill(skill._id, skill.isEnabled)}
                       className="text-muted-foreground hover:text-foreground"
                       title={skill.isEnabled ? 'Disable' : 'Enable'}
                     >
@@ -246,7 +316,23 @@ function InstalledSkillsTab() {
                 <pre className="text-xs text-muted-foreground whitespace-pre-wrap line-clamp-4 font-mono bg-muted/30 rounded-lg p-2">
                   {skill.content}
                 </pre>
-                <div className="flex gap-1 mt-3">
+                <div className="flex items-center justify-between mt-3">
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                    {(skill.downloads ?? 0) > 0 && (
+                      <span className="flex items-center gap-1">
+                        <Download className="size-3" /> {skill.downloads}
+                      </span>
+                    )}
+                    {(skill.rating ?? 0) > 0 && (
+                      <span className="flex items-center gap-1">
+                        <Star className="size-3" /> {skill.rating?.toFixed(1)}
+                      </span>
+                    )}
+                    {skill.version && (
+                      <span>v{skill.version}</span>
+                    )}
+                  </div>
+                  <div className="flex gap-1">
                   <Dialog
                     open={editingSkill?._id === skill._id}
                     onOpenChange={(open) => !open && setEditingSkill(null)}
@@ -271,10 +357,10 @@ function InstalledSkillsTab() {
                         <SkillForm
                           initial={editingSkill}
                           onSave={async (data) => {
-                            await apiFetch(`/api/skills/${editingSkill._id}`, {
-                              method: 'PUT',
+                            await apiFetch('/api/skills', {
+                              method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify(data),
+                              body: JSON.stringify({ ...data, skillId: editingSkill._id }),
                             })
                             setEditingSkill(null)
                             await loadSkills()
@@ -292,6 +378,7 @@ function InstalledSkillsTab() {
                   >
                     <Trash2 className="mr-1 size-3" /> Delete
                   </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>

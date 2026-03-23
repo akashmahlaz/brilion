@@ -29,6 +29,7 @@ import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ApiCronRouteImport } from './routes/api/cron'
 import { Route as ApiConfigRouteImport } from './routes/api/config'
 import { Route as ApiChatRouteImport } from './routes/api/chat'
+import { Route as ApiAgentsRouteImport } from './routes/api/agents'
 import { Route as ApiSplatRouteImport } from './routes/api.$'
 import { Route as AuthSignupRouteImport } from './routes/_auth.signup'
 import { Route as AuthLoginRouteImport } from './routes/_auth.login'
@@ -150,6 +151,11 @@ const ApiConfigRoute = ApiConfigRouteImport.update({
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgentsRoute = ApiAgentsRouteImport.update({
+  id: '/api/agents',
+  path: '/api/agents',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSplatRoute = ApiSplatRouteImport.update({
@@ -296,6 +302,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof AuthLoginRoute
   '/signup': typeof AuthSignupRoute
   '/api/$': typeof ApiSplatRoute
+  '/api/agents': typeof ApiAgentsRoute
   '/api/chat': typeof ApiChatRoute
   '/api/config': typeof ApiConfigRoute
   '/api/cron': typeof ApiCronRoute
@@ -340,6 +347,7 @@ export interface FileRoutesByTo {
   '/login': typeof AuthLoginRoute
   '/signup': typeof AuthSignupRoute
   '/api/$': typeof ApiSplatRoute
+  '/api/agents': typeof ApiAgentsRoute
   '/api/chat': typeof ApiChatRoute
   '/api/config': typeof ApiConfigRoute
   '/api/cron': typeof ApiCronRoute
@@ -387,6 +395,7 @@ export interface FileRoutesById {
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/signup': typeof AuthSignupRoute
   '/api/$': typeof ApiSplatRoute
+  '/api/agents': typeof ApiAgentsRoute
   '/api/chat': typeof ApiChatRoute
   '/api/config': typeof ApiConfigRoute
   '/api/cron': typeof ApiCronRoute
@@ -433,6 +442,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/api/$'
+    | '/api/agents'
     | '/api/chat'
     | '/api/config'
     | '/api/cron'
@@ -477,6 +487,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/signup'
     | '/api/$'
+    | '/api/agents'
     | '/api/chat'
     | '/api/config'
     | '/api/cron'
@@ -523,6 +534,7 @@ export interface FileRouteTypes {
     | '/_auth/login'
     | '/_auth/signup'
     | '/api/$'
+    | '/api/agents'
     | '/api/chat'
     | '/api/config'
     | '/api/cron'
@@ -551,6 +563,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   McpRoute: typeof McpRoute
   ApiSplatRoute: typeof ApiSplatRoute
+  ApiAgentsRoute: typeof ApiAgentsRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiConfigRoute: typeof ApiConfigRoute
   ApiCronRoute: typeof ApiCronRoute
@@ -713,6 +726,13 @@ declare module '@tanstack/react-router' {
       path: '/api/chat'
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agents': {
+      id: '/api/agents'
+      path: '/api/agents'
+      fullPath: '/api/agents'
+      preLoaderRoute: typeof ApiAgentsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/$': {
@@ -946,6 +966,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   McpRoute: McpRoute,
   ApiSplatRoute: ApiSplatRoute,
+  ApiAgentsRoute: ApiAgentsRoute,
   ApiChatRoute: ApiChatRoute,
   ApiConfigRoute: ApiConfigRoute,
   ApiCronRoute: ApiCronRoute,
@@ -970,12 +991,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

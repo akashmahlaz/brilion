@@ -7,11 +7,12 @@ import {
   installFromClawHub,
   installFromContent,
 } from "#/server/lib/skill-installer";
+import { getDefaultSkillCatalog } from "#/server/lib/default-skills";
 
 export const Route = createFileRoute("/api/skills")({
   server: {
     handlers: {
-      // GET /api/skills — list skills or search marketplace
+      // GET /api/skills — list skills, search, filter by category, get defaults
       GET: async ({ request }) => {
         const session = await requireAuth(request);
         await connectDB();
@@ -28,10 +29,42 @@ export const Route = createFileRoute("/api/skills")({
           return Response.json(results);
         }
 
-        const skills = await UserSkill.find({ userId })
-          .sort({ createdAt: -1 })
-          .lean();
-        return Response.json(skills);
+        // Return default skill catalog
+        if (action === "defaults") {
+          return Response.json(getDefaultSkillCatalog());
+        }
+
+        // Build query with optional category and text search filters
+        const category = url.searchParams.get("category");
+        const search = url.searchParams.get("q");
+        const sortBy = url.searchParams.get("sort") || "createdAt";
+
+        const filter: Record<string, unknown> = { userId };
+        if (category && category !== "all") {
+          filter.category = category;
+        }
+        if (search) {
+          filter.$or = [
+            { name: { $regex: search, $options: "i" } },
+            { description: { $regex: search, $options: "i" } },
+          ];
+        }
+
+        // Determine sort order
+        const sortOptions: Record<string, any> = {
+          createdAt: { createdAt: -1 },
+          name: { name: 1 },
+          downloads: { downloads: -1 },
+          rating: { rating: -1 },
+        };
+        const sort = sortOptions[sortBy] || sortOptions.createdAt;
+
+        const skills = await UserSkill.find(filter).sort(sort).lean();
+
+        // Get distinct categories for the filter UI
+        const categories = await UserSkill.distinct("category", { userId });
+
+        return Response.json({ skills, categories });
       },
 
       // POST /api/skills — create, update, toggle, install from marketplace
@@ -86,7 +119,7 @@ export const Route = createFileRoute("/api/skills")({
         }
 
         // Create or update
-        const { name, description, content, skillId } = body;
+        const { name, description, content, skillId, category } = body;
         if (!name || !content) {
           return Response.json(
             { error: "name and content required" },
@@ -98,7 +131,7 @@ export const Route = createFileRoute("/api/skills")({
           // Update
           const skill = await UserSkill.findOneAndUpdate(
             { _id: skillId, userId },
-            { name, description, content },
+            { name, description, content, ...(category ? { category } : {}) },
             { new: true }
           );
           return Response.json(skill);
@@ -110,6 +143,7 @@ export const Route = createFileRoute("/api/skills")({
           name,
           description: description || "",
           content,
+          category: category || "general",
           createdBy: "user",
         });
         return Response.json(skill);
