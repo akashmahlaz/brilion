@@ -927,6 +927,142 @@ export async function send(userId: string, jid: string, text: string) {
   }
 }
 
+// ── Media sending functions (WhatsApp image, audio, video, document) ──
+
+/** Send an image to a WhatsApp chat */
+export async function sendImage(
+  userId: string,
+  jid: string,
+  imageBuffer: Buffer,
+  caption?: string,
+  mimeType: string = "image/png",
+): Promise<{ status: string; error?: string }> {
+  const conn = connections.get(userId);
+  if (!conn?.socket || conn.status !== "connected") {
+    return { status: "error", error: "WhatsApp not connected" };
+  }
+  const allowed = await checkRateLimit(userId);
+  if (!allowed) return { status: "error", error: "Rate limited" };
+
+  try {
+    const sent = await conn.socket.sendMessage(jid, {
+      image: imageBuffer,
+      caption: caption || undefined,
+      mimetype: mimeType,
+    });
+    if (sent?.key?.id) {
+      sentByUs.add(sent.key.id);
+      setTimeout(() => sentByUs.delete(sent.key.id!), 30_000);
+    }
+    log("Image sent to", jid, `(${imageBuffer.length} bytes)`);
+    return { status: "sent" };
+  } catch (err) {
+    logErr("sendImage failed:", err);
+    return { status: "error", error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** Send an audio/voice message to a WhatsApp chat */
+export async function sendAudio(
+  userId: string,
+  jid: string,
+  audioBuffer: Buffer,
+  mimeType: string = "audio/ogg; codecs=opus",
+  ptt: boolean = true,
+): Promise<{ status: string; error?: string }> {
+  const conn = connections.get(userId);
+  if (!conn?.socket || conn.status !== "connected") {
+    return { status: "error", error: "WhatsApp not connected" };
+  }
+  const allowed = await checkRateLimit(userId);
+  if (!allowed) return { status: "error", error: "Rate limited" };
+
+  try {
+    const sent = await conn.socket.sendMessage(jid, {
+      audio: audioBuffer,
+      mimetype: mimeType,
+      ptt, // push-to-talk = true → voice note bubble
+    });
+    if (sent?.key?.id) {
+      sentByUs.add(sent.key.id);
+      setTimeout(() => sentByUs.delete(sent.key.id!), 30_000);
+    }
+    log("Audio sent to", jid, `(${audioBuffer.length} bytes, ptt=${ptt})`);
+    return { status: "sent" };
+  } catch (err) {
+    logErr("sendAudio failed:", err);
+    return { status: "error", error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** Send a video to a WhatsApp chat */
+export async function sendVideo(
+  userId: string,
+  jid: string,
+  videoBuffer: Buffer,
+  caption?: string,
+  mimeType: string = "video/mp4",
+): Promise<{ status: string; error?: string }> {
+  const conn = connections.get(userId);
+  if (!conn?.socket || conn.status !== "connected") {
+    return { status: "error", error: "WhatsApp not connected" };
+  }
+  const allowed = await checkRateLimit(userId);
+  if (!allowed) return { status: "error", error: "Rate limited" };
+
+  try {
+    const sent = await conn.socket.sendMessage(jid, {
+      video: videoBuffer,
+      caption: caption || undefined,
+      mimetype: mimeType,
+    });
+    if (sent?.key?.id) {
+      sentByUs.add(sent.key.id);
+      setTimeout(() => sentByUs.delete(sent.key.id!), 30_000);
+    }
+    log("Video sent to", jid, `(${videoBuffer.length} bytes)`);
+    return { status: "sent" };
+  } catch (err) {
+    logErr("sendVideo failed:", err);
+    return { status: "error", error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+/** Send a document/file to a WhatsApp chat */
+export async function sendDocument(
+  userId: string,
+  jid: string,
+  docBuffer: Buffer,
+  fileName: string,
+  mimeType: string = "application/octet-stream",
+  caption?: string,
+): Promise<{ status: string; error?: string }> {
+  const conn = connections.get(userId);
+  if (!conn?.socket || conn.status !== "connected") {
+    return { status: "error", error: "WhatsApp not connected" };
+  }
+  const allowed = await checkRateLimit(userId);
+  if (!allowed) return { status: "error", error: "Rate limited" };
+
+  try {
+    const sent = await conn.socket.sendMessage(jid, {
+      document: docBuffer,
+      mimetype: mimeType,
+      fileName,
+      caption: caption || undefined,
+    });
+    if (sent?.key?.id) {
+      sentByUs.add(sent.key.id);
+      setTimeout(() => sentByUs.delete(sent.key.id!), 30_000);
+    }
+    log("Document sent to", jid, `(${fileName}, ${docBuffer.length} bytes)`);
+    return { status: "sent" };
+  } catch (err) {
+    logErr("sendDocument failed:", err);
+    return { status: "error", error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 /** Send "composing..." typing indicator before replying */
 export async function sendComposing(userId: string, jid: string): Promise<void> {
   const conn = connections.get(userId);

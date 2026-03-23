@@ -6,6 +6,28 @@ import { resolveProviderKey, resolveProviderBaseUrl } from "./auth-profiles";
 import { loadConfig } from "./config";
 import { createLogger } from "../models/log-entry";
 
+// ── Runtime Adapter Switching (typed factory map) ──
+type AdapterFactory = (modelId: string, apiKey: string, baseUrl?: string) => AnyTextAdapter;
+
+const ADAPTER_FACTORIES: Record<string, AdapterFactory> = {
+  github: (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://models.inference.ai.azure.com" }),
+  "github-copilot": (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://api.githubcopilot.com" }),
+  openai: (model, key, base) =>
+    createOpenaiChat(model as any, key, base ? { baseURL: base } : undefined),
+  anthropic: (model, key, base) =>
+    createAnthropicChat(model as any, key, base ? { baseURL: base } : undefined),
+  google: (model, key, base) =>
+    createGeminiChat(model as any, key, base ? { baseURL: base } : undefined),
+  xai: (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://api.x.ai/v1" }),
+  mistral: (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://api.mistral.ai/v1" }),
+  openrouter: (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://openrouter.ai/api/v1" }),
+};
+
 export interface ProviderEntry {
   id: string;
   name: string;
@@ -96,46 +118,8 @@ function buildAdapter(
   baseUrl?: string
 ): AnyTextAdapter {
   console.log(`[providers] buildAdapter: provider=${providerId} model=${modelId} baseUrl=${baseUrl || "default"} apiKeyPresent=${!!apiKey} apiKeyLen=${apiKey?.length || 0}`);
-  switch (providerId) {
-    case "github":
-      return createOpenaiChat(
-        modelId,
-        apiKey,
-        { baseUrl: baseUrl || "https://models.inference.ai.azure.com" },
-      );
-    case "github-copilot":
-      return createOpenaiChat(
-        modelId,
-        apiKey,
-        { baseUrl: baseUrl || "https://api.githubcopilot.com" },
-      );
-    case "openai":
-      return createOpenaiChat(modelId, apiKey, baseUrl ? { baseUrl } : undefined);
-    case "anthropic":
-      return createAnthropicChat(modelId, apiKey, baseUrl ? { baseUrl } : undefined);
-    case "google":
-      return createGeminiChat(modelId, apiKey, baseUrl ? { baseUrl } : undefined);
-    case "xai":
-      return createOpenaiChat(
-        modelId,
-        apiKey,
-        { baseUrl: baseUrl || "https://api.x.ai/v1" },
-      );
-    case "mistral":
-      return createOpenaiChat(
-        modelId,
-        apiKey,
-        { baseUrl: baseUrl || "https://api.mistral.ai/v1" },
-      );
-    case "openrouter":
-      return createOpenaiChat(
-        modelId,
-        apiKey,
-        { baseUrl: baseUrl || "https://openrouter.ai/api/v1" },
-      );
-    default:
-      return createOpenaiChat(modelId, apiKey, baseUrl ? { baseUrl } : undefined);
-  }
+  const factory = ADAPTER_FACTORIES[providerId] || ADAPTER_FACTORIES.openai;
+  return factory(modelId, apiKey, baseUrl);
 }
 
 /**

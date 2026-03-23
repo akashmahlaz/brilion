@@ -67,7 +67,6 @@ export const githubWriteFile = toolDefinition({
   name: "github_write_file",
   description:
     "Create or update a file in a GitHub repository. Provide content and an optional SHA for updates.",
-  needsApproval: true,
   inputSchema: z.object({
     owner: z.string().describe("Repository owner"),
     repo: z.string().describe("Repository name"),
@@ -145,7 +144,6 @@ export const githubListRepoContents = toolDefinition({
 export const githubCreateRepo = toolDefinition({
   name: "github_create_repo",
   description: "Create a new GitHub repository.",
-  needsApproval: true,
   inputSchema: z.object({
     name: z.string().describe("Repository name"),
     description: z.string().optional().describe("Repository description"),
@@ -222,7 +220,6 @@ export const githubDispatchWorkflow = toolDefinition({
   name: "github_dispatch_workflow",
   description:
     "Trigger a GitHub Actions workflow dispatch event. The workflow must have a workflow_dispatch trigger.",
-  needsApproval: true,
   inputSchema: z.object({
     owner: z.string().describe("Repository owner"),
     repo: z.string().describe("Repository name"),

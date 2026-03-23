@@ -1,4 +1,5 @@
 import { toolDefinition } from "@tanstack/ai";
+import { chat, maxIterations } from "@tanstack/ai";
 import { z } from "zod";
 import { UserSkill } from "../models/user-skill";
 import { connectDB } from "../db";
@@ -97,11 +98,31 @@ export async function loadSkillTools(
           "memory_indexed", "memory_searched",
         ];
         if (validHooks.includes(hookName as HookEvent)) {
-          on(hookName as HookEvent, async (_payload) => {
-            // Execute the skill's instructions when its hook fires
-            console.log(`[skill-hook] Skill "${skill.name}" hook "${hookName}" fired`);
-            // Future: invoke skill content as a context injection or tool call
-            // For now, skill hooks serve as logging/observability triggers
+          const skillName = skill.name;
+          const skillContent = skill.content;
+          const skillUserId = (skill as any).userId?.toString?.() || "";
+          on(hookName as HookEvent, async (payload) => {
+            console.log(`[skill-hook] Skill "${skillName}" hook "${hookName}" fired`);
+            // Execute skill content via a mini agent turn
+            try {
+              const { resolveModel } = await import("./providers");
+              const adapter = await resolveModel(undefined, skillUserId);
+              await chat({
+                adapter,
+                messages: [
+                  {
+                    role: "user",
+                    content: `Hook "${hookName}" fired. Payload: ${JSON.stringify(payload).slice(0, 1000)}\n\nExecute the following skill instructions:\n\n${skillContent}`,
+                  },
+                ],
+                systemPrompts: [`You are executing a skill hook. Follow the skill instructions precisely. Be concise.`],
+                tools: [],
+                agentLoopStrategy: maxIterations(3),
+                stream: false,
+              });
+            } catch (e) {
+              console.error(`[skill-hook] Skill "${skillName}" hook "${hookName}" execution failed:`, e);
+            }
           });
         }
       }

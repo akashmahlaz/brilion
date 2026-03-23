@@ -14,6 +14,7 @@ import { autoCompact } from "#/server/lib/compaction";
 import { indexConversation } from "#/server/lib/memory-manager";
 import { initAIObservability } from "#/server/lib/ai-observability";
 import { emit } from "#/server/lib/hooks";
+import { getMiddlewareStack } from "#/server/lib/middleware";
 import path from "node:path";
 import fs from "node:fs/promises";
 
@@ -172,6 +173,7 @@ export const Route = createFileRoute("/api/chat")({
           systemPrompts: agentConfig.systemPrompts,
           tools: agentConfig.tools,
           agentLoopStrategy: maxIterations(agentConfig.maxSteps ?? 20),
+          middleware: getMiddlewareStack(userId, "web"),
           conversationId,
         });
 

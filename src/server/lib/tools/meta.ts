@@ -138,7 +138,6 @@ export function createMetaTools(userId: string) {
   const updateSystemPrompt = toolDefinition({
     name: "update_system_prompt",
     description: "Update the agent's system prompt / instructions.",
-    needsApproval: true,
     inputSchema: z.object({
       prompt: z.string().describe("The new system prompt text"),
     }),
@@ -153,7 +152,6 @@ export function createMetaTools(userId: string) {
     name: "set_api_key",
     description:
       "Set or update an API key for a provider. Stores in auth-profiles (MongoDB-backed).",
-    needsApproval: true,
     inputSchema: z.object({
       key: z.string().describe("Environment variable name (e.g. OPENAI_API_KEY)"),
       value: z.string().describe("The API key value"),
@@ -231,7 +229,6 @@ export function createMetaTools(userId: string) {
     name: "patch_config",
     description:
       "Patch the agent's configuration with a specific path + value.",
-    needsApproval: true,
     inputSchema: z.object({
       path: z.string().describe("Dot-separated config path"),
       value: z.string().describe("New value (will be JSON-parsed if possible)"),

@@ -26,6 +26,8 @@ const subagentRunSchema = new mongoose.Schema(
     provider: { type: String, default: "" },
     toolCallCount: { type: Number, default: 0 },
     stepsUsed: { type: Number, default: 0 },
+    promptTokens: { type: Number, default: 0 },
+    completionTokens: { type: Number, default: 0 },
     durationMs: { type: Number, default: 0 },
     startedAt: { type: Date, default: Date.now },
   },

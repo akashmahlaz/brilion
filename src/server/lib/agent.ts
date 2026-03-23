@@ -22,6 +22,7 @@ import { createImageGenTool } from "./tools/image-gen";
 import { createTTSTool } from "./tools/tts";
 import { createStructuredOutputTool } from "./tools/structured";
 import { createAutoSkillTool } from "./tools/auto-skill";
+import { createVideoGenTool } from "./tools/video-gen";
 import { createLogger } from "../models/log-entry";
 import { searchMemory } from "./memory-manager";
 import { getHookRunner, hasHooks } from "./hooks";
@@ -42,6 +43,7 @@ const DEFAULT_SYSTEM_PROMPT = `You are an AI agency assistant with full self-man
 - **Skills**: Dynamic capabilities loaded from user-installed skills
 - **Memory**: Search your long-term memory for past conversations, user preferences, and decisions
 - **Image Generation**: Generate images from text prompts using generate_image (DALL-E)
+- **Video Generation**: Generate videos from text prompts using generate_video (Sora) — lazy, discovered on demand
 - **Text-to-Speech**: Convert text to audio using text_to_speech — great for voice messages
 - **Structured Output**: Generate structured JSON data using structured_output
 - **Sub-Agents**: Delegate complex tasks to specialized agents using spawn_subagent (researcher, coder, planner, writer)
@@ -97,10 +99,11 @@ export async function buildToolSet(userId: string, conversationId?: string): Pro
     getToken,
   ];
 
-  // AI-powered tools (image gen, TTS, structured output, sub-agents, auto-skills)
+  // AI-powered tools (image gen, TTS, video gen, structured output, sub-agents, auto-skills)
   const aiTools: Tool[] = [
     createImageGenTool(userId),
     createTTSTool(userId),
+    createVideoGenTool(userId),
     createStructuredOutputTool(userId),
     createSubagentTool(userId, conversationId),
     createAutoSkillTool(userId),

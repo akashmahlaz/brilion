@@ -2,9 +2,11 @@ import { toolDefinition, chat, maxIterations } from "@tanstack/ai";
 import { z } from "zod";
 import { AgentProfile } from "../../models/agent-profile";
 import { SubagentRun } from "../../models/subagent-run";
+import { Conversation } from "../../models/conversation";
 import { connectDB } from "../../db";
 import { resolveModel } from "../providers";
 import { emit, getHookRunner } from "../hooks";
+import { getMiddlewareStack } from "../middleware";
 import { createLogger, type LogSource } from "../../models/log-entry";
 
 const DEFAULT_AGENTS: Record<string, { name: string; systemPrompt: string; model?: string; maxSteps?: number }> = {
@@ -49,6 +51,26 @@ export async function ensureDefaultAgents(userId: string): Promise<void> {
   }));
 
   await AgentProfile.insertMany(profiles);
+}
+
+/**
+ * Fetch recent parent conversation context for sub-agent context passing.
+ * Returns the last N messages as a summary string that gives sub-agents awareness.
+ */
+async function getParentContext(conversationId?: string): Promise<string> {
+  if (!conversationId) return "";
+  try {
+    const conv = await Conversation.findById(conversationId).lean() as any;
+    if (!conv?.messages?.length) return "";
+    // Take last 10 messages as context summary
+    const recent = conv.messages.slice(-10);
+    const lines = recent.map((m: any) =>
+      `[${m.role}]: ${typeof m.content === "string" ? m.content.slice(0, 300) : "(media)"}`
+    );
+    return `\n\n## Parent Conversation Context (recent):\n${lines.join("\n")}`;
+  } catch {
+    return "";
+  }
 }
 
 /**
@@ -116,24 +138,50 @@ export function createSubagentTool(userId: string, conversationId?: string) {
 
       const maxSteps = profile.maxSteps || 10;
 
-      // Run the sub-agent
-      const result = await chat({
+      // Fetch parent conversation context for awareness
+      const parentContext = await getParentContext(conversationId);
+      const contextualPrompt = profile.systemPrompt + parentContext;
+
+      // Track usage via middleware
+      let promptTokens = 0;
+      let completionTokens = 0;
+      let toolCallCount = 0;
+      const usageMiddleware = {
+        name: "subagent-usage",
+        onUsage: (_ctx: any, usage: any) => {
+          promptTokens += usage.promptTokens || 0;
+          completionTokens += usage.completionTokens || 0;
+        },
+        onAfterToolCall: () => { toolCallCount++; },
+      };
+
+      // Run the sub-agent with middleware + streaming
+      let fullText = "";
+      const stream = chat({
         adapter,
         messages: [
           { role: "user", content: task },
         ],
-        systemPrompts: [profile.systemPrompt],
+        systemPrompts: [contextualPrompt],
         tools,
         agentLoopStrategy: maxIterations(maxSteps),
-        stream: false,
-      }) as string;
+        middleware: [...getMiddlewareStack(userId, "web"), usageMiddleware],
+      });
+
+      // Consume the stream to collect full result
+      for await (const chunk of stream) {
+        if (chunk.type === "TEXT_MESSAGE_CONTENT") {
+          fullText += chunk.delta;
+        }
+      }
+      const result = fullText;
 
       const durationMs = Date.now() - startTime;
 
-      // Update run record
+      // Update run record with usage stats
       await SubagentRun.updateOne(
         { _id: run._id },
-        { status: "completed", result, model, provider, durationMs }
+        { status: "completed", result, model, provider, durationMs, promptTokens, completionTokens, toolCallCount }
       );
 
       sysLogger.info("Sub-agent completed", {
@@ -142,6 +190,9 @@ export function createSubagentTool(userId: string, conversationId?: string) {
         model,
         durationMs,
         resultLength: result.length,
+        promptTokens,
+        completionTokens,
+        toolCallCount,
       });
 
       emit("subagent_ended", {
@@ -157,6 +208,7 @@ export function createSubagentTool(userId: string, conversationId?: string) {
         result,
         model,
         durationMs,
+        usage: { promptTokens, completionTokens, toolCallCount },
       };
     } catch (e) {
       const durationMs = Date.now() - startTime;

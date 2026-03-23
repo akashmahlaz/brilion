@@ -28,7 +28,6 @@ import {
   Loader2,
   Phone,
   Users,
-  Shield,
   ChevronRight,
 } from 'lucide-react'
 import Markdown from 'react-markdown'
@@ -152,7 +151,6 @@ function ChatPage() {
     setMessages: setChatMessages,
     clear: clearChat,
     error: chatError,
-    addToolApprovalResponse,
   } = useChat({
     connection: fetchServerSentEvents('/api/chat', () => ({
       body: {
@@ -171,13 +169,6 @@ function ChatPage() {
       .join('') ?? '',
     createdAt: (m as any).createdAt,
   }))
-
-  // Extract pending tool approvals from chat messages
-  const pendingApprovals = chatMessages.flatMap((m: UIMessage) =>
-    (m.parts || [])
-      .filter((p: any) => p.type === 'tool-call' && p.state === 'approval-requested' && p.approval)
-      .map((p: any) => ({ id: p.approval.id, name: p.name, args: p.input }))
-  )
 
   // Show chat errors as toasts
   useEffect(() => {
@@ -1313,43 +1304,6 @@ function ChatPage() {
                   </div>
                 )
               })}
-
-              {/* ─── Tool approval prompts ───────────────────────────── */}
-              {pendingApprovals.map((approval) => (
-                <div key={approval.id} className="flex gap-3">
-                  <div className="size-7 shrink-0 mt-0.5 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-                    <Shield className="size-3.5 text-amber-600" />
-                  </div>
-                  <div className="rounded-xl border border-amber-500/30 bg-amber-50/50 dark:bg-amber-950/20 p-3 max-w-[85%]">
-                    <p className="text-sm font-medium text-foreground mb-1.5">
-                      Approval required: <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{approval.name}</code>
-                    </p>
-                    {approval.args && (
-                      <pre className="text-xs bg-muted/60 rounded-lg p-2 mb-2.5 overflow-x-auto max-h-32">
-                        {JSON.stringify(approval.args, null, 2)}
-                      </pre>
-                    )}
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="default"
-                        className="h-7 text-xs"
-                        onClick={() => addToolApprovalResponse({ id: approval.id, approved: true })}
-                      >
-                        <Check className="size-3 mr-1" /> Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs text-destructive border-destructive/30"
-                        onClick={() => addToolApprovalResponse({ id: approval.id, approved: false })}
-                      >
-                        <X className="size-3 mr-1" /> Deny
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
 
               {/* Typing indicator */}
               {isLoading && messages[messages.length - 1]?.role === 'user' && (
