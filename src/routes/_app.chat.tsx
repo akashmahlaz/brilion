@@ -29,6 +29,9 @@ import {
   Phone,
   Users,
   ChevronRight,
+  Mic,
+  MicOff,
+  Volume2,
 } from 'lucide-react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -111,7 +114,7 @@ function CopyButton({ text }: { text: string }) {
             setCopied(true)
             setTimeout(() => setCopied(false), 2000)
           }}
-          className="opacity-0 group-hover:opacity-100 absolute -bottom-3 right-2 p-1 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground shadow-sm transition-all"
+          className="p-1 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground shadow-sm transition-all"
         >
           {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
         </button>
@@ -199,6 +202,13 @@ function ChatPage() {
 
   // File upload state
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([])
+
+  // Voice input state
+  const [isRecording, setIsRecording] = useState(false)
+  const recognitionRef = useRef<any>(null)
+
+  // TTS playback state
+  const [speakingMsgIdx, setSpeakingMsgIdx] = useState<number | null>(null)
 
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -521,6 +531,94 @@ function ChatPage() {
     setWaQrSession(null)
     setChannelPanelView('list')
     await loadChannelStatus()
+  }
+
+  // ─── Voice input (Speech-to-Text) ──────────────────────────────────────
+  const hasSpeechRecognition = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)
+
+  function toggleVoiceInput() {
+    if (isRecording) {
+      recognitionRef.current?.stop()
+      setIsRecording(false)
+      return
+    }
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      toast.error('Speech recognition is not supported in this browser')
+      return
+    }
+
+    const recognition = new SpeechRecognition()
+    recognition.continuous = false
+    recognition.interimResults = true
+    recognition.lang = navigator.language || 'en-US'
+
+    let finalTranscript = ''
+    recognition.onresult = (event: any) => {
+      let interim = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcript = event.results[i][0].transcript
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript
+        } else {
+          interim = transcript
+        }
+      }
+      setInput(prev => {
+        const base = prev.replace(/\u200B$/, '') // remove interim placeholder
+        return finalTranscript || (base + interim)
+      })
+    }
+
+    recognition.onend = () => {
+      setIsRecording(false)
+      recognitionRef.current = null
+      if (finalTranscript) {
+        setInput(prev => (prev ? prev + ' ' : '') + finalTranscript)
+      }
+      textareaRef.current?.focus()
+    }
+
+    recognition.onerror = (event: any) => {
+      setIsRecording(false)
+      recognitionRef.current = null
+      if (event.error !== 'aborted') {
+        toast.error(`Voice input failed: ${event.error}`)
+      }
+    }
+
+    recognitionRef.current = recognition
+    recognition.start()
+    setIsRecording(true)
+  }
+
+  // Cleanup speech recognition on unmount
+  useEffect(() => {
+    return () => { recognitionRef.current?.stop() }
+  }, [])
+
+  // ─── TTS playback (Text-to-Speech) ─────────────────────────────────────
+  function speakMessage(text: string, msgIdx: number) {
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      toast.error('Text-to-speech is not supported in this browser')
+      return
+    }
+
+    // Stop if already speaking this message
+    if (speakingMsgIdx === msgIdx) {
+      window.speechSynthesis.cancel()
+      setSpeakingMsgIdx(null)
+      return
+    }
+
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = navigator.language || 'en-US'
+    utterance.onend = () => setSpeakingMsgIdx(null)
+    utterance.onerror = () => setSpeakingMsgIdx(null)
+    setSpeakingMsgIdx(msgIdx)
+    window.speechSynthesis.speak(utterance)
   }
 
   // ─── Send message ──────────────────────────────────────────────────────
@@ -1294,7 +1392,26 @@ function ChatPage() {
                           )}
                         </div>
                       )}
-                      {msg.content && !isUser && <CopyButton text={msg.content} />}
+                      {msg.content && !isUser && (
+                        <div className="opacity-0 group-hover:opacity-100 absolute -bottom-3 right-2 flex items-center gap-1 transition-all">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                onClick={() => speakMessage(msg.content, i)}
+                                className={`p-1 rounded-lg border border-border shadow-sm transition-all ${
+                                  speakingMsgIdx === i
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'bg-card text-muted-foreground hover:text-foreground'
+                                }`}
+                              >
+                                <Volume2 className="size-3" />
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">{speakingMsgIdx === i ? 'Stop' : 'Listen'}</TooltipContent>
+                          </Tooltip>
+                          <CopyButton text={msg.content} />
+                        </div>
+                      )}
                       {msg.createdAt && (
                         <span className={`block mt-1 text-[10px] ${isUser ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
                           {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1394,10 +1511,29 @@ function ChatPage() {
                 onKeyDown={handleKeyDown}
                 placeholder={isChannelConversation ? `Viewing ${CHANNEL_META[activeChannel]?.label} conversation` : 'Message Brilion…'}
                 rows={1}
-                className="min-h-14 max-h-40 resize-none border-0 bg-transparent pr-14 pl-12 py-4 text-sm text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="min-h-14 max-h-40 resize-none border-0 bg-transparent pr-24 pl-12 py-4 text-sm text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
                 disabled={isLoading || isChannelConversation}
               />
-              <div className="absolute right-3 bottom-3">
+              <div className="absolute right-3 bottom-3 flex items-center gap-1.5">
+                {/* Voice input button */}
+                {hasSpeechRecognition && !isLoading && !isChannelConversation && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={toggleVoiceInput}
+                        className={`flex size-8 items-center justify-center rounded-xl transition-all ${
+                          isRecording
+                            ? 'bg-red-500 text-white animate-pulse shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                        }`}
+                      >
+                        {isRecording ? <MicOff className="size-4" /> : <Mic className="size-4" />}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>{isRecording ? 'Stop recording' : 'Voice input'}</TooltipContent>
+                  </Tooltip>
+                )}
+
                 {isLoading ? (
                   <Tooltip>
                     <TooltipTrigger asChild>

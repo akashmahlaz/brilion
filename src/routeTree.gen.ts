@@ -19,6 +19,7 @@ import { Route as ApiUsageRouteImport } from './routes/api/usage'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
 import { Route as ApiTelegramRouteImport } from './routes/api/telegram'
 import { Route as ApiSkillsRouteImport } from './routes/api/skills'
+import { Route as ApiRealtimeTokenRouteImport } from './routes/api/realtime-token'
 import { Route as ApiQueueRouteImport } from './routes/api/queue'
 import { Route as ApiPairingRouteImport } from './routes/api/pairing'
 import { Route as ApiModelsRouteImport } from './routes/api/models'
@@ -52,6 +53,7 @@ import { Route as AppChannelsRouteImport } from './routes/_app.channels'
 import { Route as AppAgentsRouteImport } from './routes/_app.agents'
 import { Route as ApiTrpcSplatRouteImport } from './routes/api.trpc.$'
 import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
+import { Route as ApiGenerateVideoRouteImport } from './routes/api/generate/video'
 import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
@@ -101,6 +103,11 @@ const ApiTelegramRoute = ApiTelegramRouteImport.update({
 const ApiSkillsRoute = ApiSkillsRouteImport.update({
   id: '/api/skills',
   path: '/api/skills',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRealtimeTokenRoute = ApiRealtimeTokenRouteImport.update({
+  id: '/api/realtime-token',
+  path: '/api/realtime-token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiQueueRoute = ApiQueueRouteImport.update({
@@ -268,6 +275,11 @@ const ApiRpcSplatRoute = ApiRpcSplatRouteImport.update({
   path: '/api/rpc/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGenerateVideoRoute = ApiGenerateVideoRouteImport.update({
+  id: '/api/generate/video',
+  path: '/api/generate/video',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthRegisterRoute = ApiAuthRegisterRouteImport.update({
   id: '/api/auth/register',
   path: '/api/auth/register',
@@ -313,6 +325,7 @@ export interface FileRoutesByFullPath {
   '/api/models': typeof ApiModelsRoute
   '/api/pairing': typeof ApiPairingRoute
   '/api/queue': typeof ApiQueueRoute
+  '/api/realtime-token': typeof ApiRealtimeTokenRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/upload': typeof ApiUploadRoute
@@ -321,6 +334,7 @@ export interface FileRoutesByFullPath {
   '/api/workspace': typeof ApiWorkspaceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/generate/video': typeof ApiGenerateVideoRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
@@ -358,6 +372,7 @@ export interface FileRoutesByTo {
   '/api/models': typeof ApiModelsRoute
   '/api/pairing': typeof ApiPairingRoute
   '/api/queue': typeof ApiQueueRoute
+  '/api/realtime-token': typeof ApiRealtimeTokenRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/upload': typeof ApiUploadRoute
@@ -366,6 +381,7 @@ export interface FileRoutesByTo {
   '/api/workspace': typeof ApiWorkspaceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/generate/video': typeof ApiGenerateVideoRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
@@ -406,6 +422,7 @@ export interface FileRoutesById {
   '/api/models': typeof ApiModelsRoute
   '/api/pairing': typeof ApiPairingRoute
   '/api/queue': typeof ApiQueueRoute
+  '/api/realtime-token': typeof ApiRealtimeTokenRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/telegram': typeof ApiTelegramRoute
   '/api/upload': typeof ApiUploadRoute
@@ -414,6 +431,7 @@ export interface FileRoutesById {
   '/api/workspace': typeof ApiWorkspaceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
+  '/api/generate/video': typeof ApiGenerateVideoRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
 }
@@ -453,6 +471,7 @@ export interface FileRouteTypes {
     | '/api/models'
     | '/api/pairing'
     | '/api/queue'
+    | '/api/realtime-token'
     | '/api/skills'
     | '/api/telegram'
     | '/api/upload'
@@ -461,6 +480,7 @@ export interface FileRouteTypes {
     | '/api/workspace'
     | '/api/auth/$'
     | '/api/auth/register'
+    | '/api/generate/video'
     | '/api/rpc/$'
     | '/api/trpc/$'
   fileRoutesByTo: FileRoutesByTo
@@ -498,6 +518,7 @@ export interface FileRouteTypes {
     | '/api/models'
     | '/api/pairing'
     | '/api/queue'
+    | '/api/realtime-token'
     | '/api/skills'
     | '/api/telegram'
     | '/api/upload'
@@ -506,6 +527,7 @@ export interface FileRouteTypes {
     | '/api/workspace'
     | '/api/auth/$'
     | '/api/auth/register'
+    | '/api/generate/video'
     | '/api/rpc/$'
     | '/api/trpc/$'
   id:
@@ -545,6 +567,7 @@ export interface FileRouteTypes {
     | '/api/models'
     | '/api/pairing'
     | '/api/queue'
+    | '/api/realtime-token'
     | '/api/skills'
     | '/api/telegram'
     | '/api/upload'
@@ -553,6 +576,7 @@ export interface FileRouteTypes {
     | '/api/workspace'
     | '/api/auth/$'
     | '/api/auth/register'
+    | '/api/generate/video'
     | '/api/rpc/$'
     | '/api/trpc/$'
   fileRoutesById: FileRoutesById
@@ -574,6 +598,7 @@ export interface RootRouteChildren {
   ApiModelsRoute: typeof ApiModelsRoute
   ApiPairingRoute: typeof ApiPairingRoute
   ApiQueueRoute: typeof ApiQueueRoute
+  ApiRealtimeTokenRoute: typeof ApiRealtimeTokenRoute
   ApiSkillsRoute: typeof ApiSkillsRoute
   ApiTelegramRoute: typeof ApiTelegramRoute
   ApiUploadRoute: typeof ApiUploadRoute
@@ -582,6 +607,7 @@ export interface RootRouteChildren {
   ApiWorkspaceRoute: typeof ApiWorkspaceRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiAuthRegisterRoute: typeof ApiAuthRegisterRoute
+  ApiGenerateVideoRoute: typeof ApiGenerateVideoRoute
   ApiRpcSplatRoute: typeof ApiRpcSplatRoute
   ApiTrpcSplatRoute: typeof ApiTrpcSplatRoute
 }
@@ -656,6 +682,13 @@ declare module '@tanstack/react-router' {
       path: '/api/skills'
       fullPath: '/api/skills'
       preLoaderRoute: typeof ApiSkillsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/realtime-token': {
+      id: '/api/realtime-token'
+      path: '/api/realtime-token'
+      fullPath: '/api/realtime-token'
+      preLoaderRoute: typeof ApiRealtimeTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/queue': {
@@ -889,6 +922,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiRpcSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/generate/video': {
+      id: '/api/generate/video'
+      path: '/api/generate/video'
+      fullPath: '/api/generate/video'
+      preLoaderRoute: typeof ApiGenerateVideoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/register': {
       id: '/api/auth/register'
       path: '/api/auth/register'
@@ -977,6 +1017,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiModelsRoute: ApiModelsRoute,
   ApiPairingRoute: ApiPairingRoute,
   ApiQueueRoute: ApiQueueRoute,
+  ApiRealtimeTokenRoute: ApiRealtimeTokenRoute,
   ApiSkillsRoute: ApiSkillsRoute,
   ApiTelegramRoute: ApiTelegramRoute,
   ApiUploadRoute: ApiUploadRoute,
@@ -985,6 +1026,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWorkspaceRoute: ApiWorkspaceRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiAuthRegisterRoute: ApiAuthRegisterRoute,
+  ApiGenerateVideoRoute: ApiGenerateVideoRoute,
   ApiRpcSplatRoute: ApiRpcSplatRoute,
   ApiTrpcSplatRoute: ApiTrpcSplatRoute,
 }

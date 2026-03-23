@@ -21,6 +21,24 @@ import fs from "node:fs/promises";
 // Initialize observability once on first import
 initAIObservability();
 
+/** Extract text content from a message (handles both UIMessage parts and ModelMessage content) */
+function extractTextContent(msg: any): string {
+  if (typeof msg.content === "string") return msg.content;
+  if (Array.isArray(msg.parts)) {
+    return msg.parts
+      .filter((p: any) => p.type === "text")
+      .map((p: any) => p.content)
+      .join("");
+  }
+  if (Array.isArray(msg.content)) {
+    return msg.content
+      .filter((p: any) => p.type === "text")
+      .map((p: any) => p.content || p.text || "")
+      .join("");
+  }
+  return "";
+}
+
 /** Stream wrapper that intercepts chunks for post-processing */
 async function* withPostProcessing(
   stream: AsyncIterable<any>,
@@ -30,7 +48,7 @@ async function* withPostProcessing(
   let fullText = "";
   try {
     for await (const chunk of stream) {
-      if (chunk.type === "content" && chunk.delta) {
+      if (chunk.type === "TEXT_MESSAGE_CONTENT" && chunk.delta) {
         fullText += chunk.delta;
       }
       yield chunk;
@@ -76,8 +94,14 @@ async function readUploadedImage(url: string): Promise<{ data: string; mimeType:
 async function transformMessages(messages: any[]): Promise<any[]> {
   const result = [];
   for (const msg of messages) {
-    if (msg.role !== "user" || typeof msg.content !== "string" || !ATTACHMENT_RE.test(msg.content)) {
-      result.push(msg);
+    // Normalize UIMessage (parts) to ModelMessage (content) for the AI adapter
+    const textContent = extractTextContent(msg);
+    const normalizedMsg = typeof msg.content === "string"
+      ? msg
+      : { ...msg, content: textContent };
+
+    if (normalizedMsg.role !== "user" || typeof normalizedMsg.content !== "string" || !ATTACHMENT_RE.test(normalizedMsg.content)) {
+      result.push(normalizedMsg);
       continue;
     }
 
@@ -87,10 +111,10 @@ async function transformMessages(messages: any[]): Promise<any[]> {
     let lastIndex = 0;
     let match;
 
-    while ((match = ATTACHMENT_RE.exec(msg.content)) !== null) {
+    while ((match = ATTACHMENT_RE.exec(normalizedMsg.content)) !== null) {
       const [full, type, _name, url] = match;
       // Add preceding text
-      const before = msg.content.slice(lastIndex, match.index).trim();
+      const before = normalizedMsg.content.slice(lastIndex, match.index).trim();
       if (before) parts.push({ type: "text", content: before });
 
       if (type === "Image") {
@@ -110,11 +134,11 @@ async function transformMessages(messages: any[]): Promise<any[]> {
     }
 
     // Remaining text
-    const remaining = msg.content.slice(lastIndex).trim();
+    const remaining = normalizedMsg.content.slice(lastIndex).trim();
     if (remaining) parts.push({ type: "text", content: remaining });
 
     // If no parts extracted, keep original
-    result.push(parts.length > 0 ? { ...msg, content: parts } : msg);
+    result.push(parts.length > 0 ? { ...normalizedMsg, content: parts } : normalizedMsg);
   }
   return result;
 }
@@ -151,7 +175,7 @@ export const Route = createFileRoute("/api/chat")({
 
         // Extract last user message for memory pre-fetch
         const lastUserMsg = messages[messages.length - 1];
-        const userMessageText = typeof lastUserMsg?.content === "string" ? lastUserMsg.content : "";
+        const userMessageText = extractTextContent(lastUserMsg);
         const agentConfig = await getAgentConfig(userId, { channel: "web", userMessage: userMessageText });
         const adapterOverride = modelSpec
           ? await (
@@ -233,23 +257,20 @@ export const Route = createFileRoute("/api/chat")({
             if (conversationId) {
               try {
                 const lastUserMsg = messages[messages.length - 1];
+                const userContent = extractTextContent(lastUserMsg);
                 const conv = await Conversation.findById(conversationId);
                 if (!conv) return;
 
                 conv.messages.push(
-                  { role: lastUserMsg.role, content: lastUserMsg.content },
+                  { role: lastUserMsg.role, content: userContent },
                   ...(fullText ? [{ role: "assistant" as const, content: fullText }] : []),
                 );
 
                 if (
                   (conv.title === "New Chat" || !conv.title) &&
-                  lastUserMsg.content
+                  userContent
                 ) {
-                  conv.title = generateTitle(
-                    typeof lastUserMsg.content === "string"
-                      ? lastUserMsg.content
-                      : "Image conversation",
-                  );
+                  conv.title = generateTitle(userContent);
                 }
 
                 await conv.save();
