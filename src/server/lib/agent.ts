@@ -22,6 +22,7 @@ import { createImageGenTool } from "./tools/image-gen";
 import { createTTSTool } from "./tools/tts";
 import { createStructuredOutputTool } from "./tools/structured";
 import { createAutoSkillTool } from "./tools/auto-skill";
+import { createSkillDiscoveryTool } from "./tools/skill-discovery";
 import { createVideoGenTool } from "./tools/video-gen";
 import { createLogger } from "../models/log-entry";
 import { searchMemory } from "./memory-manager";
@@ -48,6 +49,14 @@ const DEFAULT_SYSTEM_PROMPT = `You are an AI agency assistant with full self-man
 - **Structured Output**: Generate structured JSON data using structured_output
 - **Sub-Agents**: Delegate complex tasks to specialized agents using spawn_subagent (researcher, coder, planner, writer)
 - **Auto-Skills**: When you notice recurring patterns in the user's requests, use auto_create_skill to save reusable instructions that persist across all future conversations
+- **Skill Discovery**: Use discover_skills to search the Brilion skill catalog and install new capabilities on demand
+
+## SKILL DISCOVERY — PROACTIVE
+When the user asks for something you don't have a specific skill for:
+1. Use discover_skills(action: "search", query: "...") to find relevant skills in the catalog
+2. Show the user what's available and offer to install with discover_skills(action: "install", slug: "...")
+3. Once installed, the skill loads automatically in future conversations
+4. Examples: user says "track my expenses" → search for expense skills → install expense-tracker
 
 ## SKILL LEARNING — PROACTIVE
 When you notice the user repeatedly asks for similar things (same format, same workflow, same style):
@@ -107,6 +116,7 @@ export async function buildToolSet(userId: string, conversationId?: string): Pro
     createStructuredOutputTool(userId),
     createSubagentTool(userId, conversationId),
     createAutoSkillTool(userId),
+    createSkillDiscoveryTool(userId),
   ];
 
   // Ensure default agent profiles exist for sub-agent tool

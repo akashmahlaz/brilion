@@ -4,10 +4,18 @@ import { requireAuth } from "#/server/middleware";
 import { UserSkill } from "#/server/models/user-skill";
 import {
   searchClawHub,
+  browseClawHub,
   installFromClawHub,
   installFromContent,
 } from "#/server/lib/skill-installer";
 import { getDefaultSkillCatalog } from "#/server/lib/default-skills";
+import {
+  getCatalogSkills,
+  getCatalogCategories,
+  incrementCatalogInstalls,
+  seedSkillCatalog,
+} from "#/server/lib/skill-catalog";
+import { SkillCatalog } from "#/server/models/skill-catalog";
 
 export const Route = createFileRoute("/api/skills")({
   server: {
@@ -29,9 +37,34 @@ export const Route = createFileRoute("/api/skills")({
           return Response.json(results);
         }
 
+        // Browse popular/trending ClawHub skills
+        if (action === "clawhub-browse") {
+          const sort = (url.searchParams.get("sort") || "downloads") as
+            "newest" | "downloads" | "trending" | "stars";
+          const limit = Math.min(parseInt(url.searchParams.get("limit") || "20"), 50);
+          const results = await browseClawHub({ limit, sort });
+          return Response.json(results);
+        }
+
         // Return default skill catalog
         if (action === "defaults") {
           return Response.json(getDefaultSkillCatalog());
+        }
+
+        // Catalog: browse/search the global curated skill catalog
+        if (action === "catalog") {
+          const category = url.searchParams.get("category") || undefined;
+          const search = url.searchParams.get("q") || undefined;
+          const featured = url.searchParams.get("featured") === "true";
+          const skills = await getCatalogSkills({ category, search, featured: featured || undefined });
+          const categories = await getCatalogCategories();
+          return Response.json({ skills, categories });
+        }
+
+        // Catalog seed (admin / first-run)
+        if (action === "seed-catalog") {
+          const count = await seedSkillCatalog();
+          return Response.json({ seeded: count });
         }
 
         // Build query with optional category and text search filters
@@ -94,14 +127,27 @@ export const Route = createFileRoute("/api/skills")({
 
         // Install from ClawHub marketplace
         if (body.action === "install") {
-          const { slug, repo } = body;
+          const { slug } = body;
           if (!slug) {
             return Response.json(
               { error: "slug required" },
               { status: 400 }
             );
           }
-          const result = await installFromClawHub(userId, slug, repo);
+          const result = await installFromClawHub(userId, slug);
+          return Response.json(result);
+        }
+
+        // Explicit ClawHub install (same behavior, alternate action name)
+        if (body.action === "install-clawhub") {
+          const { slug } = body;
+          if (!slug) {
+            return Response.json(
+              { error: "slug required" },
+              { status: 400 }
+            );
+          }
+          const result = await installFromClawHub(userId, slug);
           return Response.json(result);
         }
 
@@ -116,6 +162,34 @@ export const Route = createFileRoute("/api/skills")({
           }
           const result = await installFromContent(userId, name, content, description);
           return Response.json(result);
+        }
+
+        // Install from global catalog
+        if (body.action === "install-catalog") {
+          const { slug } = body;
+          if (!slug) {
+            return Response.json({ error: "slug required" }, { status: 400 });
+          }
+          const catalogSkill = await SkillCatalog.findOne({ slug }).lean() as any;
+          if (!catalogSkill) {
+            return Response.json({ error: "Skill not found in catalog" }, { status: 404 });
+          }
+          // Check if already installed
+          const existing = await UserSkill.findOne({ userId, name: catalogSkill.name });
+          if (existing) {
+            return Response.json({ status: "already-installed", slug });
+          }
+          await UserSkill.create({
+            userId,
+            name: catalogSkill.name,
+            description: catalogSkill.description,
+            content: catalogSkill.content,
+            category: catalogSkill.category,
+            isEnabled: true,
+            createdBy: "marketplace",
+          });
+          await incrementCatalogInstalls(slug);
+          return Response.json({ status: "installed", slug, name: catalogSkill.name });
         }
 
         // Create or update

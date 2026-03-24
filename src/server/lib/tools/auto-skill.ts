@@ -6,16 +6,17 @@ import { connectDB } from "../../db";
 /**
  * AI-driven auto-skill creation tool.
  * The AI can call this when it detects a recurring user pattern
- * or when the user's request would benefit from a reusable skill.
+ * or when a non-tech user describes what they want in plain language.
  * No manual user intervention needed.
  */
 export function createAutoSkillTool(userId: string) {
   return toolDefinition({
     name: "auto_create_skill",
     description:
-      "Automatically create a reusable skill when you detect a recurring pattern in the user's requests. " +
-      "Use this when you notice the user frequently asks for similar things (e.g., always wants code reviews in a specific style, " +
-      "repeatedly asks for a certain email tone, or has a recurring workflow). " +
+      "Create a reusable skill from a detected pattern OR from a user's plain-language description. " +
+      "Use case 1: You notice recurring patterns (e.g., always wants code reviews in a specific style). " +
+      "Use case 2: A non-technical user says 'I want a skill that...' or 'make me a skill for...'. " +
+      "Generate the full skill instructions yourself — the user doesn't need to write any YAML or markdown. " +
       "The skill will be permanently saved and loaded into your context for all future conversations.",
     inputSchema: z.object({
       name: z

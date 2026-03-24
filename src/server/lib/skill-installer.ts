@@ -1,20 +1,19 @@
 import { UserSkill } from "../models/user-skill";
 import { connectDB } from "../db";
-import { resolveProviderKey } from "./auth-profiles";
-
-// ClawHub — community skill marketplace via GitHub
-const CLAWHUB_RAW_BASE = "https://raw.githubusercontent.com";
-const CLAWHUB_DEFAULT_ORG = "nicepkg";
-const CLAWHUB_DEFAULT_REPO = "clawhub-skills";
+import {
+  searchClawHubSkills,
+  exploreClawHubSkills,
+  getClawHubSkillContent,
+  type ClawHubSkill,
+} from "./clawhub-client";
 
 /**
- * Install a skill from ClawHub by downloading its SKILL.md from GitHub.
- * Saves to MongoDB (not filesystem) for multi-user SaaS.
+ * Install a skill from ClawHub marketplace.
+ * Fetches SKILL.md via the ClawHub public API and saves to MongoDB.
  */
 export async function installFromClawHub(
   userId: string,
-  slug: string,
-  repo?: string
+  slug: string
 ): Promise<{ status: string; slug: string; error?: string }> {
   await connectDB();
 
@@ -22,36 +21,17 @@ export async function installFromClawHub(
   const existing = await UserSkill.findOne({
     userId,
     name: slug,
-    createdBy: "system",
   });
   if (existing) return { status: "already-installed", slug };
 
-  const repoPath = repo || `${CLAWHUB_DEFAULT_ORG}/${CLAWHUB_DEFAULT_REPO}`;
-
-  // Try multiple URL patterns
-  const urls = [
-    `${CLAWHUB_RAW_BASE}/${repoPath}/main/skills/${slug}/SKILL.md`,
-    `${CLAWHUB_RAW_BASE}/${repoPath}/main/${slug}/SKILL.md`,
-  ];
-
-  let content: string | null = null;
-  for (const url of urls) {
-    try {
-      const res = await fetch(url);
-      if (res.ok) {
-        content = await res.text();
-        break;
-      }
-    } catch {
-      /* try next */
-    }
-  }
+  // Fetch SKILL.md content from ClawHub
+  const content = await getClawHubSkillContent(slug);
 
   if (!content) {
     return {
       status: "error",
       slug,
-      error: `Skill "${slug}" not found in ${repoPath}`,
+      error: `Skill "${slug}" not found on ClawHub or content unavailable`,
     };
   }
 
@@ -61,13 +41,18 @@ export async function installFromClawHub(
     ? descMatch[1].trim().replace(/^['"]|['"]$/g, "")
     : `Installed from ClawHub: ${slug}`;
 
+  // Parse emoji
+  const emojiMatch = content.match(/^emoji:\s*(.+)$/m);
+  const emoji = emojiMatch ? emojiMatch[1].trim() : undefined;
+
   await UserSkill.create({
     userId,
     name: slug,
     description,
     content,
     isEnabled: true,
-    createdBy: "system",
+    createdBy: "marketplace",
+    ...(emoji ? { emoji } : {}),
   });
 
   return { status: "installed", slug };
@@ -113,53 +98,69 @@ export async function uninstallSkill(
 }
 
 /**
- * Search ClawHub (GitHub) for skills matching a query.
- * Uses GitHub search API — optionally uses stored GitHub token.
+ * Search ClawHub marketplace (34,000+ skills).
+ * Uses the ClawHub public REST API with vector search.
  */
-export async function searchClawHub(
-  query: string
-): Promise<{
-  results: { slug: string; name: string; description: string; url: string; repo: string }[];
+export async function searchClawHub(query: string): Promise<{
+  results: Array<{
+    slug: string;
+    name: string;
+    description: string;
+    author: string;
+    downloads: number;
+    stars: number;
+    highlighted: boolean;
+    official: boolean;
+  }>;
 }> {
-  const headers: Record<string, string> = {
-    Accept: "application/vnd.github.v3+json",
-    "User-Agent": "brilion-agent",
+  const { skills } = await searchClawHubSkills(query, 20);
+
+  return {
+    results: skills.map((s: ClawHubSkill) => ({
+      slug: s.slug,
+      name: s.displayName || s.slug,
+      description: s.summary,
+      author: s.ownerHandle,
+      downloads: s.stats.downloads,
+      stars: s.stats.stars,
+      highlighted: s.badges?.highlighted ?? false,
+      official: s.badges?.official ?? false,
+    })),
   };
+}
 
-  // Use stored GitHub token if available (higher rate limits)
-  const token = await resolveProviderKey("github");
-  if (token) headers.Authorization = `Bearer ${token}`;
+/**
+ * Browse popular/trending ClawHub skills.
+ */
+export async function browseClawHub(options?: {
+  limit?: number;
+  sort?: "newest" | "downloads" | "installs" | "trending" | "stars";
+}): Promise<{
+  results: Array<{
+    slug: string;
+    name: string;
+    description: string;
+    author: string;
+    downloads: number;
+    stars: number;
+    highlighted: boolean;
+    official: boolean;
+  }>;
+}> {
+  const skills = await exploreClawHubSkills(options);
 
-  const searchQuery = encodeURIComponent(`${query} filename:SKILL.md`);
-  const searchUrl = `https://api.github.com/search/code?q=${searchQuery}&per_page=20`;
-
-  try {
-    const res = await fetch(searchUrl, { headers });
-    if (!res.ok) return { results: [] };
-
-    const data = await res.json();
-    const results = (data.items || []).map(
-      (item: {
-        repository: { full_name: string };
-        path: string;
-        html_url: string;
-      }) => {
-        const pathParts = item.path.split("/");
-        const slug = pathParts[pathParts.length - 2] || pathParts[0];
-        return {
-          slug,
-          name: slug,
-          description: `From ${item.repository.full_name}`,
-          url: item.html_url,
-          repo: item.repository.full_name,
-        };
-      }
-    );
-
-    return { results };
-  } catch {
-    return { results: [] };
-  }
+  return {
+    results: skills.map((s: ClawHubSkill) => ({
+      slug: s.slug,
+      name: s.displayName || s.slug,
+      description: s.summary,
+      author: s.ownerHandle,
+      downloads: s.stats.downloads,
+      stars: s.stats.stars,
+      highlighted: s.badges?.highlighted ?? false,
+      official: s.badges?.official ?? false,
+    })),
+  };
 }
 
 /**
