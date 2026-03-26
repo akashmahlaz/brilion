@@ -9,17 +9,17 @@ import { uploadToCloudinary } from "../cloudinary";
  * Add new models here to make them available to the AI.
  */
 const IMAGE_MODELS = {
+  "gpt-image-1": {
+    provider: "openai",
+    description: "ChatGPT's image model — best for accurate, instruction-following images with text rendering",
+    sizes: ["1024x1024", "1536x1024", "1024x1536", "auto"],
+    supportsRevision: false,
+  },
   "dall-e-3": {
     provider: "openai",
     description: "Best for artistic, creative images and illustrations",
     sizes: ["1024x1024", "1792x1024", "1024x1792"],
     supportsRevision: true,
-  },
-  "gpt-image-1": {
-    provider: "openai",
-    description: "Best for accurate, instruction-following images with text rendering",
-    sizes: ["1024x1024", "1536x1024", "1024x1536", "auto"],
-    supportsRevision: false,
   },
 } as const;
 
@@ -37,14 +37,15 @@ export function createImageGenTool(userId: string) {
   return toolDefinition({
     name: "generate_image",
     description:
-      `Generate an image from a text prompt. Returns a CDN URL. Available models: ${modelList}. Choose the model based on the task — dall-e-3 for art/creativity, gpt-image-1 for accuracy/text.`,
+      `Generate an image from a text prompt. Returns a CDN URL. Available models: ${modelList}. Default: gpt-image-1 (ChatGPT's model, best for most use cases). Use dall-e-3 only for artistic/creative styles.`,
     inputSchema: z.object({
       prompt: z.string().describe("Detailed description of the image to generate"),
-      model: z.enum(["dall-e-3", "gpt-image-1"]).optional().describe("Image model to use. Default: dall-e-3 for creative, gpt-image-1 for accurate/text-heavy"),
-      size: z.string().optional().describe("Image size. dall-e-3: 1024x1024, 1792x1024, 1024x1792. gpt-image-1: 1024x1024, 1536x1024, 1024x1536, auto. Default: 1024x1024"),
+      model: z.enum(["gpt-image-1", "dall-e-3"]).optional().describe("Image model. Default: gpt-image-1 (ChatGPT model). dall-e-3 for artistic/creative"),
+      size: z.string().optional().describe("Image size. gpt-image-1: 1024x1024, 1536x1024, 1024x1536, auto. dall-e-3: 1024x1024, 1792x1024, 1024x1792. Default: 1024x1024"),
+      quality: z.enum(["high", "medium", "low"]).optional().describe("Image quality (gpt-image-1 only). Default: high"),
     }),
-  }).server(async ({ prompt, model, size }: { prompt: string; model?: ImageModelId; size?: string }) => {
-    const selectedModel = model || "dall-e-3";
+  }).server(async ({ prompt, model, size, quality }: { prompt: string; model?: ImageModelId; size?: string; quality?: 'high' | 'medium' | 'low' }) => {
+    const selectedModel = model || "gpt-image-1";
     const modelInfo = IMAGE_MODELS[selectedModel];
     console.log("[image-gen] Starting:", { model: selectedModel, prompt: prompt.slice(0, 100), size });
 
@@ -67,12 +68,15 @@ export function createImageGenTool(userId: string) {
 
       const validSize = size && modelInfo.sizes.includes(size as any) ? size : "1024x1024";
 
+      // gpt-image-1 uses output_format (always returns b64), dall-e-3 uses response_format
       const response = await client.images.generate({
         model: selectedModel,
         prompt,
         n: 1,
         size: validSize as any,
-        response_format: "b64_json",
+        ...(selectedModel === "gpt-image-1"
+          ? { output_format: "png" as const, ...(quality ? { quality } : {}) }
+          : { response_format: "b64_json" as const }),
       });
 
       const image = response.data[0];
