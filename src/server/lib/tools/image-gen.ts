@@ -2,30 +2,52 @@ import { toolDefinition } from "@tanstack/ai";
 import OpenAI from "openai";
 import { z } from "zod";
 import { resolveProviderKey } from "../auth-profiles";
-import path from "node:path";
-import fs from "node:fs/promises";
-import crypto from "node:crypto";
-
-const UPLOAD_DIR = path.resolve("uploads");
+import { uploadToCloudinary } from "../cloudinary";
 
 /**
- * Create the generate_image tool — lets the AI generate images from text prompts.
- * Uses OpenAI client directly (the TanStack AI image adapter has a bug that sends
- * `stream: false` which DALL-E rejects).
- *
- * Returns a URL to the saved image instead of base64 to avoid blowing the context window.
+ * Image model catalog — provider-agnostic.
+ * Add new models here to make them available to the AI.
+ */
+const IMAGE_MODELS = {
+  "dall-e-3": {
+    provider: "openai",
+    description: "Best for artistic, creative images and illustrations",
+    sizes: ["1024x1024", "1792x1024", "1024x1792"],
+    supportsRevision: true,
+  },
+  "gpt-image-1": {
+    provider: "openai",
+    description: "Best for accurate, instruction-following images with text rendering",
+    sizes: ["1024x1024", "1536x1024", "1024x1536", "auto"],
+    supportsRevision: false,
+  },
+} as const;
+
+type ImageModelId = keyof typeof IMAGE_MODELS;
+
+/**
+ * Create the generate_image tool — multi-model, provider-agnostic image generation.
+ * The AI can pick the best model for the task. Uploads to Cloudinary CDN.
  */
 export function createImageGenTool(userId: string) {
+  const modelList = Object.entries(IMAGE_MODELS)
+    .map(([id, m]) => `${id}: ${m.description}`)
+    .join("; ");
+
   return toolDefinition({
     name: "generate_image",
     description:
-      "Generate an image from a text prompt using DALL-E. Returns a URL to the generated image. Use when the user asks you to create, draw, or generate an image.",
+      `Generate an image from a text prompt. Returns a CDN URL. Available models: ${modelList}. Choose the model based on the task — dall-e-3 for art/creativity, gpt-image-1 for accuracy/text.`,
     inputSchema: z.object({
       prompt: z.string().describe("Detailed description of the image to generate"),
-      size: z.string().optional().describe("Image size: 1024x1024, 1792x1024, or 1024x1792. Default: 1024x1024"),
+      model: z.enum(["dall-e-3", "gpt-image-1"]).optional().describe("Image model to use. Default: dall-e-3 for creative, gpt-image-1 for accurate/text-heavy"),
+      size: z.string().optional().describe("Image size. dall-e-3: 1024x1024, 1792x1024, 1024x1792. gpt-image-1: 1024x1024, 1536x1024, 1024x1536, auto. Default: 1024x1024"),
     }),
-  }).server(async ({ prompt, size }: { prompt: string; size?: string }) => {
-    console.log("[image-gen] Starting image generation:", { prompt: prompt.slice(0, 100), size });
+  }).server(async ({ prompt, model, size }: { prompt: string; model?: ImageModelId; size?: string }) => {
+    const selectedModel = model || "dall-e-3";
+    const modelInfo = IMAGE_MODELS[selectedModel];
+    console.log("[image-gen] Starting:", { model: selectedModel, prompt: prompt.slice(0, 100), size });
+
     let apiKey = await resolveProviderKey("openai", userId).catch(() => null);
     let baseUrl: string | undefined;
 
@@ -41,41 +63,37 @@ export function createImageGenTool(userId: string) {
     }
 
     try {
-      console.log("[image-gen] Calling DALL-E 3 via OpenAI client...");
       const client = new OpenAI({ apiKey, baseURL: baseUrl });
 
+      const validSize = size && modelInfo.sizes.includes(size as any) ? size : "1024x1024";
+
       const response = await client.images.generate({
-        model: "dall-e-3",
+        model: selectedModel,
         prompt,
         n: 1,
-        size: (size || "1024x1024") as "1024x1024" | "1792x1024" | "1024x1792",
+        size: validSize as any,
         response_format: "b64_json",
       });
 
       const image = response.data[0];
-      if (!image) {
+      if (!image || !image.b64_json) {
         console.error("[image-gen] No image returned from API");
         return { error: "No image generated" };
       }
 
-      // Save to disk instead of returning massive base64 blob (avoids blowing context window)
-      const userDir = path.join(UPLOAD_DIR, userId);
-      await fs.mkdir(userDir, { recursive: true });
-      const id = crypto.randomBytes(8).toString("hex");
-      const filename = `gen-${id}.png`;
-      const filePath = path.join(userDir, filename);
+      // Upload to Cloudinary CDN
+      const uploaded = await uploadToCloudinary(
+        Buffer.from(image.b64_json, "base64"),
+        "image/png",
+        { folder: `brilion/${userId}/images`, tags: ["generated", selectedModel] }
+      );
 
-      if (image.b64_json) {
-        await fs.writeFile(filePath, Buffer.from(image.b64_json, "base64"));
-      }
-
-      const imageUrl = `/api/upload?file=${encodeURIComponent(userId + "/" + filename)}`;
-      console.log("[image-gen] Image saved to disk:", { imageUrl, revisedPrompt: !!image.revised_prompt });
+      console.log("[image-gen] Uploaded to Cloudinary:", { url: uploaded.url, model: selectedModel, bytes: uploaded.bytes });
 
       return {
-        imageUrl,
-        revisedPrompt: image.revised_prompt || prompt,
-        model: "dall-e-3",
+        imageUrl: uploaded.url,
+        revisedPrompt: modelInfo.supportsRevision ? (image.revised_prompt || prompt) : prompt,
+        model: selectedModel,
       };
     } catch (e) {
       console.error("[image-gen] Generation failed:", e);

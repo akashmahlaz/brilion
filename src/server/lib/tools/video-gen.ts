@@ -3,10 +3,11 @@ import { createOpenaiVideo } from "@tanstack/ai-openai";
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import { resolveProviderKey } from "../auth-profiles";
+import { uploadVideoUrlToCloudinary } from "../cloudinary";
 
 /**
  * Video generation tool — uses OpenAI Sora-2 via TanStack AI.
- * Async job-based: creates job, polls for completion, returns URL.
+ * Async job-based: creates job, polls for completion, uploads to Cloudinary CDN.
  */
 export function createVideoGenTool(userId: string) {
   return toolDefinition({
@@ -76,13 +77,30 @@ export function createVideoGenTool(userId: string) {
         }
 
         if (status.status === "completed" && (status as any).url) {
-          return {
-            status: "completed",
-            url: (status as any).url,
-            jobId,
-            prompt,
-            note: "Video generated successfully. The URL may expire — download promptly.",
-          };
+          // Upload to Cloudinary CDN — Sora URLs expire, Cloudinary is permanent
+          try {
+            const uploaded = await uploadVideoUrlToCloudinary(
+              (status as any).url,
+              { folder: `brilion/${userId}/videos`, tags: ["generated", "sora-2"] }
+            );
+            console.log("[video-gen] Uploaded to Cloudinary:", { url: uploaded.url, bytes: uploaded.bytes });
+            return {
+              status: "completed",
+              videoUrl: uploaded.url,
+              jobId,
+              prompt,
+            };
+          } catch (uploadErr) {
+            // Fallback to Sora URL if Cloudinary upload fails
+            console.error("[video-gen] Cloudinary upload failed, using Sora URL:", uploadErr);
+            return {
+              status: "completed",
+              videoUrl: (status as any).url,
+              jobId,
+              prompt,
+              note: "CDN upload failed — this URL may expire. Download promptly.",
+            };
+          }
         }
 
         return {

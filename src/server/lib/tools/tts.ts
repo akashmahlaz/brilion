@@ -2,10 +2,11 @@ import { toolDefinition, generateSpeech } from "@tanstack/ai";
 import { createOpenaiSpeech } from "@tanstack/ai-openai";
 import { z } from "zod";
 import { resolveProviderKey } from "../auth-profiles";
+import { uploadToCloudinary } from "../cloudinary";
 
 /**
  * Create the text_to_speech tool — converts text to audio using TanStack AI's generateSpeech().
- * Returns base64-encoded audio that can be sent as a voice message on WhatsApp.
+ * Uploads audio to Cloudinary CDN — fast delivery, no MongoDB bloat.
  */
 export function createTTSTool(userId: string) {
   return toolDefinition({
@@ -39,8 +40,17 @@ export function createTTSTool(userId: string) {
         format: "opus",
       });
 
+      // Upload to Cloudinary CDN
+      const uploaded = await uploadToCloudinary(
+        Buffer.from(result.audio, "base64"),
+        "audio/ogg",
+        { folder: `brilion/${userId}/audio`, resourceType: "video", tags: ["tts", voice || "alloy"] }
+      );
+
+      console.log("[tts] Audio uploaded to Cloudinary:", { url: uploaded.url, bytes: uploaded.bytes });
+
       return {
-        audioBase64: result.audio,
+        audioUrl: uploaded.url,
         format: result.format || "opus",
         duration: result.duration,
         model: result.model,

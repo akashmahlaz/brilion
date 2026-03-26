@@ -168,8 +168,8 @@ function stripBase64(obj: any): any {
     const result: any = {};
     for (const [key, val] of Object.entries(obj)) {
       // Known binary keys
-      if ((key === "imageBase64" || key === "audioBase64" || key === "b64_json") && typeof val === "string" && val.length > 1000) {
-        result[key] = "[saved to file]";
+      if ((key === "imageBase64" || key === "b64_json") && typeof val === "string" && val.length > 1000) {
+        result[key] = "[saved to database]";
       } else {
         result[key] = stripBase64(val);
       }

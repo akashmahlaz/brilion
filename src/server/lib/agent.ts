@@ -44,10 +44,10 @@ const DEFAULT_SYSTEM_PROMPT = `You are an AI agency assistant with full self-man
 - **Web Request**: Call ANY external API using stored tokens (Vercel, Netlify, Slack, etc.)
 - **Skills**: Dynamic capabilities loaded from user-installed skills
 - **Memory**: Search your long-term memory for past conversations, user preferences, and decisions
-- **Image Generation**: Generate images from text prompts using generate_image (DALL-E)
-- **Video Generation**: Generate videos from text prompts using generate_video (Sora) — lazy, discovered on demand
-- **Text-to-Speech**: Convert text to audio using text_to_speech — great for voice messages
-- **Channel Media**: After generating media (image/audio/video), send it to WhatsApp/Telegram using send_image_to_channel, send_audio_to_channel, or send_video_to_channel
+- **Image Generation**: Generate images using generate_image. Choose the best model: dall-e-3 (artistic, creative) or gpt-image-1 (accurate, text rendering). All images uploaded to CDN automatically.
+- **Video Generation**: Generate videos from text prompts using generate_video (Sora). Videos uploaded to CDN for permanent storage.
+- **Text-to-Speech**: Convert text to audio using text_to_speech — great for voice messages. Audio uploaded to CDN.
+- **Channel Media**: After generating media (image/audio/video), ALWAYS send it to the channel using send_image_to_channel, send_audio_to_channel, or send_video_to_channel. The tools are pre-configured with the current channel — just pass the media URL.
 - **Structured Output**: Generate structured JSON data using structured_output
 - **Sub-Agents**: Delegate complex tasks to specialized agents using spawn_subagent (researcher, coder, planner, writer)
 - **Auto-Skills**: When you notice recurring patterns in the user's requests, use auto_create_skill to save reusable instructions that persist across all future conversations
@@ -94,7 +94,11 @@ Instead of running commands locally, use web_request with stored tokens to:
 
 Always be helpful, concise, and action-oriented.`;
 
-export async function buildToolSet(userId: string, conversationId?: string): Promise<Array<Tool>> {
+export async function buildToolSet(
+  userId: string,
+  conversationId?: string,
+  channelContext?: { channelId: string; channel: "whatsapp" | "telegram" }
+): Promise<Array<Tool>> {
   const metaTools = createMetaTools(userId);
   const memoryTools = createMemoryTools(userId);
 
@@ -119,7 +123,7 @@ export async function buildToolSet(userId: string, conversationId?: string): Pro
     createSubagentTool(userId, conversationId),
     createAutoSkillTool(userId),
     createSkillDiscoveryTool(userId),
-    ...createChannelMediaTools(userId),
+    ...createChannelMediaTools(userId, channelContext),
   ];
 
   // Ensure default agent profiles exist for sub-agent tool
@@ -191,7 +195,11 @@ async function getSystemPrompt(
 - Keep replies SHORT and punchy — max 2-3 sentences unless asked for detail
 - Use line breaks, not paragraphs
 - Emoji is OK if it matches user's style
-- No markdown headers or code blocks (WhatsApp doesn't render them)`;
+- No markdown headers, code blocks, or markdown image links (WhatsApp renders them as plain text)
+- MEDIA DELIVERY: After calling generate_image, you MUST call send_image_to_channel to deliver the image. Do NOT put markdown image links in your text — the user cannot see them on WhatsApp.
+- AUDIO DELIVERY: After calling text_to_speech, you MUST call send_audio_to_channel to deliver the voice note.
+- VIDEO DELIVERY: After calling generate_video, you MUST call send_video_to_channel to deliver the video.
+- Your text reply should just confirm the action (e.g. "Done, here's your image!") — the media is sent separately.`;
   } else if (options.channel === "telegram") {
     channelDirective = `\n## Active Channel: TELEGRAM
 - Medium-length replies — more room than WhatsApp but stay concise
@@ -259,12 +267,17 @@ Use these memories naturally in your response. Don't say "according to my memory
 
 export async function getAgentConfig(
   userId: string,
-  options: { channel?: string; userMessage?: string } = {}
+  options: { channel?: string; channelId?: string; userMessage?: string } = {}
 ) {
   log("getAgentConfig() called, userId:", userId || "none");
   const sysLogger = createLogger(userId, "agent");
 
-  const tools = await buildToolSet(userId);
+  // Build channel context for media tools (auto-binds channelId/channel)
+  const channelContext = options.channelId && (options.channel === "whatsapp" || options.channel === "telegram")
+    ? { channelId: options.channelId, channel: options.channel as "whatsapp" | "telegram" }
+    : undefined;
+
+  const tools = await buildToolSet(userId, undefined, channelContext);
   const toolNames = tools.map((t) => t.name);
   log("Tools built, count:", tools.length);
 

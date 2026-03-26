@@ -81,6 +81,7 @@
     "bullmq": "^5.71.0",
     "canvas-confetti": "^1.9.4",
     "class-variance-authority": "^0.7.1",
+    "cloudinary": "^2.9.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "framer-motion": "^12.36.0",

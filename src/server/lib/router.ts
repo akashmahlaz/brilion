@@ -539,7 +539,11 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   log("[route] Getting agent config...");
   let agentConfig;
   try {
-    agentConfig = await getAgentConfig(ownerId, { channel: msg.channel, userMessage: msg.text });
+    agentConfig = await getAgentConfig(ownerId, {
+      channel: msg.channel,
+      channelId: msg.isGroup && msg.groupId ? msg.groupId : msg.senderId,
+      userMessage: msg.text,
+    });
     const toolNames = Object.keys(agentConfig.tools || {});
     log(`[route] Agent config ready — adapter=${(agentConfig.adapter as any)?.model || "unknown"}, tools=[${toolNames.join(", ")}], systemPromptLen=${agentConfig.systemPrompts?.[0]?.length || 0}`);
 
@@ -754,8 +758,19 @@ export async function routeMessage(msg: IncomingMessage): Promise<string> {
   // For groups, reply to the group JID; for DMs, reply to the sender
   const replyTarget = msg.isGroup && msg.groupId ? msg.groupId : msg.senderId;
 
-  // Run message_sending modifying hook — plugins can modify or cancel outgoing messages
+  // Strip markdown for WhatsApp — it doesn't render markdown, users see raw syntax
   let replyContent = fullText;
+  if (msg.channel === "whatsapp") {
+    replyContent = replyContent
+      .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')  // ![alt](url) → alt
+      .replace(/\[([^\]]*)\]\([^)]+\)/g, '$1')   // [text](url) → text
+      .replace(/^#{1,6}\s+/gm, '')                // ### heading → heading
+      .replace(/```[\s\S]*?```/g, (m) => m.replace(/```\w*\n?/g, '').trim()) // code blocks → plain
+      .replace(/`([^`]+)`/g, '$1')                // `code` → code
+      .replace(/\*\*([^*]+)\*\*/g, '*$1*')         // **bold** → *bold* (WhatsApp bold)
+      .replace(/__([^_]+)__/g, '_$1_')             // __bold__ → _italic_ (WhatsApp)
+      .trim();
+  }
   if (hasHooks("message_sending")) {
     const sendResult = await getHookRunner().runMessageSending({
       userId: ownerId,

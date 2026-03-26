@@ -315,33 +315,37 @@ function MediaResults({ toolCalls }: { toolCalls: ToolCallPart[] }) {
     }
 
     // TTS / audio result
-    if (tc.toolName === 'text_to_speech' && !result.error && result.audioBase64) {
-      media.push(
-        <div key={`audio-${tc.toolName}`} className="rounded-xl border border-border bg-card shadow-sm px-3 py-2.5 flex items-center gap-3">
-          <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
-            <Volume2 className="size-4" />
+    if (tc.toolName === 'text_to_speech' && !result.error) {
+      const audioSrc = result.audioUrl || (result.audioBase64 ? `data:audio/${result.format || 'opus'};base64,${result.audioBase64}` : null)
+      if (audioSrc) {
+        media.push(
+          <div key={`audio-${tc.toolName}`} className="rounded-xl border border-border bg-card shadow-sm px-3 py-2.5 flex items-center gap-3">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
+              <Volume2 className="size-4" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-foreground">Voice Message</p>
+              <audio
+                controls
+                className="mt-1.5 w-full max-w-72 h-8 [&::-webkit-media-controls-panel]:bg-muted"
+                src={audioSrc}
+              />
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-foreground">Voice Message</p>
-            <audio
-              controls
-              className="mt-1.5 w-full max-w-72 h-8 [&::-webkit-media-controls-panel]:bg-muted"
-              src={`data:audio/${result.format || 'opus'};base64,${result.audioBase64}`}
-            />
-          </div>
-        </div>
-      )
+        )
+      }
     }
 
     // Video generation result
     if (tc.toolName === 'generate_video' && !result.error) {
-      if (result.status === 'completed' && result.url) {
+      const videoSrc = result.videoUrl || result.url
+      if (result.status === 'completed' && videoSrc) {
         media.push(
           <div key={`video-${tc.toolName}`} className="rounded-xl border border-border overflow-hidden bg-card shadow-sm">
             <video
               controls
               className="max-w-96 max-h-72"
-              src={result.url}
+              src={videoSrc}
             />
           </div>
         )
@@ -409,7 +413,9 @@ function ChatPage() {
       toolCalls: toolParts.map((p: any) => ({
         type: 'tool-invocation' as const,
         toolName: p.toolName || p.name || 'unknown',
-        state: p.state || (p.result !== undefined ? 'result' : 'calling'),
+        state: p.state === 'call' || p.state === 'partial-call'
+          ? 'calling'
+          : p.state || (p.result !== undefined ? 'result' : 'calling'),
         args: p.args || p.input,
         result: p.result,
       })),
@@ -1684,18 +1690,28 @@ function ChatPage() {
                               <Markdown
                                 remarkPlugins={[remarkGfm]}
                                 components={{
-                                  img: ({ src, alt, ...props }) => (
-                                    <a href={src} target="_blank" rel="noopener noreferrer" className="block my-2">
-                                      <img src={src} alt={alt || ''} {...props} className="max-w-80 max-h-60 rounded-lg object-cover border border-border" loading="lazy" />
-                                    </a>
-                                  ),
+                                  img: ({ src, alt, ...props }) => {
+                                    if (!src) return null
+                                    return (
+                                      <a href={src} target="_blank" rel="noopener noreferrer" className="block my-2">
+                                        <img src={src} alt={alt || ''} {...props} className="max-w-80 max-h-60 rounded-lg object-cover border border-border" loading="lazy" />
+                                      </a>
+                                    )
+                                  },
                                 }}
                               >
                                 {msg.content}
                               </Markdown>
                             </div>
-                          ) : isLoading && i === messages.length - 1 ? (
-                            <span className="text-muted-foreground text-sm animate-pulse">thinking…</span>
+                          ) : isLoading && i === messages.length - 1 && !hasToolCalls ? (
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <div className="flex gap-1">
+                                <span className="size-1.5 rounded-full bg-primary animate-bounce [animation-delay:0ms]" />
+                                <span className="size-1.5 rounded-full bg-primary animate-bounce [animation-delay:150ms]" />
+                                <span className="size-1.5 rounded-full bg-primary animate-bounce [animation-delay:300ms]" />
+                              </div>
+                              <span className="text-xs">Thinking…</span>
+                            </div>
                           ) : !hasToolCalls ? (
                             <span className="text-muted-foreground text-xs italic">processing…</span>
                           ) : null}
