@@ -1,5 +1,5 @@
 import { generateVideo, getVideoJobStatus } from "@tanstack/ai";
-import { openaiVideo } from "@tanstack/ai-openai";
+import { createOpenaiVideo } from "@tanstack/ai-openai";
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import { resolveProviderKey } from "../auth-profiles";
@@ -45,7 +45,7 @@ export function createVideoGenTool(userId: string) {
       }
 
       try {
-        const adapter = openaiVideo("sora-2");
+        const adapter = createOpenaiVideo("sora-2", apiKey);
 
         // Create the job
         const { jobId } = await generateVideo({

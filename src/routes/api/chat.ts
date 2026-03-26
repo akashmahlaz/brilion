@@ -215,6 +215,10 @@ export const Route = createFileRoute("/api/chat")({
         const logger = createLogger(userId, "api");
         const startTime = Date.now();
 
+        // Log user input
+        console.log(`[chat] ← USER (${userId.slice(-6)}): ${userMessageText.slice(0, 300)}${userMessageText.length > 300 ? "…" : ""}`);
+        console.log(`[chat]   model=${modelName} provider=${providerName} msgs=${messages.length} convId=${conversationId || "new"}`);
+
         const rawStream = chat({
           adapter: adapterOverride ?? agentConfig.adapter,
           messages: aiMessages,
@@ -242,6 +246,8 @@ export const Route = createFileRoute("/api/chat")({
           // onComplete — save conversation and index
           async (fullText: string, toolCalls: string[]) => {
             const durationMs = Date.now() - startTime;
+            console.log(`[chat] → AI (${userId.slice(-6)}): ${fullText.slice(0, 300)}${fullText.length > 300 ? "…" : ""}`);
+            console.log(`[chat]   duration=${durationMs}ms tools=[${toolCalls.join(", ")}] responseLen=${fullText.length}`);
             logger.info("Web chat completed", { model: modelName, durationMs, toolCalls });
 
             // Emit llm_output + agent_end hooks

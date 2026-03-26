@@ -246,68 +246,56 @@ function ToolCallLog({ toolCalls }: { toolCalls: ToolCallPart[] }) {
   )
 }
 
+// ─── Shimmer skeleton for media generation in-progress ──────────────────────
+function MediaSkeleton({ type, prompt }: { type: 'image' | 'audio' | 'video'; prompt?: string }) {
+  const label = type === 'image' ? 'Generating image' : type === 'audio' ? 'Synthesizing audio' : 'Generating video'
+  const Icon = type === 'image' ? ImageIcon : type === 'audio' ? Volume2 : Video
+  return (
+    <div className="relative rounded-xl border border-border overflow-hidden bg-card">
+      <div className={`flex items-center justify-center bg-muted/40 ${type === 'audio' ? 'h-16' : 'h-48 w-80'}`}>
+        <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-linear-to-r from-transparent via-background/60 to-transparent" />
+        <div className="flex flex-col items-center gap-2 text-muted-foreground z-10">
+          <div className="flex size-10 items-center justify-center rounded-full bg-muted border border-border">
+            <Icon className="size-4 animate-pulse" />
+          </div>
+          <span className="text-[11px] font-medium">{label}…</span>
+        </div>
+      </div>
+      {prompt && (
+        <div className="px-3 py-2 border-t border-border/40">
+          <p className="text-[11px] text-muted-foreground truncate">{prompt}</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Media Results — renders images, audio, video from tool call results ────
 function MediaResults({ toolCalls }: { toolCalls: ToolCallPart[] }) {
   const media: React.ReactNode[] = []
 
   for (const tc of toolCalls) {
-    const result = tc.result as any
-
-    // ── In-progress generation states ──
+    // Show skeleton while tool is being called
     if (tc.state === 'calling') {
       if (tc.toolName === 'generate_image') {
-        media.push(
-          <div key={`img-loading-${tc.toolName}`} className="rounded-xl border border-border bg-muted/30 overflow-hidden">
-            <div className="w-80 h-52 flex flex-col items-center justify-center gap-3 animate-pulse">
-              <div className="size-10 rounded-xl bg-muted flex items-center justify-center">
-                <ImageIcon className="size-5 text-muted-foreground" />
-              </div>
-              <div className="text-center">
-                <p className="text-xs font-medium text-muted-foreground">Generating image…</p>
-                {tc.args && (tc.args as any).prompt && (
-                  <p className="text-[10px] text-muted-foreground/60 mt-1 max-w-60 truncate">"{String((tc.args as any).prompt).slice(0, 80)}"</p>
-                )}
-              </div>
-            </div>
-          </div>
-        )
-        continue
+        media.push(<MediaSkeleton key={`skel-img-${tc.toolName}`} type="image" prompt={(tc.args as any)?.prompt} />)
+      } else if (tc.toolName === 'text_to_speech') {
+        media.push(<MediaSkeleton key={`skel-audio-${tc.toolName}`} type="audio" />)
+      } else if (tc.toolName === 'generate_video') {
+        media.push(<MediaSkeleton key={`skel-video-${tc.toolName}`} type="video" prompt={(tc.args as any)?.prompt} />)
       }
-      if (tc.toolName === 'text_to_speech') {
-        media.push(
-          <div key={`audio-loading-${tc.toolName}`} className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0 animate-pulse">
-              <Volume2 className="size-4" />
-            </div>
-            <p className="text-xs text-muted-foreground">Generating speech…</p>
-          </div>
-        )
-        continue
-      }
-      if (tc.toolName === 'generate_video') {
-        media.push(
-          <div key={`video-loading-${tc.toolName}`} className="rounded-xl border border-border bg-muted/30 overflow-hidden">
-            <div className="w-80 h-44 flex flex-col items-center justify-center gap-3 animate-pulse">
-              <div className="size-10 rounded-xl bg-muted flex items-center justify-center">
-                <Video className="size-5 text-muted-foreground" />
-              </div>
-              <p className="text-xs font-medium text-muted-foreground">Generating video…</p>
-            </div>
-          </div>
-        )
-        continue
-      }
+      continue
     }
 
-    // ── Completed results ──
     if (tc.state !== 'result' || !tc.result) continue
+    const result = tc.result as any
 
     // Image generation result
     if (tc.toolName === 'generate_image' && !result.error) {
       const src = result.imageUrl || (result.imageBase64 ? `data:image/png;base64,${result.imageBase64}` : null)
       if (src) {
         media.push(
-          <div key={`img-${tc.toolName}`} className="rounded-xl border border-border overflow-hidden bg-muted/30">
+          <div key={`img-${tc.toolName}`} className="rounded-xl border border-border overflow-hidden bg-card shadow-sm">
             <a href={src} target="_blank" rel="noopener noreferrer" className="block">
               <img
                 src={src}
@@ -329,7 +317,7 @@ function MediaResults({ toolCalls }: { toolCalls: ToolCallPart[] }) {
     // TTS / audio result
     if (tc.toolName === 'text_to_speech' && !result.error && result.audioBase64) {
       media.push(
-        <div key={`audio-${tc.toolName}`} className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 flex items-center gap-3">
+        <div key={`audio-${tc.toolName}`} className="rounded-xl border border-border bg-card shadow-sm px-3 py-2.5 flex items-center gap-3">
           <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
             <Volume2 className="size-4" />
           </div>
@@ -349,7 +337,7 @@ function MediaResults({ toolCalls }: { toolCalls: ToolCallPart[] }) {
     if (tc.toolName === 'generate_video' && !result.error) {
       if (result.status === 'completed' && result.url) {
         media.push(
-          <div key={`video-${tc.toolName}`} className="rounded-xl border border-border overflow-hidden bg-muted/30">
+          <div key={`video-${tc.toolName}`} className="rounded-xl border border-border overflow-hidden bg-card shadow-sm">
             <video
               controls
               className="max-w-96 max-h-72"
@@ -359,7 +347,7 @@ function MediaResults({ toolCalls }: { toolCalls: ToolCallPart[] }) {
         )
       } else if (result.status === 'timeout') {
         media.push(
-          <div key={`video-pending-${tc.toolName}`} className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 flex items-center gap-2 text-xs text-muted-foreground">
+          <div key={`video-pending-${tc.toolName}`} className="rounded-xl border border-border bg-card px-3 py-2.5 flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="size-3.5 animate-spin" />
             <span>Video is still generating (Job: {result.jobId})</span>
           </div>
@@ -1066,7 +1054,7 @@ function ChatPage() {
                         role="button"
                         tabIndex={0}
                         onClick={(e) => deleteConversation(c._id, e)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') deleteConversation(c._id, e); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') deleteConversation(c._id, e as any); }}
                         className="mt-0.5 opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/40 hover:text-destructive transition-all cursor-pointer"
                       >
                         <Trash2 className="size-3" />
@@ -1651,7 +1639,7 @@ function ChatPage() {
                     <div
                       className={`relative group max-w-[85%] ${
                         isUser
-                          ? 'rounded-2xl rounded-br-md bg-foreground text-background px-4 py-2.5 shadow-sm'
+                          ? 'rounded-2xl rounded-br-md bg-card border border-border text-foreground px-4 py-2.5 shadow-sm'
                           : 'pt-0.5'
                       }`}
                     >
@@ -1669,12 +1657,12 @@ function ChatPage() {
                                         <img
                                           src={att.url}
                                           alt={att.name}
-                                          className="max-w-60 max-h-48 rounded-lg object-cover border border-background/20"
+                                          className="max-w-60 max-h-48 rounded-lg object-cover border border-border"
                                         />
                                       </a>
                                     ) : (
                                       <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer"
-                                        className="flex items-center gap-2 rounded-lg bg-background/15 px-3 py-2 text-xs hover:bg-background/25 transition-colors">
+                                        className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs hover:bg-muted/70 transition-colors">
                                         <FileIcon className="size-4" />
                                         <span className="truncate max-w-40">{att.name}</span>
                                       </a>
@@ -1737,7 +1725,7 @@ function ChatPage() {
                         </div>
                       )}
                       {msg.createdAt && (
-                        <span className={`block mt-1 text-[10px] ${isUser ? 'text-primary-foreground/60' : 'text-muted-foreground'}`}>
+                        <span className={`block mt-1 text-[10px] ${isUser ? 'text-muted-foreground' : 'text-muted-foreground'}`}>
                           {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
                       )}

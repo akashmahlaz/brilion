@@ -21,6 +21,12 @@ code, pre {
   font-family: 'Geist Mono', 'JetBrains Mono', monospace;
 }
 
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
 /* Brilion Design System — Warm Paper + Blue Accent */
 :root {
   --background: oklch(0.973 0.004 83);
