@@ -39,22 +39,31 @@ function extractTextContent(msg: any): string {
   return "";
 }
 
-/** Stream wrapper that intercepts chunks for post-processing */
+/** Stream wrapper that intercepts chunks for post-processing and tool call logging */
 async function* withPostProcessing(
   stream: AsyncIterable<any>,
-  onComplete: (fullText: string) => Promise<void>,
+  onComplete: (fullText: string, toolCalls: string[]) => Promise<void>,
   onError: (err: unknown) => void
 ): AsyncGenerator<any> {
   let fullText = "";
+  const toolCalls: string[] = [];
   try {
     for await (const chunk of stream) {
       if (chunk.type === "TEXT_MESSAGE_CONTENT" && chunk.delta) {
         fullText += chunk.delta;
       }
+      // Log tool invocations for observability
+      if (chunk.type === "TOOL_CALL_START" || chunk.toolName) {
+        const toolName = chunk.toolName || chunk.name || "unknown";
+        if (!toolCalls.includes(toolName)) {
+          toolCalls.push(toolName);
+          console.log(`[chat] Tool called: ${toolName}`);
+        }
+      }
       yield chunk;
     }
     // Stream completed — fire-and-forget background tasks
-    onComplete(fullText).catch(onError);
+    onComplete(fullText, toolCalls).catch(onError);
   } catch (err) {
     onError(err);
     throw err;
@@ -173,6 +182,21 @@ export const Route = createFileRoute("/api/chat")({
         const body = await request.json();
         const { messages, conversationId, model: modelSpec } = body;
 
+        // Validate model spec before attempting resolution
+        if (modelSpec) {
+          const { validateModelSpec } = await import("#/server/lib/model-discovery");
+          const validation = await validateModelSpec(modelSpec, userId);
+          if (!validation.valid) {
+            return Response.json(
+              {
+                error: `Invalid model: ${validation.suggestion}`,
+                availableModels: validation.availableModels?.slice(0, 15),
+              },
+              { status: 422 }
+            );
+          }
+        }
+
         // Extract last user message for memory pre-fetch
         const lastUserMsg = messages[messages.length - 1];
         const userMessageText = extractTextContent(lastUserMsg);
@@ -216,9 +240,9 @@ export const Route = createFileRoute("/api/chat")({
         const trackedStream = withPostProcessing(
           rawStream,
           // onComplete — save conversation and index
-          async (fullText: string) => {
+          async (fullText: string, toolCalls: string[]) => {
             const durationMs = Date.now() - startTime;
-            logger.info("Web chat completed", { model: modelName, durationMs });
+            logger.info("Web chat completed", { model: modelName, durationMs, toolCalls });
 
             // Emit llm_output + agent_end hooks
             emit("llm_output", {

@@ -108,3 +108,80 @@ export async function discoverModels(
   modelCache.set(providerId, { models, ts: Date.now() });
   return models;
 }
+
+/**
+ * Validate a model spec (e.g. "github/gpt-4o") against real available models.
+ * Returns the validated spec if valid, or null + suggestion if invalid.
+ */
+export async function validateModelSpec(
+  spec: string,
+  userId?: string
+): Promise<{
+  valid: boolean;
+  providerId: string;
+  modelId: string;
+  suggestion?: string;
+  availableModels?: string[];
+}> {
+  let providerId: string;
+  let modelId: string;
+
+  if (spec.includes("/")) {
+    [providerId, modelId] = spec.split("/", 2);
+  } else {
+    providerId = "github";
+    modelId = spec;
+  }
+
+  // Check if provider exists
+  const providerExists = PROVIDER_CATALOG.some((p) => p.id === providerId);
+  if (!providerExists) {
+    const validProviders = PROVIDER_CATALOG.map((p) => p.id);
+    return {
+      valid: false,
+      providerId,
+      modelId,
+      suggestion: `Unknown provider "${providerId}". Available: ${validProviders.join(", ")}`,
+      availableModels: validProviders,
+    };
+  }
+
+  // Discover available models for the provider
+  let models: DiscoveredModel[];
+  try {
+    models = await discoverModels(providerId);
+  } catch {
+    // If discovery fails, allow it through (network issue shouldn't block)
+    return { valid: true, providerId, modelId };
+  }
+
+  // If no models discovered (e.g. no API key, empty free list), allow through
+  if (models.length === 0) {
+    return { valid: true, providerId, modelId };
+  }
+
+  // Check if the model exists in the discovered list
+  const exactMatch = models.some((m) => m.id === modelId);
+  if (exactMatch) {
+    return { valid: true, providerId, modelId };
+  }
+
+  // Try partial/fuzzy match for suggestions
+  const modelIds = models.map((m) => m.id);
+  const lowerModelId = modelId.toLowerCase();
+  const partialMatches = modelIds.filter(
+    (id) =>
+      id.toLowerCase().includes(lowerModelId) ||
+      lowerModelId.includes(id.toLowerCase())
+  );
+
+  return {
+    valid: false,
+    providerId,
+    modelId,
+    suggestion: partialMatches.length > 0
+      ? `Model "${modelId}" not found for ${providerId}. Did you mean: ${partialMatches.slice(0, 5).join(", ")}?`
+      : `Model "${modelId}" not found for ${providerId}. Available models: ${modelIds.slice(0, 10).join(", ")}`,
+    availableModels: modelIds,
+  };
+}

@@ -29,6 +29,7 @@ import {
 import { HotkeysProvider, useHotkey } from '@tanstack/react-hotkeys'
 import { useStore } from '@tanstack/react-store'
 import { appStore, toggleSidebar, setSidebarExpanded } from '#/lib/app-store'
+import { toggleChatPanel } from '#/lib/app-store'
 
 export const Route = createFileRoute('/_app')({
   beforeLoad: async () => {
@@ -72,6 +73,7 @@ function AppLayout() {
   useHotkey('mod+shift+u', () => router.navigate({ to: '/usage' }))
   useHotkey('mod+shift+o', () => router.navigate({ to: '/overview' }))
   useHotkey('mod+b', () => toggleSidebar())
+  useHotkey('mod+shift+b', () => toggleChatPanel())
 
   const isSettings = pathname.startsWith('/settings') || pathname.startsWith('/channels') ||
     pathname.startsWith('/agents') || pathname.startsWith('/config') ||

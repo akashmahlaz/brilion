@@ -33,6 +33,13 @@ import {
   MicOff,
   Volume2,
   Shield,
+  PanelLeftClose,
+  PanelLeft,
+  Image as ImageIcon,
+  Video,
+  Wrench,
+  ChevronUp,
+  Bot,
 } from 'lucide-react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -46,6 +53,8 @@ import { BlurFade } from '#/components/ui/blur-fade'
 import { Ripple } from '#/components/ui/ripple'
 import { toast } from 'sonner'
 import { apiFetch } from '#/lib/api'
+import { useStore } from '@tanstack/react-store'
+import { appStore, toggleChatPanel } from '#/lib/app-store'
 
 // ─── Parse message content — separate text from image/file attachments ───
 const ATTACHMENT_RE = /\[(Image|File):\s*([^\]]+)\]\(([^)]+)\)/g
@@ -65,9 +74,18 @@ function parseMessageContent(content: string): ParsedContent {
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
+interface ToolCallPart {
+  type: 'tool-invocation'
+  toolName: string
+  state: 'calling' | 'result' | 'error'
+  args?: Record<string, unknown>
+  result?: unknown
+}
+
 interface Message {
   role: 'user' | 'assistant' | 'system'
   content: string
+  toolCalls: ToolCallPart[]
   createdAt?: string
 }
 
@@ -126,6 +144,234 @@ function CopyButton({ text }: { text: string }) {
 }
 
 // ─── Time formatting ─────────────────────────────────────────────────────────
+
+// Tool name → human-readable label + icon info
+const TOOL_LABELS: Record<string, { label: string; icon: 'search' | 'image' | 'video' | 'voice' | 'code' | 'wrench' | 'bot' }> = {
+  tavily_search: { label: 'Searching the web', icon: 'search' },
+  generate_image: { label: 'Generating image', icon: 'image' },
+  generate_video: { label: 'Generating video', icon: 'video' },
+  text_to_speech: { label: 'Converting to speech', icon: 'voice' },
+  spawn_subagent: { label: 'Delegating to sub-agent', icon: 'bot' },
+  web_request: { label: 'Making web request', icon: 'wrench' },
+  github_read_file: { label: 'Reading GitHub file', icon: 'code' },
+  github_write_file: { label: 'Writing to GitHub', icon: 'code' },
+  github_list_repos: { label: 'Listing repositories', icon: 'code' },
+  structured_output: { label: 'Generating structured data', icon: 'wrench' },
+  memory_search: { label: 'Searching memory', icon: 'search' },
+  memory_index: { label: 'Indexing memory', icon: 'wrench' },
+  discover_skills: { label: 'Discovering skills', icon: 'search' },
+  auto_create_skill: { label: 'Creating skill', icon: 'wrench' },
+  update_model: { label: 'Switching model', icon: 'wrench' },
+  update_config: { label: 'Updating config', icon: 'wrench' },
+  read_workspace_file: { label: 'Reading workspace', icon: 'wrench' },
+  write_workspace_file: { label: 'Writing to workspace', icon: 'wrench' },
+}
+
+function getToolIcon(iconType: string) {
+  switch (iconType) {
+    case 'search': return <Search className="size-3" />
+    case 'image': return <ImageIcon className="size-3" />
+    case 'video': return <Video className="size-3" />
+    case 'voice': return <Volume2 className="size-3" />
+    case 'code': return <ChevronRight className="size-3" />
+    case 'bot': return <Bot className="size-3" />
+    default: return <Wrench className="size-3" />
+  }
+}
+
+// ─── Tool Call Log — shows AI processing steps ──────────────────────────────
+function ToolCallLog({ toolCalls }: { toolCalls: ToolCallPart[] }) {
+  const [expanded, setExpanded] = useState(false)
+
+  if (!toolCalls.length) return null
+
+  const hasActive = toolCalls.some(tc => tc.state === 'calling')
+  const hasError = toolCalls.some(tc => tc.state === 'error')
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-muted/30 overflow-hidden">
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="flex w-full items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:bg-muted/50 transition-colors"
+      >
+        {hasActive ? (
+          <Loader2 className="size-3 animate-spin text-primary shrink-0" />
+        ) : hasError ? (
+          <X className="size-3 text-destructive shrink-0" />
+        ) : (
+          <Check className="size-3 text-emerald-500 shrink-0" />
+        )}
+        <span className="font-medium">
+          {hasActive
+            ? `Using ${toolCalls.filter(tc => tc.state === 'calling').map(tc => TOOL_LABELS[tc.toolName]?.label || tc.toolName).join(', ')}…`
+            : `Used ${toolCalls.length} tool${toolCalls.length > 1 ? 's' : ''}`
+          }
+        </span>
+        <ChevronUp className={`size-3 ml-auto transition-transform ${expanded ? '' : 'rotate-180'}`} />
+      </button>
+
+      {expanded && (
+        <div className="border-t border-border/40 px-3 py-2 space-y-1.5">
+          {toolCalls.map((tc, idx) => {
+            const meta = TOOL_LABELS[tc.toolName]
+            const result = tc.result as any
+            const hasErr = tc.state === 'error' || result?.error
+            return (
+              <div key={idx} className="flex items-start gap-2 text-[11px]">
+                <span className={`mt-0.5 ${hasErr ? 'text-destructive' : tc.state === 'calling' ? 'text-primary' : 'text-emerald-500'}`}>
+                  {tc.state === 'calling' ? <Loader2 className="size-2.5 animate-spin" /> : hasErr ? <X className="size-2.5" /> : <Check className="size-2.5" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-muted-foreground">{meta ? getToolIcon(meta.icon) : <Wrench className="size-3" />}</span>
+                    <span className="font-medium text-foreground">{meta?.label || tc.toolName}</span>
+                  </div>
+                  {tc.args && Object.keys(tc.args).length > 0 && (
+                    <p className="text-muted-foreground truncate mt-0.5">
+                      {Object.entries(tc.args).map(([k, v]) =>
+                        `${k}: ${typeof v === 'string' ? v.slice(0, 80) : JSON.stringify(v)?.slice(0, 60)}`
+                      ).join(' · ')}
+                    </p>
+                  )}
+                  {hasErr && result?.error && (
+                    <p className="text-destructive mt-0.5">{String(result.error).slice(0, 200)}</p>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Media Results — renders images, audio, video from tool call results ────
+function MediaResults({ toolCalls }: { toolCalls: ToolCallPart[] }) {
+  const media: React.ReactNode[] = []
+
+  for (const tc of toolCalls) {
+    const result = tc.result as any
+
+    // ── In-progress generation states ──
+    if (tc.state === 'calling') {
+      if (tc.toolName === 'generate_image') {
+        media.push(
+          <div key={`img-loading-${tc.toolName}`} className="rounded-xl border border-border bg-muted/30 overflow-hidden">
+            <div className="w-80 h-52 flex flex-col items-center justify-center gap-3 animate-pulse">
+              <div className="size-10 rounded-xl bg-muted flex items-center justify-center">
+                <ImageIcon className="size-5 text-muted-foreground" />
+              </div>
+              <div className="text-center">
+                <p className="text-xs font-medium text-muted-foreground">Generating image…</p>
+                {tc.args && (tc.args as any).prompt && (
+                  <p className="text-[10px] text-muted-foreground/60 mt-1 max-w-60 truncate">"{String((tc.args as any).prompt).slice(0, 80)}"</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+        continue
+      }
+      if (tc.toolName === 'text_to_speech') {
+        media.push(
+          <div key={`audio-loading-${tc.toolName}`} className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 flex items-center gap-3">
+            <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0 animate-pulse">
+              <Volume2 className="size-4" />
+            </div>
+            <p className="text-xs text-muted-foreground">Generating speech…</p>
+          </div>
+        )
+        continue
+      }
+      if (tc.toolName === 'generate_video') {
+        media.push(
+          <div key={`video-loading-${tc.toolName}`} className="rounded-xl border border-border bg-muted/30 overflow-hidden">
+            <div className="w-80 h-44 flex flex-col items-center justify-center gap-3 animate-pulse">
+              <div className="size-10 rounded-xl bg-muted flex items-center justify-center">
+                <Video className="size-5 text-muted-foreground" />
+              </div>
+              <p className="text-xs font-medium text-muted-foreground">Generating video…</p>
+            </div>
+          </div>
+        )
+        continue
+      }
+    }
+
+    // ── Completed results ──
+    if (tc.state !== 'result' || !tc.result) continue
+
+    // Image generation result
+    if (tc.toolName === 'generate_image' && !result.error) {
+      const src = result.imageUrl || (result.imageBase64 ? `data:image/png;base64,${result.imageBase64}` : null)
+      if (src) {
+        media.push(
+          <div key={`img-${tc.toolName}`} className="rounded-xl border border-border overflow-hidden bg-muted/30">
+            <a href={src} target="_blank" rel="noopener noreferrer" className="block">
+              <img
+                src={src}
+                alt={result.revisedPrompt || 'Generated image'}
+                className="max-w-96 max-h-72 object-contain"
+                loading="lazy"
+              />
+            </a>
+            {result.revisedPrompt && (
+              <p className="px-3 py-2 text-[11px] text-muted-foreground border-t border-border/40 truncate">
+                <ImageIcon className="size-3 inline mr-1" />{result.revisedPrompt}
+              </p>
+            )}
+          </div>
+        )
+      }
+    }
+
+    // TTS / audio result
+    if (tc.toolName === 'text_to_speech' && !result.error && result.audioBase64) {
+      media.push(
+        <div key={`audio-${tc.toolName}`} className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 flex items-center gap-3">
+          <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
+            <Volume2 className="size-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-foreground">Voice Message</p>
+            <audio
+              controls
+              className="mt-1.5 w-full max-w-72 h-8 [&::-webkit-media-controls-panel]:bg-muted"
+              src={`data:audio/${result.format || 'opus'};base64,${result.audioBase64}`}
+            />
+          </div>
+        </div>
+      )
+    }
+
+    // Video generation result
+    if (tc.toolName === 'generate_video' && !result.error) {
+      if (result.status === 'completed' && result.url) {
+        media.push(
+          <div key={`video-${tc.toolName}`} className="rounded-xl border border-border overflow-hidden bg-muted/30">
+            <video
+              controls
+              className="max-w-96 max-h-72"
+              src={result.url}
+            />
+          </div>
+        )
+      } else if (result.status === 'timeout') {
+        media.push(
+          <div key={`video-pending-${tc.toolName}`} className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="size-3.5 animate-spin" />
+            <span>Video is still generating (Job: {result.jobId})</span>
+          </div>
+        )
+      }
+    }
+  }
+
+  if (media.length === 0) return null
+  return <div className="space-y-2">{media}</div>
+}
+
 function formatTimeAgo(dateStr: string): string {
   const now = Date.now()
   const then = new Date(dateStr).getTime()
@@ -144,6 +390,7 @@ function formatTimeAgo(dateStr: string): string {
 function ChatPage() {
   const { id: urlConvId } = Route.useSearch()
   const navigate = useNavigate()
+  const chatPanelExpanded = useStore(appStore, (s) => s.chatPanelExpanded)
 
   // Chat state — useChat manages messages + loading + streaming
   const convIdRef = useRef<string | null>(null)
@@ -164,15 +411,23 @@ function ChatPage() {
     })),
   })
 
-  // Map UIMessage[] → our Message[] for rendering
-  const messages: Message[] = chatMessages.map((m: UIMessage) => ({
-    role: m.role as Message['role'],
-    content: m.parts
-      ?.filter((p: any) => p.type === 'text')
-      .map((p: any) => p.content)
-      .join('') ?? '',
-    createdAt: (m as any).createdAt,
-  }))
+  // Map UIMessage[] → our Message[] for rendering (preserving tool calls)
+  const messages: Message[] = chatMessages.map((m: UIMessage) => {
+    const textParts = (m.parts || []).filter((p: any) => p.type === 'text')
+    const toolParts = (m.parts || []).filter((p: any) => p.type === 'tool-invocation')
+    return {
+      role: m.role as Message['role'],
+      content: textParts.map((p: any) => p.content).join('') ?? '',
+      toolCalls: toolParts.map((p: any) => ({
+        type: 'tool-invocation' as const,
+        toolName: p.toolName || p.name || 'unknown',
+        state: p.state || (p.result !== undefined ? 'result' : 'calling'),
+        args: p.args || p.input,
+        result: p.result,
+      })),
+      createdAt: (m as any).createdAt,
+    }
+  })
 
   // Show chat errors as toasts
   useEffect(() => {
@@ -600,15 +855,48 @@ function ChatPage() {
   }, [])
 
   // ─── TTS playback (Text-to-Speech) ─────────────────────────────────────
-  function speakMessage(text: string, msgIdx: number) {
-    if (typeof window === 'undefined' || !window.speechSynthesis) {
-      toast.error('Text-to-speech is not supported in this browser')
+  // Try server-side OpenAI TTS first, fall back to browser speech synthesis
+  const [ttsLoading, setTtsLoading] = useState<number | null>(null)
+
+  async function speakMessage(text: string, msgIdx: number) {
+    // Stop if already speaking this message
+    if (speakingMsgIdx === msgIdx) {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel()
+      }
+      setSpeakingMsgIdx(null)
+      setTtsLoading(null)
       return
     }
 
-    // Stop if already speaking this message
-    if (speakingMsgIdx === msgIdx) {
-      window.speechSynthesis.cancel()
+    // Try server-side TTS first (much better quality)
+    try {
+      setTtsLoading(msgIdx)
+      setSpeakingMsgIdx(msgIdx)
+      const res = await apiFetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: text.slice(0, 4000), voice: 'nova' }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data.audioBase64) {
+          const audio = new Audio(`data:audio/${data.format || 'opus'};base64,${data.audioBase64}`)
+          audio.onended = () => { setSpeakingMsgIdx(null); setTtsLoading(null) }
+          audio.onerror = () => { setSpeakingMsgIdx(null); setTtsLoading(null) }
+          setTtsLoading(null)
+          await audio.play()
+          return
+        }
+      }
+    } catch {
+      // Server TTS unavailable — fall through to browser
+    }
+    setTtsLoading(null)
+
+    // Fallback: browser speech synthesis
+    if (typeof window === 'undefined' || !window.speechSynthesis) {
+      toast.error('Text-to-speech is not available')
       setSpeakingMsgIdx(null)
       return
     }
@@ -618,7 +906,6 @@ function ChatPage() {
     utterance.lang = navigator.language || 'en-US'
     utterance.onend = () => setSpeakingMsgIdx(null)
     utterance.onerror = () => setSpeakingMsgIdx(null)
-    setSpeakingMsgIdx(msgIdx)
     window.speechSynthesis.speak(utterance)
   }
 
@@ -698,17 +985,30 @@ function ChatPage() {
   // ─── Render ────────────────────────────────────────────────────────────
   return (
     <>
-      {/* ════════ MIDDLE COLUMN — Conversation list (rounded) ════════ */}
-      <div className="hidden md:flex w-72 shrink-0 flex-col bg-secondary border-r border-border">
-        {/* New chat + Search */}
+      {/* ════════ MIDDLE COLUMN — Conversation list (collapsible) ════════ */}
+      <div className={`hidden md:flex shrink-0 flex-col bg-secondary border-r border-border transition-all duration-300 ease-out ${chatPanelExpanded ? 'w-72' : 'w-0 overflow-hidden border-r-0'}`}>
+        {/* Panel header with collapse toggle */}
         <div className="p-3 space-y-2 shrink-0">
-          <button
-            onClick={startNewChat}
-            className="flex w-full items-center justify-center gap-2 rounded-full bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors active:scale-[0.98]"
-          >
-            <Plus className="size-4" />
-            New Chat
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={startNewChat}
+              className="flex flex-1 items-center justify-center gap-2 rounded-full bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors active:scale-[0.98]"
+            >
+              <Plus className="size-4" />
+              New Chat
+            </button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => toggleChatPanel()}
+                  className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shrink-0"
+                >
+                  <PanelLeftClose className="size-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">Hide panel (Ctrl+Shift+B)</TooltipContent>
+            </Tooltip>
+          </div>
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
             <input
@@ -785,6 +1085,19 @@ function ChatPage() {
         {/* ─── Top bar: Title + Channel hub ──────────────── */}
         <div className="flex items-center justify-between shrink-0 px-5 py-3 border-b border-border">
           <div className="flex items-center gap-2">
+            {!chatPanelExpanded && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => toggleChatPanel()}
+                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors mr-1"
+                  >
+                    <PanelLeft className="size-4" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">Show panel (Ctrl+Shift+B)</TooltipContent>
+              </Tooltip>
+            )}
             {conversationId && (
               <span className="font-heading text-sm font-semibold text-foreground truncate max-w-60">
                 {conversations.find(c => c._id === conversationId)?.title || 'Chat'}
@@ -1327,6 +1640,7 @@ function ChatPage() {
                 }
 
                 const isUser = msg.role === 'user'
+                const hasToolCalls = msg.toolCalls?.length > 0
                 return (
                   <div key={i} className={`flex gap-3 ${isUser ? 'justify-end' : ''}`}>
                     {!isUser && (
@@ -1337,7 +1651,7 @@ function ChatPage() {
                     <div
                       className={`relative group max-w-[85%] ${
                         isUser
-                          ? 'rounded-2xl rounded-br-md bg-primary text-primary-foreground px-4 py-2.5 shadow-sm'
+                          ? 'rounded-2xl rounded-br-md bg-foreground text-background px-4 py-2.5 shadow-sm'
                           : 'pt-0.5'
                       }`}
                     >
@@ -1360,7 +1674,7 @@ function ChatPage() {
                                       </a>
                                     ) : (
                                       <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer"
-                                        className="flex items-center gap-2 rounded-lg bg-primary-foreground/10 px-3 py-2 text-xs hover:bg-primary-foreground/20 transition-colors">
+                                        className="flex items-center gap-2 rounded-lg bg-background/15 px-3 py-2 text-xs hover:bg-background/25 transition-colors">
                                         <FileIcon className="size-4" />
                                         <span className="truncate max-w-40">{att.name}</span>
                                       </a>
@@ -1372,25 +1686,34 @@ function ChatPage() {
                           )
                         })()
                       ) : (
-                        <div className="prose prose-sm max-w-none text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 prose-p:my-1.5 prose-pre:my-2.5 prose-pre:rounded-xl prose-pre:bg-muted prose-pre:text-foreground prose-code:before:content-none prose-code:after:content-none prose-code:bg-muted prose-code:text-foreground prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-xs prose-headings:text-foreground prose-headings:font-heading wrap-break-word leading-relaxed">
+                        <div className="space-y-2">
+                          {/* Tool calls / processing log */}
+                          {hasToolCalls && <ToolCallLog toolCalls={msg.toolCalls} />}
+
+                          {/* AI text response with markdown */}
                           {msg.content ? (
-                            <Markdown
-                              remarkPlugins={[remarkGfm]}
-                              components={{
-                                img: ({ src, alt, ...props }) => (
-                                  <a href={src} target="_blank" rel="noopener noreferrer" className="block my-2">
-                                    <img src={src} alt={alt || ''} {...props} className="max-w-80 max-h-60 rounded-lg object-cover border border-border" loading="lazy" />
-                                  </a>
-                                ),
-                              }}
-                            >
-                              {msg.content}
-                            </Markdown>
+                            <div className="prose prose-sm max-w-none text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 prose-p:my-1.5 prose-pre:my-2.5 prose-pre:rounded-xl prose-pre:bg-muted prose-pre:text-foreground prose-code:before:content-none prose-code:after:content-none prose-code:bg-muted prose-code:text-foreground prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-xs prose-headings:text-foreground prose-headings:font-heading wrap-break-word leading-relaxed">
+                              <Markdown
+                                remarkPlugins={[remarkGfm]}
+                                components={{
+                                  img: ({ src, alt, ...props }) => (
+                                    <a href={src} target="_blank" rel="noopener noreferrer" className="block my-2">
+                                      <img src={src} alt={alt || ''} {...props} className="max-w-80 max-h-60 rounded-lg object-cover border border-border" loading="lazy" />
+                                    </a>
+                                  ),
+                                }}
+                              >
+                                {msg.content}
+                              </Markdown>
+                            </div>
                           ) : isLoading && i === messages.length - 1 ? (
-                            <span className="text-muted-foreground text-sm animate-pulse">…</span>
-                          ) : (
-                            <span className="text-muted-foreground text-xs italic">used tools</span>
-                          )}
+                            <span className="text-muted-foreground text-sm animate-pulse">thinking…</span>
+                          ) : !hasToolCalls ? (
+                            <span className="text-muted-foreground text-xs italic">processing…</span>
+                          ) : null}
+
+                          {/* Rendered media from tool results */}
+                          {hasToolCalls && <MediaResults toolCalls={msg.toolCalls} />}
                         </div>
                       )}
                       {msg.content && !isUser && (
@@ -1405,7 +1728,7 @@ function ChatPage() {
                                     : 'bg-card text-muted-foreground hover:text-foreground'
                                 }`}
                               >
-                                <Volume2 className="size-3" />
+                                {ttsLoading === i ? <Loader2 className="size-3 animate-spin" /> : <Volume2 className="size-3" />}
                               </button>
                             </TooltipTrigger>
                             <TooltipContent side="bottom">{speakingMsgIdx === i ? 'Stop' : 'Listen'}</TooltipContent>
@@ -1512,7 +1835,7 @@ function ChatPage() {
                 onKeyDown={handleKeyDown}
                 placeholder={isChannelConversation ? `Viewing ${CHANNEL_META[activeChannel]?.label} conversation` : 'Message Brilion…'}
                 rows={1}
-                className="min-h-14 max-h-40 resize-none border-0 bg-transparent pr-24 pl-12 py-4 text-sm text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="min-h-14 max-h-40 resize-none border-0 bg-transparent pr-24 pl-12 py-4 text-base font-sans text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
                 disabled={isLoading || isChannelConversation}
               />
               <div className="absolute right-3 bottom-3 flex items-center gap-1.5">

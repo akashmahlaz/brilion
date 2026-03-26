@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight, ChevronDown, Menu, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useSession } from '#/lib/auth-client'
 
 /* ── Dropdown Data ── */
 const navDropdowns: Record<
@@ -78,6 +79,8 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const { data: session } = useSession()
+  const isLoggedIn = !!session?.user
 
   const handleMouseEnter = (label: string) => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current)
@@ -169,18 +172,30 @@ export function Navbar() {
 
         {/* Desktop CTAs */}
         <div className="hidden md:flex items-center gap-3">
-          <Link
-            to="/login"
-            className="px-5 py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-full hover:bg-gray-50 transition-all"
-          >
-            Log in
-          </Link>
-          <Link
-            to="/signup"
-            className="px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 transition-all shadow-[inset_0_0_12px_rgba(255,255,255,0.3)]"
-          >
-            Get Started
-          </Link>
+          {isLoggedIn ? (
+            <Link
+              to="/chat"
+              search={{ id: undefined as any }}
+              className="px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 transition-all shadow-[inset_0_0_12px_rgba(255,255,255,0.3)]"
+            >
+              Dashboard
+            </Link>
+          ) : (
+            <>
+              <Link
+                to="/login"
+                className="px-5 py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-full hover:bg-gray-50 transition-all"
+              >
+                Log in
+              </Link>
+              <Link
+                to="/signup"
+                className="px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-full hover:bg-gray-800 transition-all shadow-[inset_0_0_12px_rgba(255,255,255,0.3)]"
+              >
+                Get Started
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Mobile toggle */}
@@ -212,18 +227,30 @@ export function Navbar() {
                 </button>
               ))}
               <div className="pt-4 space-y-3">
-                <Link
-                  to="/signup"
-                  className="block w-full text-center px-5 py-3 bg-gray-900 text-white text-sm font-medium rounded-full"
-                >
-                  Get Started
-                </Link>
-                <Link
-                  to="/login"
-                  className="block w-full text-center px-5 py-3 border border-gray-200 text-gray-700 text-sm font-medium rounded-full hover:bg-gray-50"
-                >
-                  Log in
-                </Link>
+                {isLoggedIn ? (
+                  <Link
+                    to="/chat"
+                    search={{ id: undefined as any }}
+                    className="block w-full text-center px-5 py-3 bg-gray-900 text-white text-sm font-medium rounded-full"
+                  >
+                    Dashboard
+                  </Link>
+                ) : (
+                  <>
+                    <Link
+                      to="/signup"
+                      className="block w-full text-center px-5 py-3 bg-gray-900 text-white text-sm font-medium rounded-full"
+                    >
+                      Get Started
+                    </Link>
+                    <Link
+                      to="/login"
+                      className="block w-full text-center px-5 py-3 border border-gray-200 text-gray-700 text-sm font-medium rounded-full hover:bg-gray-50"
+                    >
+                      Log in
+                    </Link>
+                  </>
+                )}
               </div>
             </div>
           </motion.div>

@@ -86,6 +86,7 @@ export function createSubagentTool(userId: string, conversationId?: string) {
       task: z.string().describe("Clear description of the task for the sub-agent"),
     }),
   }).server(async ({ agentSlug, task }: { agentSlug: string; task: string }) => {
+    console.log(`[subagent] Spawning "${agentSlug}" with task: ${task.slice(0, 120)}`);
     const sysLogger = createLogger(userId, "system" as LogSource);
     const startTime = Date.now();
 

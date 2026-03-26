@@ -11,6 +11,7 @@ export interface Notification {
 
 export interface AppState {
   sidebarExpanded: boolean
+  chatPanelExpanded: boolean
   notifications: Notification[]
   connectionStatus: Record<string, 'online' | 'offline' | 'connecting'>
   commandPaletteOpen: boolean
@@ -18,6 +19,7 @@ export interface AppState {
 
 export const appStore = new Store<AppState>({
   sidebarExpanded: false,
+  chatPanelExpanded: true,
   notifications: [],
   connectionStatus: {},
   commandPaletteOpen: false,
@@ -68,4 +70,12 @@ export function setConnectionStatus(channel: string, status: 'online' | 'offline
 
 export function toggleCommandPalette() {
   appStore.setState((s) => ({ ...s, commandPaletteOpen: !s.commandPaletteOpen }))
+}
+
+export function toggleChatPanel() {
+  appStore.setState((s) => ({ ...s, chatPanelExpanded: !s.chatPanelExpanded }))
+}
+
+export function setChatPanelExpanded(expanded: boolean) {
+  appStore.setState((s) => ({ ...s, chatPanelExpanded: expanded }))
 }

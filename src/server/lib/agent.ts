@@ -24,6 +24,7 @@ import { createStructuredOutputTool } from "./tools/structured";
 import { createAutoSkillTool } from "./tools/auto-skill";
 import { createSkillDiscoveryTool } from "./tools/skill-discovery";
 import { createVideoGenTool } from "./tools/video-gen";
+import { createChannelMediaTools } from "./tools/channel-media";
 import { createLogger } from "../models/log-entry";
 import { searchMemory } from "./memory-manager";
 import { getHookRunner, hasHooks } from "./hooks";
@@ -46,6 +47,7 @@ const DEFAULT_SYSTEM_PROMPT = `You are an AI agency assistant with full self-man
 - **Image Generation**: Generate images from text prompts using generate_image (DALL-E)
 - **Video Generation**: Generate videos from text prompts using generate_video (Sora) — lazy, discovered on demand
 - **Text-to-Speech**: Convert text to audio using text_to_speech — great for voice messages
+- **Channel Media**: After generating media (image/audio/video), send it to WhatsApp/Telegram using send_image_to_channel, send_audio_to_channel, or send_video_to_channel
 - **Structured Output**: Generate structured JSON data using structured_output
 - **Sub-Agents**: Delegate complex tasks to specialized agents using spawn_subagent (researcher, coder, planner, writer)
 - **Auto-Skills**: When you notice recurring patterns in the user's requests, use auto_create_skill to save reusable instructions that persist across all future conversations
@@ -117,6 +119,7 @@ export async function buildToolSet(userId: string, conversationId?: string): Pro
     createSubagentTool(userId, conversationId),
     createAutoSkillTool(userId),
     createSkillDiscoveryTool(userId),
+    ...createChannelMediaTools(userId),
   ];
 
   // Ensure default agent profiles exist for sub-agent tool

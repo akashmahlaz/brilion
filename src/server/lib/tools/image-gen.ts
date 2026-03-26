@@ -17,19 +17,23 @@ export function createImageGenTool(userId: string) {
       size: z.string().optional().describe("Image size: 1024x1024, 1792x1024, or 1024x1792. Default: 1024x1024"),
     }),
   }).server(async ({ prompt, size }: { prompt: string; size?: string }) => {
+    console.log("[image-gen] Starting image generation:", { prompt: prompt.slice(0, 100), size });
     let apiKey = await resolveProviderKey("openai", userId).catch(() => null);
     let baseUrl: string | undefined;
 
     if (!apiKey) {
       apiKey = await resolveProviderKey("github", userId).catch(() => null);
       baseUrl = "https://models.inference.ai.azure.com";
+      if (apiKey) console.log("[image-gen] Using GitHub Models fallback");
     }
 
     if (!apiKey) {
-      return { error: "No API key configured for image generation. Set an OpenAI API key." };
+      console.error("[image-gen] No API key found for openai or github");
+      return { error: "No API key configured for image generation. Set an OpenAI or GitHub API key in Settings." };
     }
 
     try {
+      console.log("[image-gen] Calling DALL-E 3 adapter...");
       const adapter = createOpenaiImage("dall-e-3", apiKey, baseUrl ? { baseURL: baseUrl } : undefined);
 
       const result = await generateImage({
@@ -40,8 +44,12 @@ export function createImageGenTool(userId: string) {
       });
 
       const image = result.images[0];
-      if (!image) return { error: "No image generated" };
+      if (!image) {
+        console.error("[image-gen] No image returned from API");
+        return { error: "No image generated" };
+      }
 
+      console.log("[image-gen] Image generated successfully:", { model: result.model, hasUrl: !!image.url, hasB64: !!image.b64Json });
       return {
         imageBase64: image.b64Json || null,
         imageUrl: image.url || null,
@@ -49,6 +57,7 @@ export function createImageGenTool(userId: string) {
         model: result.model,
       };
     } catch (e) {
+      console.error("[image-gen] Generation failed:", e);
       return { error: `Image generation failed: ${e instanceof Error ? e.message : String(e)}` };
     }
   });

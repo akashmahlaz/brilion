@@ -17,6 +17,7 @@ import { Route as ApiWorkspaceRouteImport } from './routes/api/workspace'
 import { Route as ApiWhatsappRouteImport } from './routes/api/whatsapp'
 import { Route as ApiUsageRouteImport } from './routes/api/usage'
 import { Route as ApiUploadRouteImport } from './routes/api/upload'
+import { Route as ApiTtsRouteImport } from './routes/api/tts'
 import { Route as ApiTelegramRouteImport } from './routes/api/telegram'
 import { Route as ApiSkillsRouteImport } from './routes/api/skills'
 import { Route as ApiRealtimeTokenRouteImport } from './routes/api/realtime-token'
@@ -93,6 +94,11 @@ const ApiUsageRoute = ApiUsageRouteImport.update({
 const ApiUploadRoute = ApiUploadRouteImport.update({
   id: '/api/upload',
   path: '/api/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTtsRoute = ApiTtsRouteImport.update({
+  id: '/api/tts',
+  path: '/api/tts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiTelegramRoute = ApiTelegramRouteImport.update({
@@ -328,6 +334,7 @@ export interface FileRoutesByFullPath {
   '/api/realtime-token': typeof ApiRealtimeTokenRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/telegram': typeof ApiTelegramRoute
+  '/api/tts': typeof ApiTtsRoute
   '/api/upload': typeof ApiUploadRoute
   '/api/usage': typeof ApiUsageRoute
   '/api/whatsapp': typeof ApiWhatsappRoute
@@ -375,6 +382,7 @@ export interface FileRoutesByTo {
   '/api/realtime-token': typeof ApiRealtimeTokenRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/telegram': typeof ApiTelegramRoute
+  '/api/tts': typeof ApiTtsRoute
   '/api/upload': typeof ApiUploadRoute
   '/api/usage': typeof ApiUsageRoute
   '/api/whatsapp': typeof ApiWhatsappRoute
@@ -425,6 +433,7 @@ export interface FileRoutesById {
   '/api/realtime-token': typeof ApiRealtimeTokenRoute
   '/api/skills': typeof ApiSkillsRoute
   '/api/telegram': typeof ApiTelegramRoute
+  '/api/tts': typeof ApiTtsRoute
   '/api/upload': typeof ApiUploadRoute
   '/api/usage': typeof ApiUsageRoute
   '/api/whatsapp': typeof ApiWhatsappRoute
@@ -474,6 +483,7 @@ export interface FileRouteTypes {
     | '/api/realtime-token'
     | '/api/skills'
     | '/api/telegram'
+    | '/api/tts'
     | '/api/upload'
     | '/api/usage'
     | '/api/whatsapp'
@@ -521,6 +531,7 @@ export interface FileRouteTypes {
     | '/api/realtime-token'
     | '/api/skills'
     | '/api/telegram'
+    | '/api/tts'
     | '/api/upload'
     | '/api/usage'
     | '/api/whatsapp'
@@ -570,6 +581,7 @@ export interface FileRouteTypes {
     | '/api/realtime-token'
     | '/api/skills'
     | '/api/telegram'
+    | '/api/tts'
     | '/api/upload'
     | '/api/usage'
     | '/api/whatsapp'
@@ -601,6 +613,7 @@ export interface RootRouteChildren {
   ApiRealtimeTokenRoute: typeof ApiRealtimeTokenRoute
   ApiSkillsRoute: typeof ApiSkillsRoute
   ApiTelegramRoute: typeof ApiTelegramRoute
+  ApiTtsRoute: typeof ApiTtsRoute
   ApiUploadRoute: typeof ApiUploadRoute
   ApiUsageRoute: typeof ApiUsageRoute
   ApiWhatsappRoute: typeof ApiWhatsappRoute
@@ -668,6 +681,13 @@ declare module '@tanstack/react-router' {
       path: '/api/upload'
       fullPath: '/api/upload'
       preLoaderRoute: typeof ApiUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/tts': {
+      id: '/api/tts'
+      path: '/api/tts'
+      fullPath: '/api/tts'
+      preLoaderRoute: typeof ApiTtsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/telegram': {
@@ -1020,6 +1040,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiRealtimeTokenRoute: ApiRealtimeTokenRoute,
   ApiSkillsRoute: ApiSkillsRoute,
   ApiTelegramRoute: ApiTelegramRoute,
+  ApiTtsRoute: ApiTtsRoute,
   ApiUploadRoute: ApiUploadRoute,
   ApiUsageRoute: ApiUsageRoute,
   ApiWhatsappRoute: ApiWhatsappRoute,

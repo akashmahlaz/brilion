@@ -2,6 +2,7 @@ import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import { loadConfig, saveConfig } from "../config";
 import { getAvailableProviders } from "../providers";
+import { validateModelSpec } from "../model-discovery";
 import {
   readWorkspaceFile,
   writeWorkspaceFile,
@@ -64,6 +65,31 @@ export function createMetaTools(userId: string) {
         .describe("Fallback models in provider:model format"),
     }),
   }).server(async ({ primary, fallbacks }) => {
+    // Validate the primary model against real available models
+    const validation = await validateModelSpec(primary, userId);
+    if (!validation.valid) {
+      return {
+        status: "error",
+        error: validation.suggestion,
+        availableModels: validation.availableModels?.slice(0, 15),
+        hint: "Use provider/model format (e.g. 'github/gpt-4o', 'anthropic/claude-sonnet-4-20250514'). Only real models accepted.",
+      };
+    }
+
+    // Validate fallbacks too
+    if (fallbacks?.length) {
+      for (const fb of fallbacks) {
+        const fbValidation = await validateModelSpec(fb, userId);
+        if (!fbValidation.valid) {
+          return {
+            status: "error",
+            error: `Fallback model invalid: ${fbValidation.suggestion}`,
+            availableModels: fbValidation.availableModels?.slice(0, 15),
+          };
+        }
+      }
+    }
+
     const config = await loadConfig(userId);
     config.agents.defaults.model.primary = primary;
     if (fallbacks) config.agents.defaults.model.fallbacks = fallbacks;
