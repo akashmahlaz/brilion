@@ -1616,14 +1616,14 @@ function ChatPage() {
                   <Sparkles className="size-7 text-primary" />
                 </div>
                 <h1 className="font-heading text-[28px] sm:text-[36px] font-extrabold tracking-[-0.035em] text-foreground leading-[1.1]">
-                  What can I help with?
+                      Lets automate All
                 </h1>
                 <p className="mt-2.5 text-[15px] text-muted-foreground max-w-sm text-center leading-relaxed">
                   Chat, automate, or manage — everything from one place.
                 </p>
 
                 {/* Bento suggestion grid */}
-                <div className="mt-10 w-full max-w-lg">
+                {/* <div className="mt-10 w-full max-w-lg">
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       onClick={() => { setInput('What can you automate for me?'); textareaRef.current?.focus() }}
@@ -1690,7 +1690,7 @@ function ChatPage() {
                       </div>
                     </button>
                   </div>
-                </div>
+                </div> */}
               </div>
             )}
 
