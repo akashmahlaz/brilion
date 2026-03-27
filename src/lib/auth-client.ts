@@ -73,7 +73,7 @@ export async function signUpWithEmail(
       const data = await res.json();
       return { error: data.error || "Registration failed" };
     }
-    return signInWithEmail(email, password, "/onboarding");
+    return signInWithEmail(email, password, "/overview");
   } catch {
     return { error: "Something went wrong. Please try again." };
   }

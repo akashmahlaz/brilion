@@ -279,7 +279,7 @@ function AppLayout() {
                   className="gap-2 text-destructive focus:text-destructive"
                   onClick={async () => {
                     await signOut()
-                    window.location.href = '/login'
+                    router.navigate({ to: '/login' })
                   }}
                 >
                   <LogOut className="size-3.5" /> Sign out

@@ -1385,7 +1385,10 @@ function ChatPage() {
                       <span className="font-semibold text-foreground">{connectedCount}</span> of {Object.keys(CHANNEL_META).length} active
                     </p>
                     <button
-                      onClick={() => { setChannelPanelOpen(false); window.location.href = '/channels' }}
+                      onClick={() => {
+                        setChannelPanelOpen(false)
+                        navigate({ to: '/channels' })
+                      }}
                       className="text-[10px] text-primary font-medium hover:underline"
                     >
                       Manage all →
@@ -1667,7 +1670,7 @@ function ChatPage() {
                           className="rounded-xl text-[12px]"
                           onClick={() => {
                             setChannelPanelOpen(false)
-                            window.location.href = '/channels'
+                            navigate({ to: '/channels' })
                           }}
                         >
                           <Settings2 className="size-3 mr-1.5" />

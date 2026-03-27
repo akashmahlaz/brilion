@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState, useEffect } from 'react'
 import { Eye, EyeOff, Loader2, ArrowRight } from 'lucide-react'
 import { motion } from 'framer-motion'
@@ -11,6 +11,7 @@ export const Route = createFileRoute('/_auth/login')({
 })
 
 function LoginPage() {
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -36,7 +37,7 @@ function LoginPage() {
       if (result.error) {
         setError(result.error)
       } else {
-        window.location.href = '/overview'
+        navigate({ to: '/overview' })
       }
     } catch {
       setError('Something went wrong. Please try again.')
