@@ -35,8 +35,8 @@ code, pre {
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0.014 265);
 
-  --primary: oklch(0.145 0.014 265);
-  --primary-foreground: oklch(1 0 0);
+  --primary: oklch(0.488 0.243 264.376); /* Vibrant Indigo/Blue */
+  --primary-foreground: oklch(0.985 0.003 83);
 
   --secondary: oklch(0.967 0.002 83);
   --secondary-foreground: oklch(0.21 0.012 265);

@@ -28,6 +28,7 @@ import {
   Loader2,
   Phone,
   Users,
+  User,
   ChevronRight,
   Mic,
   MicOff,
@@ -53,10 +54,14 @@ import { MagicCard } from '#/components/ui/magic-card'
 import { BorderBeam } from '#/components/ui/border-beam'
 import { BlurFade } from '#/components/ui/blur-fade'
 import { Ripple } from '#/components/ui/ripple'
+import { ShineBorder } from '#/components/ui/shine-border'
+import { AnimatedShinyText } from '#/components/ui/animated-shiny-text'
 import { toast } from 'sonner'
 import { apiFetch } from '#/lib/api'
 import { useStore } from '@tanstack/react-store'
 import { appStore, toggleChatPanel } from '#/lib/app-store'
+import { useSession } from '#/lib/auth-client'
+import { Avatar, AvatarFallback, AvatarImage } from '#/components/ui/avatar'
 
 // ─── Parse message content — separate text from image/file attachments ───
 const ATTACHMENT_RE = /\[(Image|File):\s*([^\]]+)\]\(([^)]+)\)/g
@@ -467,6 +472,8 @@ function ChatPage() {
   const { id: urlConvId } = Route.useSearch()
   const navigate = useNavigate()
   const chatPanelExpanded = useStore(appStore, (s) => s.chatPanelExpanded)
+  const { data: session } = useSession()
+  const user = session?.user
 
   // Chat state — useChat manages messages + loading + streaming
   const convIdRef = useRef<string | null>(null)
@@ -878,6 +885,21 @@ function ChatPage() {
   // ─── Voice input (Speech-to-Text) ──────────────────────────────────────
   const hasSpeechRecognition = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)
 
+  // ─── Slash Commands Menu ───────────────────────────────────────────────────
+  const SLASH_COMMANDS = [
+    { id: 'marketing', label: 'Marketing Agent', icon: Zap, prompt: 'Act as a marketing expert. Create a detailed go-to-market strategy for a new feature.' },
+    { id: 'coding', label: 'Code Assistant', icon: FileIcon, prompt: 'Review my attached code and provide architectural improvements.' },
+    { id: 'summarize', label: 'Summarize', icon: FileIcon, prompt: 'Summarize the key takeaways and action items from this text: ' },
+    { id: 'automation', label: 'Automation', icon: Zap, prompt: 'Can you set up an automation rule to send a Slack message when a new user signs up?' }
+  ]
+
+  const showSlashMenu = input.trim() === '/'
+
+  function handleCommandSelect(prompt: string) {
+    setInput(prompt)
+    textareaRef.current?.focus()
+  }
+
   function toggleVoiceInput() {
     if (isRecording) {
       recognitionRef.current?.stop()
@@ -1063,6 +1085,27 @@ function ChatPage() {
       )
     : conversations
 
+  // Group conversations by date
+  const groupedConversations = filteredConversations.reduce((acc, c) => {
+    const date = new Date(c.updatedAt)
+    const now = new Date()
+    const diff = now.getTime() - date.getTime()
+    const days = diff / (1000 * 3600 * 24)
+    
+    let group = 'Older'
+    if (days < 1 && date.getDate() === now.getDate()) group = 'Today'
+    else if (days < 2) group = 'Yesterday'
+    else if (days < 7) group = 'Previous 7 Days'
+    else if (days < 30) group = 'Previous 30 Days'
+    
+    if (!acc[group]) acc[group] = []
+    acc[group].push(c)
+    return acc
+  }, {} as Record<string, typeof filteredConversations>)
+
+  // Define order for groups
+  const groupOrder = ['Today', 'Yesterday', 'Previous 7 Days', 'Previous 30 Days', 'Older']
+
   // Active channel for display
   const primaryMeta = CHANNEL_META[primaryChannel] || CHANNEL_META.whatsapp
   const PrimaryIcon = primaryMeta.icon
@@ -1117,48 +1160,58 @@ function ChatPage() {
               </p>
             </div>
           ) : (
-            <div className="space-y-0.5">
-              {filteredConversations.map((c) => {
-                const isActive = conversationId === c._id
-                const meta = CHANNEL_META[c.channel] || CHANNEL_META.web
+            <div className="space-y-4 pt-2">
+              {groupOrder.map(group => {
+                if (!groupedConversations[group] || groupedConversations[group].length === 0) return null
                 return (
-                  <button
-                    key={c._id}
-                    onClick={() => navigate({ to: '/chat', search: { id: c._id } })}
-                    className={`group w-full text-left rounded-xl px-2.5 py-2.5 transition-all ${
-                      isActive
-                        ? 'bg-background shadow-sm border border-border/60'
-                        : 'hover:bg-background/60'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2">
-                      <span className={`mt-1.5 size-2 shrink-0 rounded-full ${meta.dotColor}`} />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="truncate text-[13px] font-medium text-foreground">
-                            {c.title || 'Untitled'}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground shrink-0">
-                            {formatTimeAgo(c.updatedAt)}
-                          </span>
-                        </div>
-                        {c.lastMessage && (
-                          <p className="truncate text-[11px] text-muted-foreground mt-0.5">
-                            {c.lastMessage}
-                          </p>
-                        )}
-                      </div>
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        onClick={(e) => deleteConversation(c._id, e)}
-                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') deleteConversation(c._id, e as any); }}
-                        className="mt-0.5 opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/40 hover:text-destructive transition-all cursor-pointer"
-                      >
-                        <Trash2 className="size-3" />
-                      </div>
+                  <div key={group} className="space-y-0.5">
+                    <div className="px-2 pb-1.5 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      {group}
                     </div>
-                  </button>
+                    {groupedConversations[group].map((c) => {
+                      const isActive = conversationId === c._id
+                      const meta = CHANNEL_META[c.channel] || CHANNEL_META.web
+                      return (
+                        <button
+                          key={c._id}
+                          onClick={() => navigate({ to: '/chat', search: { id: c._id } })}
+                          className={`group w-full text-left rounded-xl px-2.5 py-2.5 transition-all ${
+                            isActive
+                              ? 'bg-background shadow-sm border border-border/60'
+                              : 'hover:bg-background/60'
+                          }`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <span className={`mt-1.5 size-2 shrink-0 rounded-full ${meta.dotColor}`} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="truncate text-[13px] font-medium text-foreground">
+                                  {c.title || 'Untitled'}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground shrink-0">
+                                  {formatTimeAgo(c.updatedAt)}
+                                </span>
+                              </div>
+                              {c.lastMessage && (
+                                <p className="truncate text-[11px] text-muted-foreground mt-0.5">
+                                  {c.lastMessage}
+                                </p>
+                              )}
+                            </div>
+                            <div
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => deleteConversation(c._id, e)}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') deleteConversation(c._id, e as any); }}
+                              className="mt-0.5 opacity-0 group-hover:opacity-100 p-0.5 text-muted-foreground/40 hover:text-destructive transition-all cursor-pointer"
+                            >
+                              <Trash2 className="size-3" />
+                            </div>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
                 )
               })}
             </div>
@@ -1612,15 +1665,24 @@ function ChatPage() {
             {/* ─── Empty state — bento grid welcome ────────────────── */}
             {messages.length === 0 && !conversationId && (
               <div className="flex flex-col items-center justify-center min-h-[60vh]">
-                <div className="mb-6 flex size-14 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 shadow-sm">
-                  <Sparkles className="size-7 text-primary" />
-                </div>
-                <h1 className="font-heading text-[28px] sm:text-[36px] font-extrabold tracking-[-0.035em] text-foreground leading-[1.1]">
-                      Start automating
-                </h1>
-                <p className="mt-2.5 text-[15px] text-muted-foreground max-w-sm text-center leading-relaxed">
-                  Chat, automate, or manage — everything from one place.
-                </p>
+                <BlurFade delay={0.1} direction="up">
+                  <div className="relative mb-6 flex size-16 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 shadow-sm overflow-hidden">
+                    <Sparkles className="size-7 text-primary" />
+                    <BorderBeam size={50} duration={3} colorFrom="hsl(var(--primary))" colorTo="hsl(var(--primary) / 0.3)" borderWidth={1.5} />
+                  </div>
+                </BlurFade>
+                <BlurFade delay={0.2} direction="up">
+                  <h1 className="font-heading text-[28px] sm:text-[36px] font-extrabold tracking-[-0.035em] text-foreground leading-[1.1]">
+                    <AnimatedShinyText className="text-[28px] sm:text-[36px] font-extrabold tracking-[-0.035em]">
+                      What can I help with?
+                    </AnimatedShinyText>
+                  </h1>
+                </BlurFade>
+                <BlurFade delay={0.3} direction="up">
+                  <p className="mt-2.5 text-[15px] text-muted-foreground max-w-sm text-center leading-relaxed">
+                    Chat, automate, or manage — everything from one place.
+                  </p>
+                </BlurFade>
 
                 {/* Bento suggestion grid */}
                 {/* <div className="mt-10 w-full max-w-lg">
@@ -1710,7 +1772,7 @@ function ChatPage() {
             )}
 
             {/* ─── Message list ─────────────────────────────────────────── */}
-            <div className="space-y-6">
+            <div className="space-y-4 pb-4">
               {messages.map((msg, i) => {
                 if (msg.role === 'system') {
                   return (
@@ -1724,121 +1786,139 @@ function ChatPage() {
 
                 const isUser = msg.role === 'user'
                 const hasToolCalls = msg.toolCalls?.length > 0
+                const timestamp = msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
                 return (
-                  <div key={i} className={`flex gap-3 ${isUser ? 'justify-end' : ''}`}>
-                    {!isUser && (
-                      <div className="size-7 shrink-0 mt-0.5 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
-                        <Sparkles className="size-3.5 text-primary" />
+                  <div key={i} className={`group flex items-end gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+                    {/* Avatar */}
+                    {isUser ? (
+                      <Avatar className="size-8 shrink-0 ring-1 ring-border shadow-sm">
+                        {user?.image && <AvatarImage src={user.image} alt={user.name || ''} />}
+                        <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
+                          {user?.name?.charAt(0)?.toUpperCase() || <User className="size-3.5" />}
+                        </AvatarFallback>
+                      </Avatar>
+                    ) : (
+                      <div className="relative flex size-8 shrink-0 select-none items-center justify-center rounded-full bg-primary/10 text-primary overflow-hidden ring-1 ring-primary/20 shadow-sm">
+                        <Sparkles className="size-4" />
+                        <BorderBeam size={25} duration={3} colorFrom="hsl(var(--primary))" colorTo="hsl(var(--primary) / 0.2)" borderWidth={1} />
                       </div>
                     )}
-                    <div
-                      className={`relative group max-w-[85%] ${
+
+                    {/* Bubble */}
+                    <div className={`relative max-w-[75%] min-w-[60px] ${isUser ? 'items-end' : 'items-start'}`}>
+                      <div className={`rounded-2xl px-3.5 py-2.5 shadow-sm ${
                         isUser
-                          ? 'rounded-2xl rounded-br-md bg-card border border-border text-foreground px-4 py-2.5 shadow-sm'
-                          : 'pt-0.5'
-                      }`}
-                    >
-                      {isUser ? (
-                        (() => {
-                          const { text, attachments } = parseMessageContent(msg.content)
-                          return (
-                            <div className="text-sm leading-relaxed">
-                              {text && <p className="whitespace-pre-wrap wrap-break-word">{text}</p>}
-                              {attachments.length > 0 && (
-                                <div className={`flex flex-wrap gap-2 ${text ? 'mt-2' : ''}`}>
-                                  {attachments.map((att, ai) =>
-                                    att.type === 'image' ? (
-                                      <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="block">
-                                        <img
-                                          src={att.url}
-                                          alt={att.name}
-                                          className="max-w-60 max-h-48 rounded-lg object-cover border border-border"
-                                        />
-                                      </a>
-                                    ) : (
-                                      <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer"
-                                        className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 text-xs hover:bg-muted/70 transition-colors">
-                                        <FileIcon className="size-4" />
-                                        <span className="truncate max-w-40">{att.name}</span>
-                                      </a>
-                                    )
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })()
-                      ) : (
-                        <div className="space-y-2">
-                          {/* Thinking indicator — shows model reasoning */}
-                          {msg.thinking && (
-                            <ThinkingBlock content={msg.thinking} isStreaming={isLoading && i === messages.length - 1 && !msg.content} />
-                          )}
-
-                          {/* Tool calls / processing log */}
-                          {hasToolCalls && <ToolCallLog toolCalls={msg.toolCalls} />}
-
-                          {/* AI text response with markdown */}
-                          {msg.content ? (
-                            <div className="prose prose-sm max-w-none text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 prose-p:my-1.5 prose-pre:my-2.5 prose-pre:rounded-xl prose-pre:bg-muted prose-pre:text-foreground prose-code:before:content-none prose-code:after:content-none prose-code:bg-muted prose-code:text-foreground prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-xs prose-headings:text-foreground prose-headings:font-heading wrap-break-word leading-relaxed">
-                              <Markdown
-                                remarkPlugins={[remarkGfm]}
-                                components={{
-                                  img: ({ src, alt, ...props }) => {
-                                    if (!src) return null
-                                    return (
-                                      <a href={src} target="_blank" rel="noopener noreferrer" className="block my-2">
-                                        <img src={src} alt={alt || ''} {...props} className="max-w-80 max-h-60 rounded-lg object-cover border border-border" loading="lazy" />
-                                      </a>
-                                    )
-                                  },
-                                }}
-                              >
-                                {msg.content}
-                              </Markdown>
-                            </div>
-                          ) : isLoading && i === messages.length - 1 ? (
-                            <div className="flex items-center gap-2 text-muted-foreground">
-                              <div className="flex gap-1">
-                                <span className="size-1.5 rounded-full bg-primary animate-bounce [animation-delay:0ms]" />
-                                <span className="size-1.5 rounded-full bg-primary animate-bounce [animation-delay:150ms]" />
-                                <span className="size-1.5 rounded-full bg-primary animate-bounce [animation-delay:300ms]" />
+                          ? 'bg-primary text-primary-foreground rounded-br-md'
+                          : 'bg-card border border-border rounded-bl-md'
+                      }`}>
+                        {isUser ? (
+                          (() => {
+                            const { text, attachments } = parseMessageContent(msg.content)
+                            return (
+                              <div className="text-[14.5px] leading-relaxed">
+                                {text && <p className="whitespace-pre-wrap wrap-break-word">{text}</p>}
+                                {attachments.length > 0 && (
+                                  <div className={`flex flex-wrap gap-2 ${text ? 'mt-2' : ''}`}>
+                                    {attachments.map((att, ai) =>
+                                      att.type === 'image' ? (
+                                        <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="block">
+                                          <img
+                                            src={att.url}
+                                            alt={att.name}
+                                            className="max-w-56 max-h-44 rounded-lg object-cover"
+                                          />
+                                        </a>
+                                      ) : (
+                                        <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer"
+                                          className="flex items-center gap-2 rounded-lg bg-primary-foreground/15 px-3 py-2 text-xs hover:bg-primary-foreground/25 transition-colors">
+                                          <FileIcon className="size-4" />
+                                          <span className="truncate max-w-40">{att.name}</span>
+                                        </a>
+                                      )
+                                    )}
+                                  </div>
+                                )}
                               </div>
-                              <span className="text-xs">{hasToolCalls ? 'Working…' : 'Thinking…'}</span>
-                            </div>
-                          ) : !msg.content && !hasToolCalls ? (
-                            <span className="text-muted-foreground text-xs italic">processing…</span>
-                          ) : null}
+                            )
+                          })()
+                        ) : (
+                          <div className="space-y-3">
+                            {/* Thinking indicator */}
+                            {msg.thinking && (
+                              <ThinkingBlock content={msg.thinking} isStreaming={isLoading && i === messages.length - 1 && !msg.content} />
+                            )}
 
-                          {/* Rendered media from tool results */}
-                          {hasToolCalls && <MediaResults toolCalls={msg.toolCalls} />}
-                        </div>
-                      )}
-                      {msg.content && !isUser && (
-                        <div className="opacity-0 group-hover:opacity-100 absolute -bottom-3 right-2 flex items-center gap-1 transition-all">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <button
-                                onClick={() => speakMessage(msg.content, i)}
-                                className={`p-1 rounded-lg border border-border shadow-sm transition-all ${
-                                  speakingMsgIdx === i
-                                    ? 'bg-primary text-primary-foreground'
-                                    : 'bg-card text-muted-foreground hover:text-foreground'
-                                }`}
-                              >
-                                {ttsLoading === i ? <Loader2 className="size-3 animate-spin" /> : <Volume2 className="size-3" />}
-                              </button>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom">{speakingMsgIdx === i ? 'Stop' : 'Listen'}</TooltipContent>
-                          </Tooltip>
-                          <CopyButton text={msg.content} />
-                        </div>
-                      )}
-                      {msg.createdAt && (
-                        <span className={`block mt-1 text-[10px] ${isUser ? 'text-muted-foreground' : 'text-muted-foreground'}`}>
-                          {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      )}
+                            {/* Tool calls */}
+                            {hasToolCalls && <ToolCallLog toolCalls={msg.toolCalls} />}
+
+                            {/* AI text response with markdown */}
+                            {msg.content ? (
+                              <div className="prose prose-sm max-w-none text-foreground/90 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 prose-p:my-1.5 prose-pre:my-2 prose-pre:rounded-xl prose-pre:bg-muted prose-pre:text-foreground prose-code:before:content-none prose-code:after:content-none prose-code:bg-muted prose-code:text-foreground prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-[13px] prose-headings:text-foreground prose-headings:font-heading wrap-break-word leading-relaxed">
+                                <Markdown
+                                  remarkPlugins={[remarkGfm]}
+                                  components={{
+                                    img: ({ src, alt, ...props }) => {
+                                      if (!src) return null
+                                      return (
+                                        <a href={src} target="_blank" rel="noopener noreferrer" className="block my-2">
+                                          <img src={src} alt={alt || ''} {...props} className="max-w-72 max-h-56 rounded-lg object-cover border border-border" loading="lazy" />
+                                        </a>
+                                      )
+                                    },
+                                  }}
+                                >
+                                  {msg.content}
+                                </Markdown>
+                              </div>
+                            ) : isLoading && i === messages.length - 1 ? (
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <div className="flex gap-1">
+                                  <span className="size-1.5 rounded-full bg-primary animate-bounce [animation-delay:0ms]" />
+                                  <span className="size-1.5 rounded-full bg-primary animate-bounce [animation-delay:150ms]" />
+                                  <span className="size-1.5 rounded-full bg-primary animate-bounce [animation-delay:300ms]" />
+                                </div>
+                                <span className="text-xs">{hasToolCalls ? 'Working…' : 'Thinking…'}</span>
+                              </div>
+                            ) : !msg.content && !hasToolCalls ? (
+                              <span className="text-muted-foreground text-xs italic">processing…</span>
+                            ) : null}
+
+                            {/* Rendered media from tool results */}
+                            {hasToolCalls && <MediaResults toolCalls={msg.toolCalls} />}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Timestamp + actions row */}
+                      <div className={`flex items-center gap-1.5 mt-1 px-1 ${isUser ? 'justify-end' : 'justify-start'}`}>
+                        {timestamp && (
+                          <span className="text-[10px] text-muted-foreground">{timestamp}</span>
+                        )}
+                        {isUser && timestamp && (
+                          <Check className="size-3 text-muted-foreground/60" />
+                        )}
+                        {/* Action buttons for AI messages */}
+                        {msg.content && !isUser && (
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  onClick={() => speakMessage(msg.content, i)}
+                                  className={`p-1 rounded-md hover:bg-muted transition-colors ${
+                                    speakingMsgIdx === i
+                                      ? 'text-primary'
+                                      : 'text-muted-foreground hover:text-foreground'
+                                  }`}
+                                >
+                                  {ttsLoading === i ? <Loader2 className="size-3 animate-spin" /> : <Volume2 className="size-3" />}
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom">{speakingMsgIdx === i ? 'Stop' : 'Listen'}</TooltipContent>
+                            </Tooltip>
+                            <CopyButton text={msg.content} />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )
@@ -1846,16 +1926,24 @@ function ChatPage() {
 
               {/* Typing indicator */}
               {isLoading && messages[messages.length - 1]?.role === 'user' && (
-                <div className="flex gap-3">
-                  <div className="size-7 shrink-0 mt-0.5 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center">
-                    <Sparkles className="size-3.5 text-primary" />
+                <BlurFade delay={0.05} direction="up">
+                <div className="flex items-end gap-2">
+                  <div className="relative flex size-8 shrink-0 select-none items-center justify-center rounded-full bg-primary/10 text-primary overflow-hidden ring-1 ring-primary/20 shadow-sm">
+                    <Sparkles className="size-4" />
+                    <BorderBeam size={25} duration={2} colorFrom="hsl(var(--primary))" colorTo="hsl(var(--primary) / 0.2)" borderWidth={1} />
                   </div>
-                  <div className="flex items-center gap-1 px-3 py-2">
-                    <span className="size-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:0ms]" />
-                    <span className="size-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:150ms]" />
-                    <span className="size-1.5 rounded-full bg-muted-foreground animate-bounce [animation-delay:300ms]" />
+                  <div className="rounded-2xl rounded-bl-md bg-card border border-border px-3.5 py-2.5 shadow-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1">
+                        <span className="size-2 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
+                        <span className="size-2 rounded-full bg-primary/60 animate-bounce [animation-delay:150ms]" />
+                        <span className="size-2 rounded-full bg-primary/60 animate-bounce [animation-delay:300ms]" />
+                      </div>
+                      <AnimatedShinyText className="text-xs">Thinking…</AnimatedShinyText>
+                    </div>
                   </div>
                 </div>
+                </BlurFade>
               )}
             </div>
 
@@ -1866,20 +1954,51 @@ function ChatPage() {
         {/* Scroll to bottom */}
         {showScrollBtn && (
           <div className="absolute bottom-28 left-1/2 -translate-x-1/2 z-10">
-            <Button
-              onClick={() => scrollToBottom()}
-              size="icon"
-              variant="outline"
-              className="rounded-full size-8 shadow-md border-border/60 bg-card/90 hover:bg-card text-muted-foreground"
+            <ShineBorder
+              shineColor={['hsl(var(--primary))', 'hsl(var(--muted-foreground))']}
+              borderWidth={1}
+              duration={6}
+              className="rounded-full p-0!"
             >
-              <ChevronDown className="size-3.5" />
-            </Button>
+              <Button
+                onClick={() => scrollToBottom()}
+                size="icon"
+                variant="outline"
+                className="rounded-full size-8 shadow-md border-0 bg-card/90 hover:bg-card text-muted-foreground"
+              >
+                <ChevronDown className="size-3.5" />
+              </Button>
+            </ShineBorder>
           </div>
         )}
 
         {/* ─── Floating Input Area ───── */}
         <div className="shrink-0 bg-gradient-to-t from-background via-background to-transparent pt-6 pb-6 px-4">
-          <div className="mx-auto max-w-3xl">
+          <div className="mx-auto max-w-3xl relative">
+            
+            {/* Slash commands popover */}
+            {showSlashMenu && (
+              <div className="absolute bottom-[calc(100%+8px)] left-0 w-64 rounded-xl border border-border bg-card shadow-lg overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200 z-50">
+                <div className="px-3 py-2 text-xs font-semibold text-muted-foreground bg-muted/30 border-b border-border">
+                  Quick Prompts
+                </div>
+                <div className="p-1">
+                  {SLASH_COMMANDS.map(cmd => (
+                    <button
+                      key={cmd.id}
+                      onClick={() => handleCommandSelect(cmd.prompt)}
+                      className="w-full flex items-center gap-3 px-2 py-2 text-left rounded-md hover:bg-muted transition-colors text-sm"
+                    >
+                      <div className="flex size-6 items-center justify-center rounded-md bg-primary/10 text-primary">
+                        <cmd.icon className="size-3.5" />
+                      </div>
+                      <span className="font-medium text-foreground">{cmd.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="relative flex flex-col rounded-[24px] border border-border bg-card/60 backdrop-blur-2xl shadow-sm focus-within:border-ring/30 focus-within:bg-card focus-within:shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition-all duration-300">
               {/* Attached file previews inside the input box */}
               {attachedFiles.length > 0 && (

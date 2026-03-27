@@ -22,10 +22,9 @@ export function createVideoGenTool(userId: string) {
         .describe("Detailed description of the video to generate"),
       image_url: z
         .string()
-        .url()
         .optional()
         .describe(
-          "Optional URL of an image to animate into a video (image-to-video). If omitted, generates from text only."
+          "Optional URL of an image to animate into a video (image-to-video). Must be a valid HTTP/HTTPS URL. If omitted, generates from text only."
         ),
       size: z
         .string()
