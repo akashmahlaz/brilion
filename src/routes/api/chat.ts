@@ -42,28 +42,96 @@ function extractTextContent(msg: any): string {
 /** Stream wrapper that intercepts chunks for post-processing and tool call logging */
 async function* withPostProcessing(
   stream: AsyncIterable<any>,
-  onComplete: (fullText: string, toolCalls: string[]) => Promise<void>,
+  onComplete: (fullText: string, toolCalls: string[], assistantParts: any[]) => Promise<void>,
   onError: (err: unknown) => void
 ): AsyncGenerator<any> {
   let fullText = "";
   const toolCalls: string[] = [];
+  const assistantParts: any[] = [];
+  const toolCallIds = new Set<string>();
+
+  const upsertTextPart = (type: "text" | "thinking", chunkText: string) => {
+    if (!chunkText) return;
+    const existing = assistantParts.find((p) => p.type === type);
+    if (existing) {
+      existing.content = `${existing.content || ""}${chunkText}`;
+      return;
+    }
+    assistantParts.push({ type, content: chunkText });
+  };
+
+  const getToolName = (chunk: any): string => chunk.toolName || chunk.name || chunk.tool || "unknown";
+
+  const getToolCallId = (chunk: any): string =>
+    chunk.toolCallId || chunk.id || `${getToolName(chunk)}-${toolCallIds.size + 1}`;
+
+  const recordToolCall = (chunk: any) => {
+    const toolName = getToolName(chunk);
+    const toolCallId = getToolCallId(chunk);
+
+    if (!toolCallIds.has(toolCallId)) {
+      toolCallIds.add(toolCallId);
+      assistantParts.push({
+        type: "tool-call",
+        id: toolCallId,
+        name: toolName,
+        input: chunk.input ?? chunk.args ?? chunk.arguments,
+        arguments: typeof chunk.arguments === "string"
+          ? chunk.arguments
+          : chunk.arguments
+            ? JSON.stringify(chunk.arguments)
+            : undefined,
+      });
+    }
+
+    if (!toolCalls.includes(toolName)) {
+      toolCalls.push(toolName);
+      console.log(`[chat] Tool called: ${toolName}`);
+    }
+
+    const resultPayload = chunk.output ?? chunk.result ?? chunk.response ?? chunk.content;
+    if (resultPayload !== undefined && resultPayload !== null) {
+      const content = typeof resultPayload === "string"
+        ? resultPayload
+        : JSON.stringify(resultPayload);
+      assistantParts.push({
+        type: "tool-result",
+        toolCallId,
+        state: "complete",
+        content,
+      });
+    }
+  };
+
   try {
     for await (const chunk of stream) {
       if (chunk.type === "TEXT_MESSAGE_CONTENT" && chunk.delta) {
         fullText += chunk.delta;
+        upsertTextPart("text", chunk.delta);
       }
+
+      if (
+        (typeof chunk.type === "string" &&
+          (chunk.type.includes("THINKING") || chunk.type.includes("REASONING"))) &&
+        (chunk.delta || chunk.content)
+      ) {
+        upsertTextPart("thinking", chunk.delta || chunk.content);
+      }
+
       // Log tool invocations for observability
-      if (chunk.type === "TOOL_CALL_START" || chunk.toolName) {
-        const toolName = chunk.toolName || chunk.name || "unknown";
-        if (!toolCalls.includes(toolName)) {
-          toolCalls.push(toolName);
-          console.log(`[chat] Tool called: ${toolName}`);
-        }
+      if (
+        chunk.type === "TOOL_CALL_START" ||
+        chunk.type === "TOOL_CALL_END" ||
+        chunk.type === "TOOL_RESULT" ||
+        chunk.toolName ||
+        chunk.toolCallId
+      ) {
+        recordToolCall(chunk);
       }
       yield chunk;
     }
     // Stream completed — fire-and-forget background tasks
-    onComplete(fullText, toolCalls).catch(onError);
+    onComplete(fullText, toolCalls, assistantParts).catch(onError);
   } catch (err) {
     onError(err);
     throw err;
@@ -244,7 +312,7 @@ export const Route = createFileRoute("/api/chat")({
         const trackedStream = withPostProcessing(
           rawStream,
           // onComplete — save conversation and index
-          async (fullText: string, toolCalls: string[]) => {
+          async (fullText: string, toolCalls: string[], assistantParts: any[]) => {
             const durationMs = Date.now() - startTime;
             console.log(`[chat] → AI (${userId.slice(-6)}): ${fullText.slice(0, 300)}${fullText.length > 300 ? "…" : ""}`);
             console.log(`[chat]   duration=${durationMs}ms tools=[${toolCalls.join(", ")}] responseLen=${fullText.length}`);
@@ -295,14 +363,20 @@ export const Route = createFileRoute("/api/chat")({
                   ? lastUserMsg.parts
                   : [{ type: "text", content: userContent }];
 
-                const assistantParts = fullText
-                  ? [{ type: "text", content: fullText }]
-                  : [];
+                const normalizedAssistantParts = assistantParts?.length
+                  ? assistantParts
+                  : (fullText ? [{ type: "text", content: fullText }] : []);
+
+                const assistantContent = fullText ||
+                  normalizedAssistantParts
+                    .filter((p: any) => p?.type === "text")
+                    .map((p: any) => p?.content || "")
+                    .join("");
 
                 conv.messages.push(
                   { role: lastUserMsg.role, content: userContent, parts: userParts },
-                  ...(fullText
-                    ? [{ role: "assistant" as const, content: fullText, parts: assistantParts }]
+                  ...((assistantContent || normalizedAssistantParts.length > 0)
+                    ? [{ role: "assistant" as const, content: assistantContent, parts: normalizedAssistantParts }]
                     : []),
                 );
 

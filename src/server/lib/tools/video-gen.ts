@@ -124,6 +124,7 @@ export function createVideoGenTool(userId: string) {
 
         let sourceImageUrl: string | undefined;
         let normalizedInputImageUrl: string | undefined;
+        let inputReferenceFile: File | undefined;
 
         // Image-to-video: normalize any image input to a public CDN URL, then pass as input_reference
         const inputImageRef = image_url || imageUrl;
@@ -146,14 +147,25 @@ export function createVideoGenTool(userId: string) {
                 ? "gif"
                 : "png";
 
-          const file = new File([imgBuffer], `input.${ext}`, {
+          inputReferenceFile = new File([imgBuffer], `input.${ext}`, {
             type: mimeType || `image/${ext}`,
           });
-          (params as any).input_reference = file;
+          (params as any).input_reference = normalizedInputImageUrl;
         }
 
-        // Create the job
-        const job = await client.videos.create(params);
+        // Create the job - first try CDN public URL input, fallback to file input if needed.
+        let job;
+        try {
+          job = await client.videos.create(params);
+        } catch (primaryErr) {
+          if (normalizedInputImageUrl && inputReferenceFile) {
+            console.warn("[video-gen] URL input_reference failed, retrying with file input:", primaryErr);
+            (params as any).input_reference = inputReferenceFile;
+            job = await client.videos.create(params);
+          } else {
+            throw primaryErr;
+          }
+        }
         const jobId = job.id;
 
         // Poll until complete (max 10 minutes)
