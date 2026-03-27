@@ -405,7 +405,7 @@ function ChatPage() {
           }
           const data = await res.json()
           setAttachedFiles(prev => prev.map(f =>
-            f.file === file ? { ...f, uploading: false, url: data.url } : f
+            f.file === file ? { ...f, uploading: false, url: data.publicUrl || data.url } : f
           ))
         })
         .catch((err) => {
@@ -1395,7 +1395,7 @@ function ChatPage() {
                 ) : (
                   <button
                     onClick={handleSend}
-                    disabled={!input.trim() || isChannelConversation}
+                    disabled={!input.trim() && !attachedFiles.some(f => f.url) || isChannelConversation}
                     className="flex size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none transition-all"
                   >
                     <ArrowUp className="size-4" />
