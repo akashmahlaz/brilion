@@ -15,8 +15,6 @@ import { indexConversation } from "#/server/lib/memory-manager";
 import { initAIObservability } from "#/server/lib/ai-observability";
 import { emit } from "#/server/lib/hooks";
 import { getMiddlewareStack } from "#/server/lib/middleware";
-import path from "node:path";
-import fs from "node:fs/promises";
 
 // Initialize observability once on first import
 initAIObservability();
@@ -138,36 +136,9 @@ async function* withPostProcessing(
   }
 }
 
-const UPLOAD_DIR = path.resolve("uploads");
 const ATTACHMENT_RE = /\[(Image|File):\s*([^\]]+)\]\(([^)]+)\)/g;
 
-/** Read uploaded image from disk and return as base64 data URL */
-async function readUploadedImage(url: string): Promise<{ data: string; mimeType: string } | null> {
-  try {
-    // url looks like: /api/upload?file=userId/filename
-    const parsed = new URL(url, "http://localhost");
-    const filePart = parsed.searchParams.get("file");
-    if (!filePart) return null;
-
-    // Sanitize path to prevent traversal
-    const safePath = path.normalize(filePart).replace(/^(\.\.[/\\])+/, "");
-    const filePath = path.join(UPLOAD_DIR, safePath);
-    if (!filePath.startsWith(UPLOAD_DIR)) return null;
-
-    const buffer = await fs.readFile(filePath);
-    const ext = path.extname(filePath).toLowerCase();
-    const mimeMap: Record<string, string> = {
-      ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
-      ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml",
-    };
-    const mimeType = mimeMap[ext] || "image/png";
-    return { data: buffer.toString("base64"), mimeType };
-  } catch {
-    return null;
-  }
-}
-
-/** Transform messages to multimodal format — converts [Image: name](url) to actual image parts */
+/** Transform messages to multimodal format — converts [Image: name](url) to image parts with CDN URLs */
 async function transformMessages(messages: any[]): Promise<any[]> {
   const result = [];
   for (const msg of messages) {
@@ -195,17 +166,13 @@ async function transformMessages(messages: any[]): Promise<any[]> {
       if (before) parts.push({ type: "text", content: before });
 
       if (type === "Image") {
-        const img = await readUploadedImage(url);
-        if (img) {
-          parts.push({
-            type: "image",
-            source: { type: "data", value: img.data, mimeType: img.mimeType },
-          });
-        } else {
-          parts.push({ type: "text", content: `[Image attached: ${_name}]` });
-        }
+        // URL is now a public CDN URL (Cloudinary) — pass directly as image part
+        parts.push({
+          type: "image",
+          source: { type: "url", url },
+        });
       } else {
-        parts.push({ type: "text", content: `[File attached: ${_name}]` });
+        parts.push({ type: "text", content: `[File attached: ${_name} — ${url}]` });
       }
       lastIndex = match.index + full.length;
     }

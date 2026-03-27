@@ -3,10 +3,7 @@ import { z } from "zod";
 import { resolveProviderKey } from "../auth-profiles";
 import { cloudinary, uploadToCloudinary, uploadVideoUrlToCloudinary } from "../cloudinary";
 import OpenAI from "openai";
-import path from "node:path";
-import fs from "node:fs/promises";
 
-const UPLOAD_DIR = path.resolve("uploads");
 const VIDEO_SIZES = new Set(["1280x720", "720x1280", "1792x1024"]);
 
 function parseSize(size: string): { width: number; height: number } | null {
@@ -37,30 +34,8 @@ async function resolveImageBufferFromInput(imageUrl: string): Promise<{ buffer: 
     return { buffer: Buffer.from(parsed.base64, "base64"), mimeType: parsed.mimeType || "image/png" };
   }
 
-  if (imageUrl.startsWith("/api/upload?")) {
-    const parsed = new URL(imageUrl, "http://localhost");
-    const filePart = parsed.searchParams.get("file");
-    if (!filePart) throw new Error("Missing upload file parameter");
-
-    const safePath = path.normalize(filePart).replace(/^(\.\.[/\\])+/, "");
-    const filePath = path.join(UPLOAD_DIR, safePath);
-    if (!filePath.startsWith(UPLOAD_DIR)) throw new Error("Invalid upload path");
-
-    const buffer = await fs.readFile(filePath);
-    const ext = path.extname(filePath).toLowerCase();
-    const mimeMap: Record<string, string> = {
-      ".jpg": "image/jpeg",
-      ".jpeg": "image/jpeg",
-      ".png": "image/png",
-      ".gif": "image/gif",
-      ".webp": "image/webp",
-      ".svg": "image/svg+xml",
-    };
-    return { buffer, mimeType: mimeMap[ext] || "image/png" };
-  }
-
   if (!imageUrl.startsWith("http")) {
-    throw new Error("image_url must be an http(s), data URL, or /api/upload URL");
+    throw new Error("image_url must be an http(s) or data URL");
   }
 
   const imgRes = await fetch(imageUrl);

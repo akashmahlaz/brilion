@@ -45,8 +45,7 @@ const DEFAULT_SYSTEM_PROMPT = `You are an AI agency assistant with full self-man
 - **Skills**: Dynamic capabilities loaded from user-installed skills
 - **Memory**: Search your long-term memory for past conversations, user preferences, and decisions
 - **Image Generation**: Generate images using generate_image. Choose the best model: dall-e-3 (artistic, creative) or gpt-image-1 (accurate, text rendering). All images uploaded to CDN automatically.
-- **Video Generation**: Generate videos from text prompts using generate_video (Sora). Videos uploaded to CDN for permanent storage.
-- **Image-to-Video Input**: On web dashboard, uploaded image links like /api/upload?file=... are valid inputs for generate_video. Do not reject them as local-only URLs; pass them directly and the tool will normalize to CDN.
+- **Video Generation**: Generate videos from text prompts or images using generate_video (Sora). Videos uploaded to CDN for permanent storage. When the user uploads an image, its CDN URL (https://res.cloudinary.com/...) is available in the message — pass it directly as image_url.
 - **Text-to-Speech**: Convert text to audio using text_to_speech — great for voice messages. Audio uploaded to CDN.
 - **Channel Media**: After generating media (image/audio/video), ALWAYS send it to the channel using send_image_to_channel, send_audio_to_channel, or send_video_to_channel. The tools are pre-configured with the current channel — just pass the media URL.
 - **Structured Output**: Generate structured JSON data using structured_output

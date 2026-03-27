@@ -1,11 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { requireAuth } from "#/server/middleware";
 import { connectDB } from "#/server/db";
-import path from "node:path";
-import fs from "node:fs/promises";
-import crypto from "node:crypto";
+import { uploadToCloudinary } from "#/server/lib/cloudinary";
 
-const UPLOAD_DIR = path.resolve("uploads");
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 const ALLOWED_TYPES = new Set([
   "image/jpeg",
@@ -23,18 +20,6 @@ const ALLOWED_TYPES = new Set([
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ]);
-
-function getBaseUrl(request: Request): string {
-  const url = new URL(request.url);
-  const forwardedProto = request.headers.get("x-forwarded-proto");
-  const forwardedHost = request.headers.get("x-forwarded-host");
-
-  if (forwardedHost) {
-    return `${forwardedProto || url.protocol.replace(":", "") || "https"}://${forwardedHost}`;
-  }
-
-  return url.origin;
-}
 
 export const Route = createFileRoute("/api/upload")({
   server: {
@@ -68,76 +53,27 @@ export const Route = createFileRoute("/api/upload")({
           );
         }
 
-        const userDir = path.join(UPLOAD_DIR, userId);
-        await fs.mkdir(userDir, { recursive: true });
-
-        const ext = path.extname(file.name) || "";
-        const safeBase = file.name
-          .replace(ext, "")
-          .replace(/[^a-zA-Z0-9_-]/g, "_")
-          .slice(0, 60);
-        const id = crypto.randomBytes(8).toString("hex");
-        const filename = `${safeBase}-${id}${ext}`;
-        const filePath = path.join(userDir, filename);
-
         const buffer = Buffer.from(await file.arrayBuffer());
-        await fs.writeFile(filePath, buffer);
 
-        const relativeUrl = `/api/upload?file=${encodeURIComponent(userId + "/" + filename)}`;
-        const publicUrl = `${getBaseUrl(request)}${relativeUrl}`;
+        // Determine Cloudinary resource type from MIME
+        const isImage = file.type.startsWith("image/");
+        const resourceType = isImage ? "image" as const : "raw" as const;
+
+        const result = await uploadToCloudinary(buffer, file.type, {
+          folder: `brilion/uploads/${userId}`,
+          resourceType,
+          tags: ["user-upload", userId],
+        });
 
         return Response.json({
-          url: relativeUrl,
-          publicUrl,
+          url: result.url,
+          publicUrl: result.url,
           name: file.name,
           size: file.size,
           type: file.type,
+          width: result.width,
+          height: result.height,
         });
-      },
-
-      GET: async ({ request }) => {
-        const url = new URL(request.url);
-        const filePath = url.searchParams.get("file");
-
-        if (!filePath) {
-          return Response.json({ error: "Missing file param" }, { status: 400 });
-        }
-
-        const resolved = path.resolve(UPLOAD_DIR, filePath);
-        if (!resolved.startsWith(UPLOAD_DIR)) {
-          return Response.json({ error: "Invalid path" }, { status: 403 });
-        }
-
-        try {
-          const data = await fs.readFile(resolved);
-          const ext = path.extname(resolved).toLowerCase();
-          const mimeMap: Record<string, string> = {
-            ".jpg": "image/jpeg",
-            ".jpeg": "image/jpeg",
-            ".png": "image/png",
-            ".gif": "image/gif",
-            ".webp": "image/webp",
-            ".svg": "image/svg+xml",
-            ".pdf": "application/pdf",
-            ".txt": "text/plain",
-            ".csv": "text/csv",
-            ".md": "text/markdown",
-            ".json": "application/json",
-            ".doc": "application/msword",
-            ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            ".xls": "application/vnd.ms-excel",
-            ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          };
-          return new Response(data, {
-            headers: {
-              "Content-Type": mimeMap[ext] || "application/octet-stream",
-              "Content-Disposition": `inline; filename="${path.basename(resolved)}"`,
-              "Cache-Control": "private, max-age=3600",
-            },
-          });
-        } catch {
-          return Response.json({ error: "File not found" }, { status: 404 });
-        }
       },
     },
   },
