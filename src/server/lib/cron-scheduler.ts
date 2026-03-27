@@ -10,7 +10,7 @@ import { connectDB } from "../db";
 import { emit } from "./hooks";
 export { setHeartbeatWakeHandler, requestHeartbeatWake, WakeReason } from "./heartbeat-wake";
 
-const log = (...args: unknown[]) => console.log("[cron-scheduler]", ...args);
+const log = (..._args: unknown[]) => {};
 const logErr = (...args: unknown[]) => console.error("[cron-scheduler]", ...args);
 
 const TICK_INTERVAL_MS = 60_000; // Check every 60 seconds

@@ -5,7 +5,7 @@ import { connectDB } from "../db";
 import { embedText, embedBatch } from "./embeddings";
 import { emit } from "./hooks";
 
-const log = (...args: unknown[]) => console.log("[memory]", ...args);
+const log = (..._args: unknown[]) => {};
 
 // --- Chunking ---
 

@@ -1,7 +1,7 @@
 import { Config } from "../models/config";
 import { connectDB } from "../db";
 
-const log = (...args: unknown[]) => console.log("[config]", ...args);
+const log = (..._args: unknown[]) => {};
 
 /**
  * Load config by userId. If no userId is provided, returns the first

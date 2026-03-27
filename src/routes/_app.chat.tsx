@@ -195,93 +195,60 @@ function getToolIcon(iconType: string) {
   }
 }
 
-// ─── Tool Call Log — shows AI processing steps ──────────────────────────────
+// ─── Tool Call Log — clean inline activity feed ─────────────────────────────
 function ToolCallLog({ toolCalls }: { toolCalls: ToolCallPart[] }) {
-  const [expanded, setExpanded] = useState(false)
-
   if (!toolCalls.length) return null
 
   const hasActive = toolCalls.some(tc => tc.state === 'calling')
-  const hasError = toolCalls.some(tc => tc.state === 'error')
 
   return (
-    <div className="rounded-xl border border-border/60 bg-muted/30 overflow-hidden">
-      <button
-        onClick={() => setExpanded(e => !e)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:bg-muted/50 transition-colors"
-      >
-        {hasActive ? (
-          <Loader2 className="size-3 animate-spin text-primary shrink-0" />
-        ) : hasError ? (
-          <X className="size-3 text-destructive shrink-0" />
-        ) : (
-          <Check className="size-3 text-emerald-500 shrink-0" />
-        )}
-        <span className="font-medium">
-          {hasActive
-            ? `Using ${toolCalls.filter(tc => tc.state === 'calling').map(tc => TOOL_LABELS[tc.toolName]?.label || tc.toolName).join(', ')}…`
-            : `Used ${toolCalls.length} tool${toolCalls.length > 1 ? 's' : ''}`
-          }
-        </span>
-        <ChevronUp className={`size-3 ml-auto transition-transform ${expanded ? '' : 'rotate-180'}`} />
-      </button>
-
-      {expanded && (
-        <div className="border-t border-border/40 px-3 py-2 space-y-1.5">
-          {toolCalls.map((tc, idx) => {
-            const meta = TOOL_LABELS[tc.toolName]
-            const result = tc.result as any
-            const hasErr = tc.state === 'error' || result?.error
-            return (
-              <div key={idx} className="flex items-start gap-2 text-[11px]">
-                <span className={`mt-0.5 ${hasErr ? 'text-destructive' : tc.state === 'calling' ? 'text-primary' : 'text-emerald-500'}`}>
-                  {tc.state === 'calling' ? <Loader2 className="size-2.5 animate-spin" /> : hasErr ? <X className="size-2.5" /> : <Check className="size-2.5" />}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-muted-foreground">{meta ? getToolIcon(meta.icon) : <Wrench className="size-3" />}</span>
-                    <span className="font-medium text-foreground">{meta?.label || tc.toolName}</span>
-                  </div>
-                  {tc.args && Object.keys(tc.args).length > 0 && (
-                    <p className="text-muted-foreground truncate mt-0.5">
-                      {Object.entries(tc.args).map(([k, v]) =>
-                        `${k}: ${typeof v === 'string' ? v.slice(0, 80) : JSON.stringify(v)?.slice(0, 60)}`
-                      ).join(' · ')}
-                    </p>
-                  )}
-                  {hasErr && result?.error && (
-                    <p className="text-destructive mt-0.5">{String(result.error).slice(0, 200)}</p>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      )}
+    <div className="flex flex-col gap-1">
+      {toolCalls.map((tc, idx) => {
+        const meta = TOOL_LABELS[tc.toolName]
+        const result = tc.result as any
+        const hasErr = tc.state === 'error' || result?.error
+        const isCalling = tc.state === 'calling'
+        return (
+          <div key={idx} className="flex items-center gap-2 text-xs text-muted-foreground">
+            {isCalling ? (
+              <Loader2 className="size-3 animate-spin text-primary shrink-0" />
+            ) : hasErr ? (
+              <X className="size-3 text-destructive shrink-0" />
+            ) : (
+              <Check className="size-3 text-muted-foreground/60 shrink-0" />
+            )}
+            <span className={isCalling ? 'text-foreground' : ''}>
+              {meta?.label || tc.toolName}{isCalling ? '…' : ''}
+            </span>
+            {hasErr && result?.error && (
+              <span className="text-destructive text-[11px] truncate max-w-60">— {String(result.error).slice(0, 100)}</span>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
 
-// ─── Thinking block — shows model reasoning like ChatGPT ────────────────────
+// ─── Thinking block — minimal ChatGPT-style reasoning toggle ────────────────
 function ThinkingBlock({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(false)
   return (
-    <div className="rounded-xl border border-border/60 bg-muted/20 overflow-hidden">
+    <div className="text-xs">
       <button
         onClick={() => setExpanded(e => !e)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-xs text-muted-foreground hover:bg-muted/30 transition-colors"
+        className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors py-0.5"
       >
         {isStreaming ? (
-          <Loader2 className="size-3 animate-spin text-primary shrink-0" />
+          <Loader2 className="size-3 animate-spin text-muted-foreground shrink-0" />
         ) : (
-          <Sparkles className="size-3 text-primary/70 shrink-0" />
+          <ChevronRight className={`size-3 shrink-0 transition-transform ${expanded ? 'rotate-90' : ''}`} />
         )}
-        <span className="font-medium">{isStreaming ? 'Thinking…' : 'Thought process'}</span>
-        <ChevronUp className={`size-3 ml-auto transition-transform ${expanded ? '' : 'rotate-180'}`} />
+        <span className="font-medium">{isStreaming ? 'Thinking…' : 'Thought for a moment'}</span>
       </button>
-      {expanded && (
-        <div className="border-t border-border/40 px-3 py-2">
-          <p className="text-[11px] text-muted-foreground whitespace-pre-wrap leading-relaxed">{content}</p>
+      {expanded && content && (
+        <div className="ml-4.5 mt-1 pl-3 border-l-2 border-border/50">
+          <p className="text-[11px] text-muted-foreground/80 whitespace-pre-wrap leading-relaxed">{content}</p>
         </div>
       )}
     </div>
@@ -300,7 +267,7 @@ function getVideoAspectClass(size?: string): string {
 
 function MediaSkeleton({ type, prompt, requestedSize }: { type: 'image' | 'audio' | 'video'; prompt?: string; requestedSize?: string }) {
   const config = {
-    image: { label: 'Creating image', Icon: ImageIcon, size: 'aspect-square w-72' },
+    image: { label: 'Creating image', Icon: ImageIcon, size: 'aspect-square w-48' },
     video: { label: 'Generating video', Icon: Video, size: getVideoAspectClass(requestedSize) },
     audio: { label: 'Synthesizing audio', Icon: Volume2, size: 'h-16 w-72' },
   }[type]
@@ -315,14 +282,14 @@ function MediaSkeleton({ type, prompt, requestedSize }: { type: 'image' | 'audio
           {/* Ripple behind icon for image/video */}
           {type !== 'audio' && (
             <div className="absolute inset-0 flex items-center justify-center">
-              <Ripple mainCircleSize={80} mainCircleOpacity={0.08} numCircles={3} />
+              <Ripple mainCircleSize={60} mainCircleOpacity={0.06} numCircles={3} />
             </div>
           )}
 
           {/* Icon with border beam */}
-          <div className="relative flex size-12 items-center justify-center rounded-xl bg-card/80 backdrop-blur-sm border border-border/60 shadow-sm z-10">
-            <config.Icon className="size-5 text-muted-foreground animate-pulse" />
-            <BorderBeam size={40} duration={2.5} colorFrom="hsl(var(--primary))" colorTo="hsl(var(--primary) / 0.1)" borderWidth={1.5} />
+          <div className="relative flex size-10 items-center justify-center rounded-lg bg-card/80 backdrop-blur-sm border border-border/60 shadow-sm z-10">
+            <config.Icon className="size-4 text-muted-foreground animate-pulse" />
+            <BorderBeam size={32} duration={2.5} colorFrom="hsl(var(--primary))" colorTo="hsl(var(--primary) / 0.1)" borderWidth={1.5} />
           </div>
 
           {/* Label */}
@@ -1871,7 +1838,7 @@ function ChatPage() {
             )}
 
             {/* ─── Message list ─────────────────────────────────────────── */}
-            <div className="flex flex-col gap-1 pb-4">
+            <div className="flex flex-col gap-2 pb-4">
               {messages.map((msg, i) => {
                 if (msg.role === 'system') {
                   return (
@@ -1893,139 +1860,121 @@ function ChatPage() {
                   : undefined
                 const parsedUserMessage = isUser ? parseMessageContent(msg.content) : null
                 const timestamp = msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
-                return (
-                  <div key={i} className={`group w-full ${isUser ? 'py-3' : 'py-4'}`}>
-                    <div className={`max-w-3xl px-4 ${isUser ? 'ml-auto' : 'mr-auto'}`}>
-                      {/* Role label */}
-                      <div className={`flex items-center gap-2 mb-1.5 ${isUser ? 'flex-row-reverse' : ''}`}>
-                        {isUser ? (
-                          <Avatar className="size-6 shrink-0">
-                            {user?.image && <AvatarImage src={user.image} alt={user.name || ''} />}
-                            <AvatarFallback className="bg-muted text-muted-foreground text-[10px] font-semibold">
-                              {user?.name?.charAt(0)?.toUpperCase() || <User className="size-3" />}
-                            </AvatarFallback>
-                          </Avatar>
-                        ) : (
-                          <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                            <Sparkles className="size-3.5" />
-                          </div>
-                        )}
-                        <span className="text-xs font-medium text-foreground">
-                          {isUser ? (user?.name || 'You') : 'Brilion'}
-                        </span>
-                        {timestamp && (
-                          <span className="text-[10px] text-muted-foreground">{timestamp}</span>
-                        )}
-                      </div>
 
-                      {/* Message content */}
-                      <div className={isUser ? 'pr-8 text-right' : 'pl-8'}>
-                        {isUser ? (
-                          (() => {
-                            const { text, attachments } = parsedUserMessage || { text: '', attachments: [] }
-                            return (
-                              <div>
-                                {attachments.length > 0 && (
-                                  <div className={`flex flex-wrap gap-2 justify-end ${text ? 'mb-2' : ''}`}>
-                                    {attachments.map((att, ai) =>
-                                      att.type === 'image' ? (
-                                        <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="block overflow-hidden rounded-lg">
-                                          <img
-                                            src={att.url}
-                                            alt={att.name}
-                                            className="max-w-60 max-h-60 object-cover rounded-lg"
-                                          />
-                                        </a>
-                                      ) : (
-                                        <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer"
-                                          className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs text-foreground/80 hover:bg-muted transition-colors">
-                                          <FileIcon className="size-4" />
-                                          <span className="truncate max-w-40">{att.name}</span>
-                                        </a>
-                                      )
-                                    )}
-                                  </div>
-                                )}
-                                {text && (
-                                  <p className="text-[14.5px] leading-relaxed text-foreground whitespace-pre-wrap wrap-break-word">
-                                    {text}
-                                  </p>
-                                )}
-                              </div>
+                {/* ── User message ── */}
+                if (isUser) {
+                  const { text, attachments } = parsedUserMessage || { text: '', attachments: [] }
+                  return (
+                    <div key={i} className="group flex flex-col items-end gap-1.5 py-2">
+                      {attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-2 justify-end max-w-[80%]">
+                          {attachments.map((att, ai) =>
+                            att.type === 'image' ? (
+                              <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="block overflow-hidden rounded-2xl">
+                                <img src={att.url} alt={att.name} className="max-w-64 max-h-64 object-cover rounded-2xl" />
+                              </a>
+                            ) : (
+                              <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 rounded-xl bg-secondary px-3 py-2 text-xs text-secondary-foreground hover:bg-accent transition-colors">
+                                <FileIcon className="size-3.5" />
+                                <span className="truncate max-w-40">{att.name}</span>
+                              </a>
                             )
-                          })()
-                        ) : (
-                          <div className="space-y-3">
-                            {/* Thinking indicator */}
-                            {(msg.thinking || derivedThinking) && (
-                              <ThinkingBlock
-                                content={msg.thinking || `Working on: ${derivedThinking}`}
-                                isStreaming={isLoading && i === messages.length - 1 && !msg.content}
-                              />
-                            )}
+                          )}
+                        </div>
+                      )}
+                      {text && (
+                        <div className="max-w-[80%] rounded-3xl bg-secondary px-4 py-2.5">
+                          <p className="text-[14.5px] leading-relaxed text-foreground whitespace-pre-wrap wrap-break-word">{text}</p>
+                        </div>
+                      )}
+                      {timestamp && (
+                        <span className="text-[10px] text-muted-foreground pr-1">{timestamp}</span>
+                      )}
+                    </div>
+                  )
+                }
 
-                            {/* Tool calls */}
-                            {hasToolCalls && <ToolCallLog toolCalls={msg.toolCalls} />}
-
-                            {/* AI text response with markdown */}
-                            {msg.content ? (
-                              <div className="prose prose-sm max-w-none text-foreground/90 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 prose-p:my-1.5 prose-pre:my-2 prose-pre:rounded-xl prose-pre:bg-muted prose-pre:text-foreground prose-code:before:content-none prose-code:after:content-none prose-code:bg-muted prose-code:text-foreground prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-[13px] prose-headings:text-foreground prose-headings:font-heading wrap-break-word leading-relaxed">
-                                <Markdown
-                                  remarkPlugins={[remarkGfm]}
-                                  components={{
-                                    img: ({ src, alt, ...props }) => {
-                                      if (!src) return null
-                                      return (
-                                        <a href={src} target="_blank" rel="noopener noreferrer" className="block my-2">
-                                          <img src={src} alt={alt || ''} {...props} className="max-w-72 max-h-56 rounded-lg object-cover border border-border" loading="lazy" />
-                                        </a>
-                                      )
-                                    },
-                                  }}
-                                >
-                                  {msg.content}
-                                </Markdown>
-                              </div>
-                            ) : isLoading && i === messages.length - 1 ? (
-                              <div className="flex items-center gap-2 text-muted-foreground">
-                                <div className="flex gap-1">
-                                  <span className="size-1.5 rounded-full bg-primary animate-bounce [animation-delay:0ms]" />
-                                  <span className="size-1.5 rounded-full bg-primary animate-bounce [animation-delay:150ms]" />
-                                  <span className="size-1.5 rounded-full bg-primary animate-bounce [animation-delay:300ms]" />
-                                </div>
-                                <span className="text-xs">{hasToolCalls ? 'Working…' : 'Thinking…'}</span>
-                              </div>
-                            ) : !msg.content && !hasToolCalls ? (
-                              <span className="text-muted-foreground text-xs italic">Preparing output…</span>
-                            ) : null}
-
-                            {/* Rendered media from tool results */}
-                            {hasToolCalls && <MediaResults toolCalls={msg.toolCalls} />}
-                          </div>
+                {/* ── AI message ── */}
+                return (
+                  <div key={i} className="group flex items-start gap-3 py-3 max-w-3xl">
+                    <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary mt-0.5">
+                      <Sparkles className="size-3.5 text-primary-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="space-y-2">
+                        {/* Thinking indicator */}
+                        {(msg.thinking || derivedThinking) && (
+                          <ThinkingBlock
+                            content={msg.thinking || `Working on: ${derivedThinking}`}
+                            isStreaming={isLoading && i === messages.length - 1 && !msg.content}
+                          />
                         )}
 
-                        {/* Action buttons for AI messages */}
-                        {msg.content && !isUser && (
-                          <div className="flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  onClick={() => speakMessage(msg.content, i)}
-                                  className={`p-1 rounded-md hover:bg-muted transition-colors ${
-                                    speakingMsgIdx === i
-                                      ? 'text-primary'
-                                      : 'text-muted-foreground hover:text-foreground'
-                                  }`}
-                                >
-                                  {ttsLoading === i ? <Loader2 className="size-3 animate-spin" /> : <Volume2 className="size-3" />}
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent side="bottom">{speakingMsgIdx === i ? 'Stop' : 'Listen'}</TooltipContent>
-                            </Tooltip>
-                            <CopyButton text={msg.content} />
+                        {/* Tool calls */}
+                        {hasToolCalls && <ToolCallLog toolCalls={msg.toolCalls} />}
+
+                        {/* AI text response with markdown */}
+                        {msg.content ? (
+                          <div className="prose prose-sm max-w-none text-foreground [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 prose-p:my-1.5 prose-pre:my-2 prose-pre:rounded-xl prose-pre:bg-muted prose-pre:text-foreground prose-code:before:content-none prose-code:after:content-none prose-code:bg-muted prose-code:text-foreground prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded-md prose-code:text-[13px] prose-headings:text-foreground prose-headings:font-heading wrap-break-word leading-relaxed">
+                            <Markdown
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                img: ({ src, alt, ...props }) => {
+                                  if (!src) return null
+                                  return (
+                                    <a href={src} target="_blank" rel="noopener noreferrer" className="block my-2">
+                                      <img src={src} alt={alt || ''} {...props} className="max-w-72 max-h-56 rounded-lg object-cover border border-border" loading="lazy" />
+                                    </a>
+                                  )
+                                },
+                              }}
+                            >
+                              {msg.content}
+                            </Markdown>
                           </div>
-                        )}
+                        ) : isLoading && i === messages.length - 1 ? (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <div className="flex gap-1">
+                              <span className="size-1.5 rounded-full bg-foreground/40 animate-bounce [animation-delay:0ms]" />
+                              <span className="size-1.5 rounded-full bg-foreground/40 animate-bounce [animation-delay:150ms]" />
+                              <span className="size-1.5 rounded-full bg-foreground/40 animate-bounce [animation-delay:300ms]" />
+                            </div>
+                            <span className="text-xs">{hasToolCalls ? 'Working…' : 'Thinking…'}</span>
+                          </div>
+                        ) : !msg.content && !hasToolCalls ? (
+                          <span className="text-muted-foreground text-xs italic">Preparing output…</span>
+                        ) : null}
+
+                        {/* Rendered media from tool results */}
+                        {hasToolCalls && <MediaResults toolCalls={msg.toolCalls} />}
                       </div>
+
+                      {/* Action buttons */}
+                      {msg.content && (
+                        <div className="flex items-center gap-0.5 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <CopyButton text={msg.content} />
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                onClick={() => speakMessage(msg.content, i)}
+                                className={`p-1.5 rounded-md hover:bg-accent transition-colors ${
+                                  speakingMsgIdx === i
+                                    ? 'text-primary'
+                                    : 'text-muted-foreground hover:text-foreground'
+                                }`}
+                              >
+                                {ttsLoading === i ? <Loader2 className="size-3.5 animate-spin" /> : <Volume2 className="size-3.5" />}
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">{speakingMsgIdx === i ? 'Stop' : 'Listen'}</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      )}
+
+                      {timestamp && (
+                        <span className="text-[10px] text-muted-foreground mt-1 block">{timestamp}</span>
+                      )}
                     </div>
                   </div>
                 )
@@ -2034,24 +1983,17 @@ function ChatPage() {
               {/* Typing indicator */}
               {isLoading && messages[messages.length - 1]?.role === 'user' && (
                 <BlurFade delay={0.05} direction="up">
-                <div className="w-full py-4">
-                  <div className="max-w-3xl mx-auto px-4">
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                        <Sparkles className="size-3.5" />
-                      </div>
-                      <span className="text-xs font-medium text-foreground">Brilion</span>
+                <div className="flex items-start gap-3 py-3 max-w-3xl">
+                  <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary mt-0.5">
+                    <Sparkles className="size-3.5 text-primary-foreground" />
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <div className="flex gap-1">
+                      <span className="size-1.5 rounded-full bg-foreground/40 animate-bounce [animation-delay:0ms]" />
+                      <span className="size-1.5 rounded-full bg-foreground/40 animate-bounce [animation-delay:150ms]" />
+                      <span className="size-1.5 rounded-full bg-foreground/40 animate-bounce [animation-delay:300ms]" />
                     </div>
-                    <div className="pl-8">
-                      <div className="flex items-center gap-2">
-                        <div className="flex gap-1">
-                          <span className="size-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
-                          <span className="size-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:150ms]" />
-                          <span className="size-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:300ms]" />
-                        </div>
-                        <AnimatedShinyText className="text-xs">Thinking…</AnimatedShinyText>
-                      </div>
-                    </div>
+                    <AnimatedShinyText className="text-xs">Thinking…</AnimatedShinyText>
                   </div>
                 </div>
                 </BlurFade>

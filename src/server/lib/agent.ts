@@ -29,7 +29,7 @@ import { createLogger } from "../models/log-entry";
 import { searchMemory } from "./memory-manager";
 import { getHookRunner, hasHooks } from "./hooks";
 
-const log = (...args: unknown[]) => console.log("[agent]", ...args);
+const log = (..._args: unknown[]) => {};
 const logErr = (...args: unknown[]) => console.error("[agent]", ...args);
 
 const DEFAULT_SYSTEM_PROMPT = `You are an AI agency assistant with full self-management capabilities.

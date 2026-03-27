@@ -1,6 +1,6 @@
 import { resolveProviderKey, resolveProviderBaseUrl } from "./auth-profiles";
 
-const log = (...args: unknown[]) => console.log("[embeddings]", ...args);
+const log = (..._args: unknown[]) => {};
 
 /** Supported embedding providers */
 type EmbeddingProvider = "openai" | "gemini" | "ollama";

@@ -39,10 +39,10 @@ export const LogEntry =
 /** Server-side logger that writes to both console and MongoDB */
 export function createLogger(userId: string, source: LogSource) {
   const write = (level: LogLevel, message: string, meta?: Record<string, unknown>) => {
+    // Only log errors and warnings to console; info/debug go to DB only
     const prefix = `[${source}]`;
     if (level === "error") console.error(prefix, message, meta ?? "");
     else if (level === "warn") console.warn(prefix, message, meta ?? "");
-    else console.log(prefix, message, meta ?? "");
 
     // Fire-and-forget DB write
     LogEntry.create({ userId, level, source, message, meta }).catch(() => {});

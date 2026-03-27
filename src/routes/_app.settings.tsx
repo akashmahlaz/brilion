@@ -46,6 +46,7 @@ import { Textarea } from '#/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
 import { Switch } from '#/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '#/components/ui/select'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '#/components/ui/tooltip'
 import { toast } from 'sonner'
 import { apiFetch } from '#/lib/api'
 import { ProviderIcon } from '#/components/provider-icons'
@@ -274,17 +275,21 @@ function ModelConfigTab() {
     if (!selectedProvider || !keyInput) return
     setSavingKey(true)
     try {
-      await apiFetch('/api/keys', {
+      const res = await apiFetch('/api/keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider: selectedProvider, apiKey: keyInput }),
       })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data?.error || `Save failed (${res.status})`)
+      }
       setKeyInput('')
       toast.success('API key saved')
       await loadProviders()
       await fetchModels(selectedProvider)
-    } catch {
-      toast.error('Failed to save key')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to save key')
     } finally {
       setSavingKey(false)
     }
@@ -322,6 +327,10 @@ function ModelConfigTab() {
               deviceCode: data.device_code,
             }),
           })
+          if (!checkRes.ok) {
+            console.warn('[copilot-login] Poll returned', checkRes.status)
+            return // keep polling on transient errors
+          }
           const checkData = await checkRes.json()
           if (checkData.access_token) {
             // Success!
@@ -330,8 +339,8 @@ function ModelConfigTab() {
             setCopilotPolling(false)
             setCopilotSuccess(true)
             toast.success('GitHub Copilot connected!')
-            await loadProviders()
-            await fetchModels('github-copilot')
+            loadProviders().catch(() => {})
+            fetchModels('github-copilot').catch(() => {})
           } else if (
             checkData.error &&
             checkData.error !== 'authorization_pending' &&
@@ -343,8 +352,8 @@ function ModelConfigTab() {
             setCopilotPolling(false)
             toast.error(`Login failed: ${checkData.error}`)
           }
-        } catch {
-          /* keep polling */
+        } catch (err) {
+          console.warn('[copilot-login] Poll error:', err)
         }
       }, interval)
 
@@ -387,19 +396,21 @@ function ModelConfigTab() {
   return (
     <div className="space-y-6">
       {/* Current Model Banner */}
-      <div className="flex items-center gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3">
-        <Cpu className="size-4 text-primary shrink-0" />
+      <div className="flex items-center gap-4 rounded-2xl border border-primary/20 bg-linear-to-r from-primary/5 via-primary/3 to-transparent px-5 py-4">
+        <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+          <Cpu className="size-5 text-primary" />
+        </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-semibold text-primary">Current Model</p>
-          <p className="text-sm font-mono text-foreground truncate">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Current Model</p>
+          <p className="text-base font-mono font-semibold text-foreground truncate mt-0.5">
             {currentModel || 'Not configured'}
           </p>
         </div>
         {currentModel && (
-          <Badge variant="outline" className="shrink-0 text-[10px]">
+          <Badge variant="outline" className="shrink-0 rounded-full text-[10px] px-2.5 py-0.5 gap-1.5">
             <ProviderIcon
               provider={currentModel.includes('/') ? currentModel.split('/')[0] : 'openai'}
-              className="size-3 mr-1"
+              className="size-3"
             />
             {currentModel.includes('/') ? currentModel.split('/')[0] : 'auto'}
           </Badge>
@@ -409,39 +420,50 @@ function ModelConfigTab() {
       {/* Step 1: Pick Provider */}
       <Card>
         <CardHeader>
-          <CardTitle>1. Choose Provider</CardTitle>
+          <CardTitle className="font-heading">1. Choose Provider</CardTitle>
           <CardDescription>
             Select an AI provider, add your API key, and pick a model.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {providers.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => selectProvider(p.id)}
-                className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-colors hover:bg-accent ${selectedProvider === p.id ? 'border-primary bg-primary/5' : ''}`}
-              >
-                <div className="flex size-9 items-center justify-center rounded-lg bg-muted shrink-0">
-                  <ProviderIcon provider={p.id} className="size-4.5" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{p.name}</span>
+            {providers.map((p) => {
+              const isSelected = selectedProvider === p.id
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => selectProvider(p.id)}
+                  className={`group relative flex flex-col gap-3 rounded-2xl border p-4 text-left transition-all duration-200 hover:shadow-md ${
+                    isSelected
+                      ? 'border-primary bg-primary/5 shadow-sm shadow-primary/10 ring-1 ring-primary/20'
+                      : 'border-border hover:border-primary/30 hover:bg-accent/50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className={`flex size-10 items-center justify-center rounded-xl transition-colors ${
+                      isSelected ? 'bg-primary/15' : 'bg-muted group-hover:bg-primary/10'
+                    }`}>
+                      <ProviderIcon provider={p.id} className="size-5" />
+                    </div>
                     {p.configured && (
-                      <Badge variant="default" className="text-[10px] px-1.5 py-0">
-                        <Check className="size-2.5 mr-0.5" />
+                      <Badge variant="default" className="rounded-full text-[10px] px-2 py-0.5 gap-1 bg-emerald-500/90 hover:bg-emerald-500/90 border-0">
+                        <Check className="size-2.5" />
                         Active
                       </Badge>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">
-                    {p.description}
-                  </p>
-                </div>
-                <ChevronRight className="size-4 text-muted-foreground shrink-0" />
-              </button>
-            ))}
+                  <div className="space-y-1">
+                    <span className="text-sm font-semibold font-heading tracking-tight">{p.name}</span>
+                    <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">
+                      {p.description}
+                    </p>
+                  </div>
+                  {isSelected && (
+                    <div className="absolute -bottom-px left-1/2 h-0.5 w-12 -translate-x-1/2 rounded-full bg-primary" />
+                  )}
+                </button>
+              )
+            })}
           </div>
         </CardContent>
       </Card>
@@ -450,7 +472,7 @@ function ModelConfigTab() {
       {selectedProvider && (
         <Card>
           <CardHeader>
-            <CardTitle>
+            <CardTitle className="font-heading">
               2. {isCopilotProvider ? 'Connect GitHub Copilot' : `API Key for ${currentProvider?.name || selectedProvider}`}
             </CardTitle>
             <CardDescription>
@@ -591,9 +613,9 @@ function ModelConfigTab() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>3. Select Model</CardTitle>
+                <CardTitle className="font-heading">3. Select Model</CardTitle>
                 <CardDescription>
-                  {models.length} models available from {currentProvider?.name}
+                  {models.length} model{models.length !== 1 ? 's' : ''} available from {currentProvider?.name}
                 </CardDescription>
               </div>
               <Button
@@ -618,35 +640,56 @@ function ModelConfigTab() {
                 No models found. Make sure your API key is correct.
               </p>
             ) : (
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                 {models.map((m) => {
                   const isActive = currentModel === `${selectedProvider}/${m.id}`
+                  const isJustSelected = selectedModel === m.id
                   return (
-                    <button
-                      key={m.id}
-                      onClick={() => selectModel(m.id)}
-                      className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors hover:bg-accent ${
-                        selectedModel === m.id
-                          ? 'border-primary bg-primary/5'
-                          : isActive
-                            ? 'border-green-500/50 bg-green-500/5'
-                            : ''
-                      }`}
-                    >
-                      {selectedModel === m.id ? (
-                        <Check className="size-3.5 text-primary shrink-0" />
-                      ) : isActive ? (
-                        <Zap className="size-3.5 text-green-600 shrink-0" />
-                      ) : null}
-                      <span className="truncate font-mono text-xs">
-                        {m.name || m.id}
-                      </span>
-                      {isActive && selectedModel !== m.id && (
-                        <Badge variant="outline" className="ml-auto text-[9px] px-1 py-0 text-green-600 border-green-500/30">
-                          current
-                        </Badge>
-                      )}
-                    </button>
+                    <TooltipProvider key={m.id} delayDuration={300}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => selectModel(m.id)}
+                            className={`group relative flex items-center gap-3 rounded-2xl border px-3.5 py-3 text-left transition-all duration-200 hover:shadow-sm ${
+                              isJustSelected
+                                ? 'border-primary bg-primary/5 ring-1 ring-primary/20 shadow-sm shadow-primary/10'
+                                : isActive
+                                  ? 'border-emerald-500/40 bg-emerald-500/5'
+                                  : 'border-border hover:border-primary/30 hover:bg-accent/50'
+                            }`}
+                          >
+                            <div className={`flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors ${
+                              isJustSelected
+                                ? 'bg-primary/15'
+                                : isActive
+                                  ? 'bg-emerald-500/10'
+                                  : 'bg-muted group-hover:bg-primary/10'
+                            }`}>
+                              {isJustSelected ? (
+                                <Check className="size-3.5 text-primary" />
+                              ) : isActive ? (
+                                <Zap className="size-3.5 text-emerald-600" />
+                              ) : (
+                                <Cpu className="size-3.5 text-muted-foreground group-hover:text-primary/70" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="block truncate text-[13px] font-mono font-medium">
+                                {m.name || m.id}
+                              </span>
+                            </div>
+                            {isActive && !isJustSelected && (
+                              <Badge variant="outline" className="shrink-0 rounded-full text-[9px] px-1.5 py-0.5 text-emerald-600 border-emerald-500/30 bg-emerald-500/5">
+                                current
+                              </Badge>
+                            )}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="text-xs">
+                          {selectedProvider}/{m.id}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   )
                 })}
               </div>
@@ -695,27 +738,36 @@ function ApiKeysTab() {
     if (!newKey.provider || !newKey.token) return
     setSaving(true)
     try {
-      await apiFetch('/api/keys', {
+      const res = await apiFetch('/api/keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider: newKey.provider, apiKey: newKey.token }),
       })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data?.error || `Save failed (${res.status})`)
+      }
       setNewKey({ provider: '', token: '' })
       toast.success('Key saved')
       await loadProfiles()
-    } catch {
-      toast.error('Failed to save key')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to save key')
     } finally {
       setSaving(false)
     }
   }
 
   async function removeKey(profileId: string) {
-    await apiFetch(`/api/keys?profileId=${encodeURIComponent(profileId)}`, {
-      method: 'DELETE',
-    })
-    toast.success('Key removed')
-    await loadProfiles()
+    try {
+      const res = await apiFetch(`/api/keys?profileId=${encodeURIComponent(profileId)}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error('Delete failed')
+      toast.success('Key removed')
+      await loadProfiles()
+    } catch {
+      toast.error('Failed to remove key')
+    }
   }
 
   return (
@@ -796,15 +848,15 @@ function ApiKeysTab() {
               {profiles.map((p) => (
                 <div
                   key={p.profileId}
-                  className="flex items-center justify-between rounded-xl border p-3"
+                  className="group flex items-center justify-between rounded-2xl border p-3.5 transition-colors hover:bg-accent/30"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10">
-                      <ProviderIcon provider={p.provider} className="size-4 text-primary" />
+                    <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+                      <ProviderIcon provider={p.provider} className="size-4.5 text-primary" />
                     </div>
                     <div>
-                      <p className="text-sm font-medium">{p.provider}</p>
-                      <p className="text-xs text-muted-foreground font-mono">
+                      <p className="text-sm font-semibold capitalize">{p.provider}</p>
+                      <p className="text-xs text-muted-foreground font-mono mt-0.5">
                         {p.tokenRef || p.type}
                       </p>
                     </div>
@@ -813,7 +865,7 @@ function ApiKeysTab() {
                     variant="ghost"
                     size="icon"
                     onClick={() => removeKey(p.profileId)}
-                    className="size-8 text-muted-foreground hover:text-destructive"
+                    className="size-8 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity"
                   >
                     <Trash2 className="size-4" />
                   </Button>

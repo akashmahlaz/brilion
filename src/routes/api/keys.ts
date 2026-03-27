@@ -42,18 +42,28 @@ export const Route = createFileRoute("/api/keys")({
           return Response.json(data);
         }
         if (body.action === "copilot-check") {
-          const data = await checkDeviceCode(body.deviceCode);
-          if (data.access_token) {
-            await upsertAuthProfile("github-copilot", {
-              type: "oauth",
-              provider: "github-copilot",
-              token: data.access_token,
-            }, userId);
-            sysLogger.info("Copilot device login successful — token saved", { provider: "github-copilot" });
-          } else if (data.error && data.error !== "authorization_pending") {
-            sysLogger.warn("Copilot device login failed", { error: data.error });
+          try {
+            const data = await checkDeviceCode(body.deviceCode);
+            if (data.access_token) {
+              try {
+                await upsertAuthProfile("github-copilot", {
+                  type: "oauth",
+                  provider: "github-copilot",
+                  token: data.access_token,
+                }, userId);
+                sysLogger.info("Copilot device login successful — token saved", { provider: "github-copilot" });
+              } catch (saveErr) {
+                sysLogger.error("Copilot token save failed", { error: saveErr instanceof Error ? saveErr.message : String(saveErr) });
+                return Response.json({ error: "token_save_failed" }, { status: 500 });
+              }
+            } else if (data.error && data.error !== "authorization_pending") {
+              sysLogger.warn("Copilot device login failed", { error: data.error });
+            }
+            return Response.json(data);
+          } catch (checkErr) {
+            sysLogger.error("Copilot device code check failed", { error: checkErr instanceof Error ? checkErr.message : String(checkErr) });
+            return Response.json({ error: "device_check_failed" }, { status: 502 });
           }
-          return Response.json(data);
         }
 
         // Regular API key save
@@ -65,12 +75,17 @@ export const Route = createFileRoute("/api/keys")({
           );
         }
 
-        await upsertAuthProfile(provider, {
-          type: "api_key",
-          provider,
-          token: apiKey,
-          baseUrl,
-        }, userId);
+        try {
+          await upsertAuthProfile(provider, {
+            type: "api_key",
+            provider,
+            token: apiKey,
+            baseUrl,
+          }, userId);
+        } catch (saveErr) {
+          sysLogger.error("API key save failed", { provider, error: saveErr instanceof Error ? saveErr.message : String(saveErr) });
+          return Response.json({ error: "Failed to save key" }, { status: 500 });
+        }
 
         sysLogger.info("API key saved", { provider, hasBaseUrl: !!baseUrl });
         return Response.json({ ok: true });

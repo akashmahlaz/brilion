@@ -117,7 +117,7 @@ function buildAdapter(
   apiKey: string,
   baseUrl?: string
 ): AnyTextAdapter {
-  console.log(`[providers] buildAdapter: provider=${providerId} model=${modelId} baseUrl=${baseUrl || "default"} apiKeyPresent=${!!apiKey} apiKeyLen=${apiKey?.length || 0}`);
+
   const factory = ADAPTER_FACTORIES[providerId] || ADAPTER_FACTORIES.openai;
   return factory(modelId, apiKey, baseUrl);
 }
@@ -127,11 +127,10 @@ function buildAdapter(
  * Implements OpenClaw-style failover: tries primary, then each fallback.
  */
 export async function resolveModel(modelSpec?: string, userId?: string): Promise<AnyTextAdapter> {
-  console.log("[providers] resolveModel() called, spec:", modelSpec || "default", "userId:", userId || "none");
   const config = await loadConfig(userId);
   const spec = modelSpec || config.agents?.defaults?.model?.primary || "gpt-4o";
   const fallbacks: string[] = config.agents?.defaults?.model?.fallbacks || [];
-  console.log("[providers] resolved spec:", spec, "fallbacks:", fallbacks);
+
 
   // Deep diagnostic: log the full model resolution chain
   if (userId) {
@@ -152,7 +151,7 @@ export async function resolveModel(modelSpec?: string, userId?: string): Promise
     try {
       const adapter = await resolveModelSingle(currentSpec, userId);
       if (currentSpec !== spec) {
-        console.log("[providers] Failover succeeded with:", currentSpec);
+        console.warn("[providers] Failover succeeded with:", currentSpec);
       }
       // Log successful resolution
       if (userId) {
@@ -167,7 +166,7 @@ export async function resolveModel(modelSpec?: string, userId?: string): Promise
       return adapter;
     } catch (e) {
       lastError = e instanceof Error ? e : new Error(String(e));
-      console.log("[providers] Failed to resolve", currentSpec, ":", lastError.message);
+      console.warn("[providers] Failed to resolve", currentSpec, ":", lastError.message);
       if (userId) {
         const sysLogger = createLogger(userId, "agent");
         sysLogger.warn("Model resolution failed, trying next", {
@@ -200,7 +199,7 @@ async function resolveModelSingle(spec: string, userId?: string): Promise<AnyTex
     }
   }
 
-  console.log("[providers] using provider:", providerId!, "model:", modelId);
+
   const apiKey = await resolveProviderKey(providerId!, userId);
   if (!apiKey) {
     throw new Error(
@@ -209,7 +208,6 @@ async function resolveModelSingle(spec: string, userId?: string): Promise<AnyTex
   }
 
   const baseUrl = await resolveProviderBaseUrl(providerId!, userId);
-  console.log("[providers] baseUrl:", baseUrl || "default");
   return buildAdapter(providerId!, modelId, apiKey, baseUrl ?? undefined);
 }
 
