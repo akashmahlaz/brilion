@@ -39,13 +39,13 @@ export function Hero() {
         >
           <p className="text-[13px] font-semibold text-gray-600 tracking-wide flex items-center gap-2">
             <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Private - Powerfull
+            Private - Powerful
           </p>
         </motion.div>
 
         {/* Headline — visible in SSR, animates after hydration */}
         <h1 className="font-heading text-[48px] sm:text-[64px] lg:text-[78px] xl:text-[88px] font-extrabold text-gray-900 leading-[1.05] tracking-[-0.035em]">
-          Everything automate
+          Automate everything
           <br />
           <span className="bg-linear-to-r from-gray-900 via-blue-700 to-blue-500 bg-clip-text text-transparent">
             from one message.

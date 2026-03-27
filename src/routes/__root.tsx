@@ -1,6 +1,7 @@
 import {
   HeadContent,
   Scripts,
+  Link,
   createRootRouteWithContext,
 } from '@tanstack/react-router'
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
@@ -39,7 +40,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
         <div className="text-center space-y-4">
           <h1 className="text-4xl font-bold">404</h1>
           <p className="text-muted-foreground">Page not found</p>
-          <a href="/" className="text-primary underline">Go home</a>
+          <Link to="/" className="text-primary underline">Go home</Link>
         </div>
       </div>
     )
@@ -88,7 +89,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <HeadContent />
       </head>
-      <body className="font-sans antialiased [overflow-wrap:anywhere]">
+      <body className="font-sans antialiased wrap-anywhere">
         <Toaster position="bottom-right" richColors closeButton />
         <TooltipProvider>
         <PostHogProvider>

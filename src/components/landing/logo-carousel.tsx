@@ -71,7 +71,7 @@ function LogoItem({ name }: { name: string }) {
       return (
         <div className="flex items-center gap-1.5 px-8 select-none">
           <div className="relative flex size-7 items-center justify-center rounded-md bg-[#FF0000]">
-            <div className="ml-0.5 size-0 border-y-[5px] border-y-transparent border-l-[8px] border-l-white" />
+            <div className="ml-0.5 size-0 border-y-[5px] border-y-transparent border-l-8 border-l-white" />
           </div>
           <span className="text-xl font-semibold text-gray-800">YouTube</span>
         </div>

@@ -459,15 +459,21 @@ function ModelConfigTab() {
               ) : (
                 <>
                   {currentProvider?.configured ? 'Key is configured. Enter a new key to replace it, or skip to step 3.' : 'Enter your API key to fetch available models.'}{' '}
-                  <a
-                    href={currentProvider?.website || '#'}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary hover:underline inline-flex items-center gap-1"
-                  >
-                    Get a key
-                    <ExternalLink className="size-3" />
-                  </a>
+                  {currentProvider?.website ? (
+                    <a
+                      href={currentProvider.website}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline inline-flex items-center gap-1"
+                    >
+                      Get a key
+                      <ExternalLink className="size-3" />
+                    </a>
+                  ) : (
+                    <span className="text-muted-foreground inline-flex items-center gap-1">
+                      Key URL unavailable
+                    </span>
+                  )}
                 </>
               )}
             </CardDescription>

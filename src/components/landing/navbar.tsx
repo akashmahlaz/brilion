@@ -7,24 +7,24 @@ import { useSession } from '#/lib/auth-client'
 /* ── Dropdown Data ── */
 const navDropdowns: Record<
   string,
-  { sections: { title: string; items: { name: string; desc: string }[] }[] }
+  { sections: { title: string; items: { name: string; desc: string; href: string }[] }[] }
 > = {
   PLATFORM: {
     sections: [
       {
         title: 'Automation',
         items: [
-          { name: 'Chat AI', desc: 'Talk to Brilion via WhatsApp or web' },
-          { name: 'Agents', desc: 'Autonomous AI agents that act for you' },
-          { name: 'Workflows', desc: 'Multi-step automation pipelines' },
-          { name: 'Integrations', desc: '30+ app connectors built-in' },
+          { name: 'Chat AI', desc: 'Talk to Brilion via WhatsApp or web', href: '/chat' },
+          { name: 'Agents', desc: 'Autonomous AI agents that act for you', href: '/agents' },
+          { name: 'Workflows', desc: 'Multi-step automation pipelines', href: '/skills' },
+          { name: 'Integrations', desc: '30+ app connectors built-in', href: '/#integrations' },
         ],
       },
       {
         title: 'Infrastructure',
         items: [
-          { name: 'AI Models', desc: 'GPT-4o, Claude, Gemini and more' },
-          { name: 'Channels', desc: 'WhatsApp, Telegram, Web chat' },
+          { name: 'AI Models', desc: 'GPT-4o, Claude, Gemini and more', href: '/settings' },
+          { name: 'Channels', desc: 'WhatsApp, Telegram, Web chat', href: '/channels' },
         ],
       },
     ],
@@ -34,17 +34,17 @@ const navDropdowns: Record<
       {
         title: 'Industries',
         items: [
-          { name: 'Digital Marketing', desc: 'Create and publish ads from chat' },
-          { name: 'Trading', desc: 'Auto-trade on Binance via commands' },
-          { name: 'Development', desc: 'Deploy code, manage repos' },
-          { name: 'Content Creation', desc: 'Generate videos and publish' },
+          { name: 'Digital Marketing', desc: 'Create and publish ads from chat', href: '/social' },
+          { name: 'Trading', desc: 'Auto-trade on Binance via commands', href: '/trading' },
+          { name: 'Development', desc: 'Deploy code, manage repos', href: '/coding' },
+          { name: 'Content Creation', desc: 'Generate videos and publish', href: '/#features' },
         ],
       },
       {
         title: 'Roles',
         items: [
-          { name: 'Founders', desc: 'Run your business from WhatsApp' },
-          { name: 'Professionals', desc: 'Automate admin and scheduling' },
+          { name: 'Founders', desc: 'Run your business from WhatsApp', href: '/#how-it-works' },
+          { name: 'Professionals', desc: 'Automate admin and scheduling', href: '/#how-it-works' },
         ],
       },
     ],
@@ -54,9 +54,9 @@ const navDropdowns: Record<
       {
         title: 'Learn',
         items: [
-          { name: 'Blog', desc: 'Updates and product announcements' },
-          { name: 'Documentation', desc: 'Guides and API reference' },
-          { name: 'Changelog', desc: 'What\'s new in Brilion' },
+          { name: 'Blog', desc: 'Updates and product announcements', href: '/blog' },
+          { name: 'Documentation', desc: 'Guides and API reference', href: '/docs' },
+          { name: 'Changelog', desc: 'What\'s new in Brilion', href: '/changelog' },
         ],
       },
     ],
@@ -66,9 +66,9 @@ const navDropdowns: Record<
       {
         title: 'About',
         items: [
-          { name: 'About Us', desc: 'Our mission and team' },
-          { name: 'Careers', desc: 'Join Brilion' },
-          { name: 'Contact', desc: 'Get in touch' },
+          { name: 'About Us', desc: 'Our mission and team', href: '/about' },
+          { name: 'Careers', desc: 'Join Brilion', href: '/careers' },
+          { name: 'Contact', desc: 'Get in touch', href: '/contact' },
         ],
       },
     ],
@@ -95,10 +95,9 @@ export function Navbar() {
     <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-2xl border-b border-gray-100/60">
       <div className="max-w-7xl mx-auto px-6 lg:px-8 flex items-center justify-between h-16">
         {/* Logo */}
-        <a href="/" className="flex items-center shrink-0 -ml-1">
-          <img src="/BRILION.svg" alt="Brilion" className="h-8 w-aut
-          o" />
-        </a>
+        <Link to="/" className="flex items-center shrink-0 -ml-1">
+          <img src="/BRILION.svg" alt="Brilion" className="h-8 w-auto" />
+        </Link>
 
         {/* Desktop Nav — mega dropdown */}
         <div className="hidden md:flex items-center gap-1">
@@ -147,7 +146,7 @@ export function Navbar() {
                             {section.items.map((item) => (
                               <a
                                 key={item.name}
-                                href="#"
+                                href={item.href}
                                 className="group flex flex-col px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors"
                               >
                                 <span className="text-sm font-semibold text-gray-800 group-hover:text-gray-900 flex items-center gap-1">

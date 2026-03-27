@@ -55,17 +55,17 @@ function AuthLayout() {
 
       {/* Footer */}
       <footer className="relative z-10 flex items-center justify-center gap-5 pb-6 md:pb-8">
-        <a href="#" className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors">
+        <Link to="/privacy" className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors">
           Privacy
-        </a>
+        </Link>
         <span className="text-gray-300 text-[10px]">·</span>
-        <a href="#" className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors">
+        <Link to="/terms" className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors">
           Terms
-        </a>
+        </Link>
         <span className="text-gray-300 text-[10px]">·</span>
-        <a href="#" className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors">
+        <Link to="/support" className="text-[11px] text-gray-400 hover:text-gray-600 transition-colors">
           Support
-        </a>
+        </Link>
       </footer>
     </div>
   )
