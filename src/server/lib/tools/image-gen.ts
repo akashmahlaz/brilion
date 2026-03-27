@@ -95,6 +95,16 @@ export function createImageGenTool(userId: string) {
       console.log("[image-gen] Uploaded to Cloudinary:", { url: uploaded.url, model: selectedModel, bytes: uploaded.bytes });
 
       return {
+        outputType: "media",
+        mediaType: "image",
+        status: "completed",
+        asset: {
+          url: uploaded.url,
+          mimeType: "image/png",
+          provider: "cloudinary",
+          public: true,
+          bytes: uploaded.bytes,
+        },
         imageUrl: uploaded.url,
         revisedPrompt: modelInfo.supportsRevision ? (image.revised_prompt || prompt) : prompt,
         model: selectedModel,

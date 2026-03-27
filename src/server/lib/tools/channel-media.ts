@@ -36,13 +36,16 @@ export function createChannelMediaTools(userId: string, ctx?: ChannelContext) {
         description:
           "Send a generated image to the current channel as a media message. ALWAYS call this after generate_image — pass the imageUrl from the result. The image will be sent as a native WhatsApp/Telegram image, not as a link.",
         inputSchema: z.object({
-          imageUrl: z.string().describe("The imageUrl returned by generate_image (Cloudinary CDN URL)"),
+          imageUrl: z.string().optional().describe("The imageUrl returned by generate_image (Cloudinary CDN URL)"),
+          url: z.string().optional().describe("Alias of imageUrl for normalized media outputs"),
           caption: z.string().optional().describe("Optional caption for the image"),
         }),
-      }).server(async ({ imageUrl, caption }: { imageUrl: string; caption?: string }) => {
-        console.log(`[channel-media] Sending image to ${ctx.channel}:${ctx.channelId} from ${imageUrl}`);
+      }).server(async ({ imageUrl, url, caption }: { imageUrl?: string; url?: string; caption?: string }) => {
+        const mediaUrl = url || imageUrl;
+        if (!mediaUrl) return { status: "error", error: "Missing image URL" };
+        console.log(`[channel-media] Sending image to ${ctx.channel}:${ctx.channelId} from ${mediaUrl}`);
         try {
-          const buffer = await resolveMediaBuffer(imageUrl);
+          const buffer = await resolveMediaBuffer(mediaUrl);
           if (ctx.channel === "whatsapp") {
             const { sendImage } = await import("../wa-manager");
             return await sendImage(userId, ctx.channelId, buffer, caption, "image/png");
@@ -61,17 +64,20 @@ export function createChannelMediaTools(userId: string, ctx?: ChannelContext) {
         description:
           "Send a generated image to a WhatsApp/Telegram channel. Use after generate_image. Requires channelId and channel when called from web.",
         inputSchema: z.object({
-          imageUrl: z.string().describe("The imageUrl returned by generate_image"),
+          imageUrl: z.string().optional().describe("The imageUrl returned by generate_image"),
+          url: z.string().optional().describe("Alias of imageUrl for normalized media outputs"),
           caption: z.string().optional().describe("Optional caption for the image"),
           channelId: z.string().describe("The channel recipient JID/chatId to send to"),
           channel: z.enum(["whatsapp", "telegram"]).describe("Which channel to send on"),
         }),
-      }).server(async ({ imageUrl, caption, channelId, channel }: {
-        imageUrl: string; caption?: string; channelId: string; channel: string;
+      }).server(async ({ imageUrl, url, caption, channelId, channel }: {
+        imageUrl?: string; url?: string; caption?: string; channelId: string; channel: string;
       }) => {
-        console.log(`[channel-media] Sending image to ${channel}:${channelId} from ${imageUrl}`);
+        const mediaUrl = url || imageUrl;
+        if (!mediaUrl) return { status: "error", error: "Missing image URL" };
+        console.log(`[channel-media] Sending image to ${channel}:${channelId} from ${mediaUrl}`);
         try {
-          const buffer = await resolveMediaBuffer(imageUrl);
+          const buffer = await resolveMediaBuffer(mediaUrl);
           if (channel === "whatsapp") {
             const { sendImage } = await import("../wa-manager");
             return await sendImage(userId, channelId, buffer, caption, "image/png");
@@ -92,12 +98,15 @@ export function createChannelMediaTools(userId: string, ctx?: ChannelContext) {
         description:
           "Send generated audio/voice to the current channel as a voice note. ALWAYS call this after text_to_speech — pass the audioUrl from the result.",
         inputSchema: z.object({
-          audioUrl: z.string().describe("The audioUrl returned by text_to_speech (Cloudinary CDN URL)"),
+          audioUrl: z.string().optional().describe("The audioUrl returned by text_to_speech (Cloudinary CDN URL)"),
+          url: z.string().optional().describe("Alias of audioUrl for normalized media outputs"),
         }),
-      }).server(async ({ audioUrl }: { audioUrl: string }) => {
-        console.log(`[channel-media] Sending audio to ${ctx.channel}:${ctx.channelId} from ${audioUrl}`);
+      }).server(async ({ audioUrl, url }: { audioUrl?: string; url?: string }) => {
+        const mediaUrl = url || audioUrl;
+        if (!mediaUrl) return { status: "error", error: "Missing audio URL" };
+        console.log(`[channel-media] Sending audio to ${ctx.channel}:${ctx.channelId} from ${mediaUrl}`);
         try {
-          const buffer = await resolveMediaBuffer(audioUrl);
+          const buffer = await resolveMediaBuffer(mediaUrl);
           if (ctx.channel === "whatsapp") {
             const { sendAudio } = await import("../wa-manager");
             return await sendAudio(userId, ctx.channelId, buffer, "audio/ogg; codecs=opus", true);
@@ -113,16 +122,19 @@ export function createChannelMediaTools(userId: string, ctx?: ChannelContext) {
         description:
           "Send generated audio/voice to a WhatsApp/Telegram channel as a voice note. Use after text_to_speech.",
         inputSchema: z.object({
-          audioUrl: z.string().describe("The audioUrl returned by text_to_speech"),
+          audioUrl: z.string().optional().describe("The audioUrl returned by text_to_speech"),
+          url: z.string().optional().describe("Alias of audioUrl for normalized media outputs"),
           channelId: z.string().describe("The channel recipient JID/chatId to send to"),
           channel: z.enum(["whatsapp", "telegram"]).describe("Which channel to send on"),
         }),
-      }).server(async ({ audioUrl, channelId, channel }: {
-        audioUrl: string; channelId: string; channel: string;
+      }).server(async ({ audioUrl, url, channelId, channel }: {
+        audioUrl?: string; url?: string; channelId: string; channel: string;
       }) => {
-        console.log(`[channel-media] Sending audio to ${channel}:${channelId} from ${audioUrl}`);
+        const mediaUrl = url || audioUrl;
+        if (!mediaUrl) return { status: "error", error: "Missing audio URL" };
+        console.log(`[channel-media] Sending audio to ${channel}:${channelId} from ${mediaUrl}`);
         try {
-          const buffer = await resolveMediaBuffer(audioUrl);
+          const buffer = await resolveMediaBuffer(mediaUrl);
           if (channel === "whatsapp") {
             const { sendAudio } = await import("../wa-manager");
             return await sendAudio(userId, channelId, buffer, "audio/ogg; codecs=opus", true);
@@ -140,13 +152,16 @@ export function createChannelMediaTools(userId: string, ctx?: ChannelContext) {
         description:
           "Send a generated video to the current channel. ALWAYS call this after generate_video — pass the videoUrl from the result.",
         inputSchema: z.object({
-          videoUrl: z.string().describe("URL of the generated video to send"),
+          videoUrl: z.string().optional().describe("URL of the generated video to send"),
+          url: z.string().optional().describe("Alias of videoUrl for normalized media outputs"),
           caption: z.string().optional().describe("Optional caption for the video"),
         }),
-      }).server(async ({ videoUrl, caption }: { videoUrl: string; caption?: string }) => {
+      }).server(async ({ videoUrl, url, caption }: { videoUrl?: string; url?: string; caption?: string }) => {
+        const mediaUrl = url || videoUrl;
+        if (!mediaUrl) return { status: "error", error: "Missing video URL" };
         console.log(`[channel-media] Sending video to ${ctx.channel}:${ctx.channelId}`);
         try {
-          const buffer = await resolveMediaBuffer(videoUrl);
+          const buffer = await resolveMediaBuffer(mediaUrl);
           if (ctx.channel === "whatsapp") {
             const { sendVideo } = await import("../wa-manager");
             return await sendVideo(userId, ctx.channelId, buffer, caption, "video/mp4");
@@ -162,17 +177,20 @@ export function createChannelMediaTools(userId: string, ctx?: ChannelContext) {
         description:
           "Send a generated video to a WhatsApp/Telegram channel. Use after generate_video.",
         inputSchema: z.object({
-          videoUrl: z.string().describe("URL of the generated video to send"),
+          videoUrl: z.string().optional().describe("URL of the generated video to send"),
+          url: z.string().optional().describe("Alias of videoUrl for normalized media outputs"),
           caption: z.string().optional().describe("Optional caption for the video"),
           channelId: z.string().describe("The channel recipient JID/chatId to send to"),
           channel: z.enum(["whatsapp", "telegram"]).describe("Which channel to send on"),
         }),
-      }).server(async ({ videoUrl, caption, channelId, channel }: {
-        videoUrl: string; caption?: string; channelId: string; channel: string;
+      }).server(async ({ videoUrl, url, caption, channelId, channel }: {
+        videoUrl?: string; url?: string; caption?: string; channelId: string; channel: string;
       }) => {
+        const mediaUrl = url || videoUrl;
+        if (!mediaUrl) return { status: "error", error: "Missing video URL" };
         console.log(`[channel-media] Sending video to ${channel}:${channelId}`);
         try {
-          const buffer = await resolveMediaBuffer(videoUrl);
+          const buffer = await resolveMediaBuffer(mediaUrl);
           if (channel === "whatsapp") {
             const { sendVideo } = await import("../wa-manager");
             return await sendVideo(userId, channelId, buffer, caption, "video/mp4");

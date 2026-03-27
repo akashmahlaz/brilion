@@ -50,6 +50,16 @@ export function createTTSTool(userId: string) {
       console.log("[tts] Audio uploaded to Cloudinary:", { url: uploaded.url, bytes: uploaded.bytes });
 
       return {
+        outputType: "media",
+        mediaType: "audio",
+        status: "completed",
+        asset: {
+          url: uploaded.url,
+          mimeType: "audio/ogg",
+          provider: "cloudinary",
+          public: true,
+          bytes: uploaded.bytes,
+        },
         audioUrl: uploaded.url,
         format: result.format || "opus",
         duration: result.duration,

@@ -291,9 +291,19 @@ export const Route = createFileRoute("/api/chat")({
                 const conv = await Conversation.findById(conversationId);
                 if (!conv) return;
 
+                const userParts = Array.isArray(lastUserMsg?.parts)
+                  ? lastUserMsg.parts
+                  : [{ type: "text", content: userContent }];
+
+                const assistantParts = fullText
+                  ? [{ type: "text", content: fullText }]
+                  : [];
+
                 conv.messages.push(
-                  { role: lastUserMsg.role, content: userContent },
-                  ...(fullText ? [{ role: "assistant" as const, content: fullText }] : []),
+                  { role: lastUserMsg.role, content: userContent, parts: userParts },
+                  ...(fullText
+                    ? [{ role: "assistant" as const, content: fullText, parts: assistantParts }]
+                    : []),
                 );
 
                 if (

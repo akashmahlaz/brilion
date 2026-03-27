@@ -97,6 +97,14 @@ interface Message {
   createdAt?: string
 }
 
+function extractTextFromParts(parts: any[] | undefined): string {
+  if (!Array.isArray(parts)) return ''
+  return parts
+    .filter((p) => p?.type === 'text')
+    .map((p) => p?.content || p?.text || '')
+    .join('')
+}
+
 interface ConversationSummary {
   _id: string
   title: string
@@ -256,7 +264,7 @@ function ToolCallLog({ toolCalls }: { toolCalls: ToolCallPart[] }) {
 
 // ─── Thinking block — shows model reasoning like ChatGPT ────────────────────
 function ThinkingBlock({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
   return (
     <div className="rounded-xl border border-border/60 bg-muted/20 overflow-hidden">
       <button
@@ -369,19 +377,33 @@ function MediaAction({ icon, label, onClick }: { icon: React.ReactNode; label: s
   )
 }
 
+function getMediaUrl(result: any, keys: string[]): string | null {
+  for (const key of keys) {
+    const val = result?.[key]
+    if (typeof val === 'string' && val.length > 0) return val
+  }
+  if (typeof result?.asset?.url === 'string' && result.asset.url.length > 0) return result.asset.url
+  return null
+}
+
+function isDocumentUrl(url: string): boolean {
+  return /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|md|csv|json)$/i.test(url)
+}
+
 // ─── Media Results — renders images, audio, video from tool call results ────
 function MediaResults({ toolCalls }: { toolCalls: ToolCallPart[] }) {
   const media: React.ReactNode[] = []
 
-  for (const tc of toolCalls) {
+  for (let idx = 0; idx < toolCalls.length; idx++) {
+    const tc = toolCalls[idx]
     // Show skeleton while tool is being called
     if (tc.state === 'calling') {
       if (tc.toolName === 'generate_image') {
-        media.push(<MediaSkeleton key={`skel-img-${tc.toolName}`} type="image" prompt={(tc.args as any)?.prompt} />)
+        media.push(<MediaSkeleton key={`skel-img-${tc.toolName}-${idx}`} type="image" prompt={(tc.args as any)?.prompt} />)
       } else if (tc.toolName === 'text_to_speech') {
-        media.push(<MediaSkeleton key={`skel-audio-${tc.toolName}`} type="audio" />)
+        media.push(<MediaSkeleton key={`skel-audio-${tc.toolName}-${idx}`} type="audio" />)
       } else if (tc.toolName === 'generate_video') {
-        media.push(<MediaSkeleton key={`skel-video-${tc.toolName}`} type="video" prompt={(tc.args as any)?.prompt} />)
+        media.push(<MediaSkeleton key={`skel-video-${tc.toolName}-${idx}`} type="video" prompt={(tc.args as any)?.prompt} />)
       }
       continue
     }
@@ -391,10 +413,10 @@ function MediaResults({ toolCalls }: { toolCalls: ToolCallPart[] }) {
 
     // Image generation result
     if (tc.toolName === 'generate_image' && !result.error) {
-      const src = result.imageUrl || (result.imageBase64 ? `data:image/png;base64,${result.imageBase64}` : null)
+      const src = getMediaUrl(result, ['imageUrl']) || (result.imageBase64 ? `data:image/png;base64,${result.imageBase64}` : null)
       if (src) {
         media.push(
-          <BlurFade key={`img-${tc.toolName}`} delay={0.15} direction="up">
+          <BlurFade key={`img-${tc.toolName}-${idx}`} delay={0.15} direction="up">
             <div className="group/media">
               {result.revisedPrompt && (
                 <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1.5">
@@ -425,10 +447,10 @@ function MediaResults({ toolCalls }: { toolCalls: ToolCallPart[] }) {
 
     // TTS / audio result
     if (tc.toolName === 'text_to_speech' && !result.error) {
-      const audioSrc = result.audioUrl || (result.audioBase64 ? `data:audio/${result.format || 'opus'};base64,${result.audioBase64}` : null)
+      const audioSrc = getMediaUrl(result, ['audioUrl']) || (result.audioBase64 ? `data:audio/${result.format || 'opus'};base64,${result.audioBase64}` : null)
       if (audioSrc) {
         media.push(
-          <div key={`audio-${tc.toolName}`} className="rounded-xl border border-border bg-card shadow-sm px-3 py-2.5 flex items-center gap-3 group/media">
+          <div key={`audio-${tc.toolName}-${idx}`} className="rounded-xl border border-border bg-card shadow-sm px-3 py-2.5 flex items-center gap-3 group/media">
             <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary shrink-0">
               <Volume2 className="size-4" />
             </div>
@@ -451,13 +473,13 @@ function MediaResults({ toolCalls }: { toolCalls: ToolCallPart[] }) {
 
     // Video generation result
     if (tc.toolName === 'generate_video' && !result.error) {
-      const videoSrc = result.videoUrl || result.url
+      const videoSrc = getMediaUrl(result, ['videoUrl', 'url'])
       if (result.status === 'completed' && videoSrc) {
         media.push(
-          <div key={`video-${tc.toolName}`} className="inline-block rounded-xl border border-border overflow-hidden bg-card shadow-sm group/media relative">
+          <div key={`video-${tc.toolName}-${idx}`} className="inline-block rounded-xl border border-border overflow-hidden bg-card shadow-sm group/media relative">
             <video
               controls
-              className="max-w-full max-h-112"
+              className="aspect-video max-w-full max-h-112"
               src={videoSrc}
             />
             <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover/media:opacity-100 transition-opacity">
@@ -468,12 +490,44 @@ function MediaResults({ toolCalls }: { toolCalls: ToolCallPart[] }) {
         )
       } else if (result.status === 'timeout') {
         media.push(
-          <div key={`video-pending-${tc.toolName}`} className="rounded-xl border border-border bg-card px-3 py-2.5 flex items-center gap-2 text-xs text-muted-foreground">
+          <div key={`video-pending-${tc.toolName}-${idx}`} className="rounded-xl border border-border bg-card px-3 py-2.5 flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="size-3.5 animate-spin" />
             <span>Video is still generating (Job: {result.jobId})</span>
           </div>
         )
       }
+    }
+
+    // Document/file results from tools
+    const docUrl = getMediaUrl(result, ['documentUrl', 'fileUrl', 'url'])
+    if (docUrl && isDocumentUrl(docUrl)) {
+      const fileName = String(result.fileName || docUrl.split('/').pop() || 'document')
+      media.push(
+        <div key={`doc-${tc.toolName}-${idx}`} className="rounded-xl border border-border bg-card px-3 py-2.5 flex items-center gap-3 group/media">
+          <div className="flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground shrink-0">
+            <FileIcon className="size-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-medium text-foreground truncate">{fileName}</p>
+            <p className="text-[11px] text-muted-foreground">Document generated</p>
+          </div>
+          <div className="flex gap-1 self-start">
+            <MediaAction icon={<Download className="size-3.5" />} label="Download" onClick={() => downloadMedia(docUrl, fileName)} />
+            <MediaAction icon={<Share2 className="size-3.5" />} label="Share" onClick={() => shareMedia(docUrl, fileName)} />
+          </div>
+        </div>
+      )
+    }
+
+    if (tc.toolName === 'structured_output' && result?.data) {
+      media.push(
+        <div key={`structured-${idx}`} className="rounded-xl border border-border bg-card p-3">
+          <p className="text-xs font-medium text-foreground mb-2">Structured Output</p>
+          <pre className="max-h-60 overflow-auto rounded-lg bg-muted p-2 text-[11px] text-foreground/90">
+            {JSON.stringify(result.data, null, 2)}
+          </pre>
+        </div>
+      )
     }
   }
 
@@ -526,14 +580,14 @@ function ChatPage() {
   const messages: Message[] = chatMessages.map((m: UIMessage) => {
     const parts = m.parts || []
     const textParts = parts.filter((p: any) => p.type === 'text')
-    const thinkingParts = parts.filter((p: any) => p.type === 'thinking')
+    const thinkingParts = parts.filter((p: any) => p.type === 'thinking' || p.type === 'reasoning' || p.type === 'reasoning-text')
     // SDK uses type:'tool-call' with states: awaiting-input | input-streaming | input-complete
     const toolCallParts = parts.filter((p: any) => p.type === 'tool-call')
     const toolResultParts: any[] = parts.filter((p: any) => p.type === 'tool-result')
     return {
       role: m.role as Message['role'],
       content: textParts.map((p: any) => p.content).join('') ?? '',
-      thinking: thinkingParts.map((p: any) => p.content).join('') || undefined,
+      thinking: thinkingParts.map((p: any) => p.content || p.text || p.reasoning || '').join('') || undefined,
       toolCalls: toolCallParts.map((p: any) => {
         const hasOutput = p.output !== undefined
         const matchingResult = toolResultParts.find((r: any) => r.toolCallId === p.id) as any
@@ -663,8 +717,10 @@ function ChatPage() {
             .map((m: { role: string; content: string; createdAt?: string }, i: number) => ({
               id: String(i),
               role: m.role as 'user' | 'assistant',
-              content: m.content || '',
-              parts: [{ type: 'text' as const, content: m.content || '' }],
+              content: m.content || extractTextFromParts((m as any).parts) || '',
+              parts: Array.isArray((m as any).parts) && (m as any).parts.length > 0
+                ? (m as any).parts
+                : [{ type: 'text' as const, content: m.content || '' }],
               createdAt: m.createdAt,
             }))
           setChatMessages(loaded)
@@ -751,8 +807,10 @@ function ChatPage() {
         .map((m: { role: string; content: string; createdAt?: string }, i: number) => ({
           id: String(i),
           role: m.role as 'user' | 'assistant',
-          content: m.content || '',
-          parts: [{ type: 'text' as const, content: m.content || '' }],
+          content: m.content || extractTextFromParts((m as any).parts) || '',
+          parts: Array.isArray((m as any).parts) && (m as any).parts.length > 0
+            ? (m as any).parts
+            : [{ type: 'text' as const, content: m.content || '' }],
           createdAt: m.createdAt,
         }))
       setChatMessages(loaded)
@@ -1705,13 +1763,13 @@ function ChatPage() {
                 <BlurFade delay={0.2} direction="up">
                   <h1 className="font-heading text-[28px] sm:text-[36px] font-extrabold tracking-[-0.035em] text-foreground leading-[1.1]">
                     <AnimatedShinyText className="text-[28px] sm:text-[36px] font-extrabold tracking-[-0.035em]">
-                      What can I help with?
+                      Build, automate, and ship.
                     </AnimatedShinyText>
                   </h1>
                 </BlurFade>
                 <BlurFade delay={0.3} direction="up">
                   <p className="mt-2.5 text-[15px] text-muted-foreground max-w-sm text-center leading-relaxed">
-                    Chat, automate, or manage — everything from one place.
+                    Ask for image, video, audio, docs, integrations, or multi-step automation.
                   </p>
                 </BlurFade>
 
@@ -1817,6 +1875,12 @@ function ChatPage() {
 
                 const isUser = msg.role === 'user'
                 const hasToolCalls = msg.toolCalls?.length > 0
+                const derivedThinking = !msg.thinking && hasToolCalls
+                  ? msg.toolCalls
+                      .filter((tc) => tc.state === 'calling')
+                      .map((tc) => TOOL_LABELS[tc.toolName]?.label || tc.toolName)
+                      .join(' | ')
+                  : undefined
                 const timestamp = msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
                 return (
                   <div key={i} className={`group flex items-end gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -1875,8 +1939,11 @@ function ChatPage() {
                         ) : (
                           <div className="space-y-3">
                             {/* Thinking indicator */}
-                            {msg.thinking && (
-                              <ThinkingBlock content={msg.thinking} isStreaming={isLoading && i === messages.length - 1 && !msg.content} />
+                            {(msg.thinking || derivedThinking) && (
+                              <ThinkingBlock
+                                content={msg.thinking || `Working on: ${derivedThinking}`}
+                                isStreaming={isLoading && i === messages.length - 1 && !msg.content}
+                              />
                             )}
 
                             {/* Tool calls */}
@@ -1911,7 +1978,7 @@ function ChatPage() {
                                 <span className="text-xs">{hasToolCalls ? 'Working…' : 'Thinking…'}</span>
                               </div>
                             ) : !msg.content && !hasToolCalls ? (
-                              <span className="text-muted-foreground text-xs italic">processing…</span>
+                              <span className="text-muted-foreground text-xs italic">Preparing output…</span>
                             ) : null}
 
                             {/* Rendered media from tool results */}
@@ -2004,7 +2071,7 @@ function ChatPage() {
         )}
 
         {/* ─── Floating Input Area ───── */}
-        <div className="shrink-0 bg-linear-to-t from-background via-background to-transparent pt-6 pb-6 px-4">
+        <div className="shrink-0 bg-linear-to-t from-background via-background to-transparent pt-2 pb-3 px-4">
           <div className="mx-auto max-w-3xl relative">
             
             {/* Slash commands popover */}

@@ -1,8 +1,59 @@
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import { resolveProviderKey } from "../auth-profiles";
-import { uploadVideoUrlToCloudinary } from "../cloudinary";
+import { uploadToCloudinary, uploadVideoUrlToCloudinary } from "../cloudinary";
 import OpenAI from "openai";
+import path from "node:path";
+import fs from "node:fs/promises";
+
+const UPLOAD_DIR = path.resolve("uploads");
+
+function parseDataUrl(dataUrl: string): { mimeType: string; base64: string } | null {
+  const m = /^data:([^;]+);base64,(.+)$/i.exec(dataUrl);
+  if (!m) return null;
+  return { mimeType: m[1], base64: m[2] };
+}
+
+async function resolveImageBufferFromInput(imageUrl: string): Promise<{ buffer: Buffer; mimeType: string }> {
+  if (imageUrl.startsWith("data:")) {
+    const parsed = parseDataUrl(imageUrl);
+    if (!parsed) throw new Error("Invalid data URL for image input");
+    return { buffer: Buffer.from(parsed.base64, "base64"), mimeType: parsed.mimeType || "image/png" };
+  }
+
+  if (imageUrl.startsWith("/api/upload?")) {
+    const parsed = new URL(imageUrl, "http://localhost");
+    const filePart = parsed.searchParams.get("file");
+    if (!filePart) throw new Error("Missing upload file parameter");
+
+    const safePath = path.normalize(filePart).replace(/^(\.\.[/\\])+/, "");
+    const filePath = path.join(UPLOAD_DIR, safePath);
+    if (!filePath.startsWith(UPLOAD_DIR)) throw new Error("Invalid upload path");
+
+    const buffer = await fs.readFile(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const mimeMap: Record<string, string> = {
+      ".jpg": "image/jpeg",
+      ".jpeg": "image/jpeg",
+      ".png": "image/png",
+      ".gif": "image/gif",
+      ".webp": "image/webp",
+      ".svg": "image/svg+xml",
+    };
+    return { buffer, mimeType: mimeMap[ext] || "image/png" };
+  }
+
+  if (!imageUrl.startsWith("http")) {
+    throw new Error("image_url must be an http(s), data URL, or /api/upload URL");
+  }
+
+  const imgRes = await fetch(imageUrl);
+  if (!imgRes.ok) {
+    throw new Error(`Failed to fetch image: ${imgRes.status} ${imgRes.statusText}`);
+  }
+  const mimeType = imgRes.headers.get("content-type") || "image/png";
+  return { buffer: Buffer.from(await imgRes.arrayBuffer()), mimeType };
+}
 
 /**
  * Video generation tool — uses OpenAI Sora-2 via direct API.
@@ -26,6 +77,10 @@ export function createVideoGenTool(userId: string) {
         .describe(
           "Optional URL of an image to animate into a video (image-to-video). Must be a valid HTTP/HTTPS URL. If omitted, generates from text only."
         ),
+      imageUrl: z
+        .string()
+        .optional()
+        .describe("Alias of image_url for compatibility"),
       size: z
         .string()
         .optional()
@@ -41,11 +96,13 @@ export function createVideoGenTool(userId: string) {
     async ({
       prompt,
       image_url,
+      imageUrl,
       size,
       duration,
     }: {
       prompt: string;
       image_url?: string;
+      imageUrl?: string;
       size?: string;
       duration?: number;
     }) => {
@@ -65,16 +122,32 @@ export function createVideoGenTool(userId: string) {
           seconds: (duration ?? 8) as 4 | 8 | 12,
         };
 
-        // Image-to-video: fetch image and pass as input_reference
-        if (image_url) {
-          const imgRes = await fetch(image_url);
-          if (!imgRes.ok) {
-            return { error: `Failed to fetch image: ${imgRes.status} ${imgRes.statusText}` };
-          }
-          const imgBuffer = Buffer.from(await imgRes.arrayBuffer());
-          const ext = image_url.split(".").pop()?.split("?")[0] || "png";
+        let sourceImageUrl: string | undefined;
+        let normalizedInputImageUrl: string | undefined;
+
+        // Image-to-video: normalize any image input to a public CDN URL, then pass as input_reference
+        const inputImageRef = image_url || imageUrl;
+        if (inputImageRef) {
+          sourceImageUrl = inputImageRef;
+          const { buffer: imgBuffer, mimeType } = await resolveImageBufferFromInput(inputImageRef);
+
+          const uploadedInput = await uploadToCloudinary(imgBuffer, mimeType, {
+            folder: `brilion/${userId}/video-inputs`,
+            resourceType: "image",
+            tags: ["video-input", "sora-2"],
+          });
+          normalizedInputImageUrl = uploadedInput.url;
+
+          const ext = mimeType.includes("jpeg")
+            ? "jpg"
+            : mimeType.includes("webp")
+              ? "webp"
+              : mimeType.includes("gif")
+                ? "gif"
+                : "png";
+
           const file = new File([imgBuffer], `input.${ext}`, {
-            type: imgRes.headers.get("content-type") || `image/${ext}`,
+            type: mimeType || `image/${ext}`,
           });
           (params as any).input_reference = file;
         }
@@ -112,28 +185,54 @@ export function createVideoGenTool(userId: string) {
             );
             console.log("[video-gen] Uploaded to Cloudinary:", { url: uploaded.url, bytes: uploaded.bytes });
             return {
+              outputType: "media",
+              mediaType: "video",
               status: "completed",
+              asset: {
+                url: uploaded.url,
+                mimeType: "video/mp4",
+                provider: "cloudinary",
+                public: true,
+                bytes: uploaded.bytes,
+                duration: uploaded.duration,
+              },
               videoUrl: uploaded.url,
               jobId,
               prompt,
+              sourceImageUrl,
+              inputImageUrl: normalizedInputImageUrl,
             };
           } catch (uploadErr) {
             // Fallback to Sora URL if Cloudinary upload fails
             console.error("[video-gen] Cloudinary upload failed, using Sora URL:", uploadErr);
             return {
+              outputType: "media",
+              mediaType: "video",
               status: "completed",
+              asset: {
+                url: (status as any).url,
+                mimeType: "video/mp4",
+                provider: "sora",
+                public: true,
+              },
               videoUrl: (status as any).url,
               jobId,
               prompt,
               note: "CDN upload failed — this URL may expire. Download promptly.",
+              sourceImageUrl,
+              inputImageUrl: normalizedInputImageUrl,
             };
           }
         }
 
         return {
+          outputType: "media",
+          mediaType: "video",
           status: "timeout",
           jobId,
           note: "Video generation is still in progress. Check back later.",
+          sourceImageUrl,
+          inputImageUrl: normalizedInputImageUrl,
         };
       } catch (e) {
         return {
