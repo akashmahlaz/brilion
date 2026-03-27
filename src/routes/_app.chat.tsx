@@ -1892,6 +1892,7 @@ function ChatPage() {
                       .join(' | ')
                   : undefined
                 const parsedUserMessage = isUser ? parseMessageContent(msg.content) : null
+                const userHasAttachments = !!(parsedUserMessage && parsedUserMessage.attachments.length > 0)
                 const userHasOnlyAttachments = !!(parsedUserMessage && !parsedUserMessage.text && parsedUserMessage.attachments.length > 0)
                 const timestamp = msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
                 return (
@@ -1915,7 +1916,7 @@ function ChatPage() {
                     <div className={`relative max-w-[75%] min-w-15 ${isUser ? 'items-end' : 'items-start'}`}>
                       <div className={`rounded-2xl px-3.5 py-2.5 shadow-sm ${
                         isUser
-                          ? userHasOnlyAttachments
+                          ? userHasAttachments
                             ? 'bg-transparent p-0 shadow-none'
                             : 'bg-primary text-primary-foreground rounded-br-md'
                           : 'bg-card border border-border rounded-bl-md'
@@ -1925,9 +1926,17 @@ function ChatPage() {
                             const { text, attachments } = parsedUserMessage || { text: '', attachments: [] }
                             return (
                               <div className="text-[14.5px] leading-relaxed">
-                                {text && <p className="whitespace-pre-wrap wrap-break-word">{text}</p>}
+                                {text && (
+                                  <p className={`whitespace-pre-wrap wrap-break-word ${
+                                    userHasAttachments
+                                      ? 'rounded-2xl rounded-br-md bg-primary text-primary-foreground px-3.5 py-2.5 shadow-sm'
+                                      : ''
+                                  }`}>
+                                    {text}
+                                  </p>
+                                )}
                                 {attachments.length > 0 && (
-                                  <div className={`flex flex-wrap gap-2 ${text ? 'mt-2' : ''}`}>
+                                  <div className={`flex flex-wrap gap-2 ${text ? 'mt-2 justify-end' : ''}`}>
                                     {attachments.map((att, ai) =>
                                       att.type === 'image' ? (
                                         <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="block rounded-xl overflow-hidden border border-border bg-card">
