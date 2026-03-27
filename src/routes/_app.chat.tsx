@@ -367,12 +367,12 @@ function MediaResults({ toolCalls }: { toolCalls: ToolCallPart[] }) {
       const src = result.imageUrl || (result.imageBase64 ? `data:image/png;base64,${result.imageBase64}` : null)
       if (src) {
         media.push(
-          <div key={`img-${tc.toolName}`} className="rounded-xl border border-border overflow-hidden bg-card shadow-sm group/media">
+          <div key={`img-${tc.toolName}`} className="inline-block rounded-xl border border-border overflow-hidden bg-card shadow-sm group/media">
             <a href={src} target="_blank" rel="noopener noreferrer" className="block relative">
               <img
                 src={src}
                 alt={result.revisedPrompt || 'Generated image'}
-                className="max-w-96 max-h-72 object-contain"
+                className="max-w-full max-h-112 object-contain"
                 loading="lazy"
               />
               <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover/media:opacity-100 transition-opacity">
@@ -421,10 +421,10 @@ function MediaResults({ toolCalls }: { toolCalls: ToolCallPart[] }) {
       const videoSrc = result.videoUrl || result.url
       if (result.status === 'completed' && videoSrc) {
         media.push(
-          <div key={`video-${tc.toolName}`} className="rounded-xl border border-border overflow-hidden bg-card shadow-sm group/media relative">
+          <div key={`video-${tc.toolName}`} className="inline-block rounded-xl border border-border overflow-hidden bg-card shadow-sm group/media relative">
             <video
               controls
-              className="max-w-96 max-h-72"
+              className="max-w-full max-h-112"
               src={videoSrc}
             />
             <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover/media:opacity-100 transition-opacity">
@@ -1168,15 +1168,15 @@ function ChatPage() {
 
       {/* ════════ RIGHT COLUMN — Chat area ════════ */}
       <div className="relative flex flex-1 flex-col overflow-hidden bg-background">
-        {/* ─── Top bar: Title + Channel hub ──────────────── */}
-        <div className="flex items-center justify-between shrink-0 px-5 py-3 border-b border-border">
-          <div className="flex items-center gap-2">
+        {/* ─── Floating controls (no top bar) ──────────────── */}
+        <div className="absolute top-3 left-4 right-4 z-10 flex items-center justify-between pointer-events-none">
+          <div className="flex items-center gap-2 pointer-events-auto">
             {!chatPanelExpanded && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     onClick={() => toggleChatPanel()}
-                    className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors mr-1"
+                    className="p-1.5 rounded-lg bg-background/80 backdrop-blur-sm border border-border text-muted-foreground hover:text-foreground hover:bg-accent transition-colors shadow-sm"
                   >
                     <PanelLeft className="size-4" />
                   </button>
@@ -1184,14 +1184,10 @@ function ChatPage() {
                 <TooltipContent side="bottom">Show panel (Ctrl+Shift+B)</TooltipContent>
               </Tooltip>
             )}
-            {conversationId && (
-              <span className="font-heading text-sm font-semibold text-foreground truncate max-w-60">
-                {conversations.find(c => c._id === conversationId)?.title || 'Chat'}
-              </span>
-            )}
           </div>
 
           {/* ═══ Channel Hub — Premium Popover ═══ */}
+          <div className="pointer-events-auto">
           <Popover open={channelPanelOpen} onOpenChange={(open) => {
             setChannelPanelOpen(open)
             if (open) setChannelPanelView('list')
@@ -1604,6 +1600,7 @@ function ChatPage() {
 
             </PopoverContent>
           </Popover>
+          </div>
         </div>
 
         {/* ─── Messages area ─────────────────────────────────────────── */}
@@ -1611,7 +1608,7 @@ function ChatPage() {
           ref={messagesContainerRef}
           className="flex-1 overflow-y-auto min-h-0 overscroll-contain scrollbar-thin"
         >
-          <div className="mx-auto max-w-2xl px-4 py-6">
+          <div className="mx-auto max-w-3xl px-4 py-6">
             {/* ─── Empty state — bento grid welcome ────────────────── */}
             {messages.length === 0 && !conversationId && (
               <div className="flex flex-col items-center justify-center min-h-[60vh]">
@@ -1880,110 +1877,112 @@ function ChatPage() {
           </div>
         )}
 
-        {/* ─── Fixed Input Area (WhatsApp-like - always at bottom) ───── */}
-        <div className="shrink-0 border-t border-border bg-background/80 backdrop-blur-xl px-4 py-3">
-          <div className="mx-auto max-w-2xl">
-            {/* Attached file previews */}
-            {attachedFiles.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-2.5">
-                {attachedFiles.map((af, i) => (
-                  <div key={i} className="relative group flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-[12px]">
-                    {af.preview ? (
-                      <img src={af.preview} alt="" className="size-8 rounded-lg object-cover" />
-                    ) : (
-                      <div className="flex size-8 items-center justify-center rounded-lg bg-muted">
-                        <FileIcon className="size-3.5 text-muted-foreground" />
+        {/* ─── Floating Input Area ───── */}
+        <div className="shrink-0 bg-gradient-to-t from-background via-background to-transparent pt-6 pb-6 px-4">
+          <div className="mx-auto max-w-3xl">
+            <div className="relative flex flex-col rounded-[24px] border border-border bg-card/60 backdrop-blur-2xl shadow-sm focus-within:border-ring/30 focus-within:bg-card focus-within:shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition-all duration-300">
+              {/* Attached file previews inside the input box */}
+              {attachedFiles.length > 0 && (
+                <div className="flex flex-wrap gap-2 px-4 pt-4 pb-2">
+                  {attachedFiles.map((af, i) => (
+                    <div key={i} className="relative group flex items-center gap-2 rounded-xl border border-border bg-background px-2.5 py-1.5 text-xs shadow-sm">
+                      {af.preview ? (
+                        <img src={af.preview} alt="" className="size-9 rounded-lg object-cover" />
+                      ) : (
+                        <div className="flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                          <FileIcon className="size-4" />
+                        </div>
+                      )}
+                      <div className="min-w-0 pr-1">
+                        <p className="truncate text-foreground font-medium max-w-32">{af.file.name}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {af.uploading ? 'Uploading…' : af.error ? af.error : `${(af.file.size / 1024).toFixed(0)} KB`}
+                        </p>
                       </div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="truncate text-foreground font-medium max-w-32">{af.file.name}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {af.uploading ? 'Uploading…' : af.error ? af.error : `${(af.file.size / 1024).toFixed(0)} KB`}
-                      </p>
+                      {af.uploading && <Loader2 className="size-3.5 text-primary animate-spin shrink-0 mr-1" />}
+                      <button
+                        onClick={() => removeAttachedFile(af.file)}
+                        className="absolute -top-1.5 -right-1.5 flex size-5 items-center justify-center rounded-full bg-border text-muted-foreground hover:bg-destructive hover:text-white opacity-0 group-hover:opacity-100 transition-all shadow-sm"
+                      >
+                        <X className="size-3" />
+                      </button>
                     </div>
-                    {af.uploading && <Loader2 className="size-3.5 text-primary animate-spin shrink-0" />}
-                    <button
-                      onClick={() => removeAttachedFile(af.file)}
-                      className="absolute -top-1.5 -right-1.5 size-4 rounded-full bg-foreground text-background flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <X className="size-2.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-              <div className="relative flex items-end rounded-2xl border border-border bg-card shadow-sm focus-within:border-ring/40 focus-within:shadow-[0_0_20px_rgba(59,130,246,0.06)] transition-all">
-              {/* File upload button */}
-              <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} accept="image/*,.pdf,.txt,.csv,.md,.json,.doc,.docx,.xls,.xlsx" />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={handleFileClick}
-                    disabled={isChannelConversation}
-                    className="absolute left-3 bottom-3 p-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/60 disabled:opacity-40 transition-all"
-                  >
-                    <Paperclip className="size-4" />
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>Attach file</TooltipContent>
-              </Tooltip>
+                  ))}
+                </div>
+              )}
 
               <Textarea
                 ref={textareaRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={isChannelConversation ? `Viewing ${CHANNEL_META[activeChannel]?.label} conversation` : 'Message Brilion…'}
+                placeholder={isChannelConversation ? `Viewing ${CHANNEL_META[activeChannel]?.label} conversation` : 'Message Brilion...'}
                 rows={1}
-                className="min-h-14 max-h-40 resize-none border-0 bg-transparent pr-24 pl-12 py-4 text-base font-sans text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0"
+                className={`min-h-[56px] max-h-72 resize-none border-0 bg-transparent px-4 py-4 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 ${attachedFiles.length > 0 ? 'pt-2' : ''}`}
                 disabled={isLoading || isChannelConversation}
               />
-              <div className="absolute right-3 bottom-3 flex items-center gap-1.5">
-                {/* Voice input button */}
-                {hasSpeechRecognition && !isLoading && !isChannelConversation && (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        onClick={toggleVoiceInput}
-                        className={`flex size-8 items-center justify-center rounded-xl transition-all ${
-                          isRecording
-                            ? 'bg-red-500 text-white animate-pulse shadow-sm'
-                            : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
-                        }`}
-                      >
-                        {isRecording ? <MicOff className="size-4" /> : <Mic className="size-4" />}
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent>{isRecording ? 'Stop recording' : 'Voice input'}</TooltipContent>
-                  </Tooltip>
-                )}
 
-                {isLoading ? (
+              <div className="flex items-center justify-between px-3 pb-3">
+                <div className="flex items-center gap-1">
+                  <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleFileChange} accept="image/*,.pdf,.txt,.csv,.md,.json,.doc,.docx,.xls,.xlsx" />
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
-                        onClick={handleAbort}
-                        className="flex size-8 items-center justify-center rounded-xl bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+                        onClick={handleFileClick}
+                        disabled={isChannelConversation}
+                        className="flex size-9 items-center justify-center rounded-xl text-muted-foreground hover:bg-muted/80 hover:text-foreground disabled:opacity-40 transition-colors"
                       >
-                        <StopCircle className="size-4" />
+                        <Paperclip className="size-4.5" />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>Stop generating</TooltipContent>
+                    <TooltipContent>Attach files</TooltipContent>
                   </Tooltip>
-                ) : (
-                  <button
-                    onClick={handleSend}
-                    disabled={!input.trim() || isChannelConversation}
-                    className="flex size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground disabled:shadow-none transition-all"
-                  >
-                    <ArrowUp className="size-4" />
-                  </button>
-                )}
+                  {hasSpeechRecognition && !isLoading && !isChannelConversation && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={toggleVoiceInput}
+                          className={`flex size-9 items-center justify-center rounded-xl transition-colors ${
+                            isRecording
+                              ? 'bg-rose-500/10 text-rose-500 animate-pulse'
+                              : 'text-muted-foreground hover:bg-muted/80 hover:text-foreground'
+                          }`}
+                        >
+                          {isRecording ? <MicOff className="size-4.5" /> : <Mic className="size-4.5" />}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>{isRecording ? 'Stop recording' : 'Voice input'}</TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+
+                <div className="flex items-center">
+                  {isLoading ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={handleAbort}
+                          className="flex size-9 items-center justify-center rounded-xl bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+                        >
+                          <StopCircle className="size-4.5" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>Stop generating</TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <button
+                      onClick={handleSend}
+                      disabled={!input.trim() || isChannelConversation}
+                      className="flex size-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50 disabled:shadow-none transition-all"
+                    >
+                      <ArrowUp className="size-4.5" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
-            <p className="mt-2 text-center text-[11px] text-muted-foreground">
-              Brilion can make mistakes. Verify important information.
+            <p className="mt-3 text-center text-[12px] font-medium text-muted-foreground/60">
+              Brilion AI can make mistakes. Check important info.
             </p>
           </div>
         </div>
