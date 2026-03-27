@@ -282,25 +282,47 @@ function ThinkingBlock({ content, isStreaming }: { content: string; isStreaming?
 
 // ─── Shimmer skeleton for media generation in-progress ──────────────────────
 function MediaSkeleton({ type, prompt }: { type: 'image' | 'audio' | 'video'; prompt?: string }) {
-  const label = type === 'image' ? 'Generating image' : type === 'audio' ? 'Synthesizing audio' : 'Generating video'
-  const Icon = type === 'image' ? ImageIcon : type === 'audio' ? Volume2 : Video
+  const config = {
+    image: { label: 'Creating image', Icon: ImageIcon, size: 'aspect-square w-72' },
+    video: { label: 'Generating video', Icon: Video, size: 'aspect-video w-80' },
+    audio: { label: 'Synthesizing audio', Icon: Volume2, size: 'h-16 w-72' },
+  }[type]
+
   return (
-    <div className="relative rounded-xl border border-border overflow-hidden bg-card">
-      <div className={`flex items-center justify-center bg-muted/40 ${type === 'audio' ? 'h-16' : 'h-48 w-80'}`}>
-        <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-linear-to-r from-transparent via-background/60 to-transparent" />
-        <div className="flex flex-col items-center gap-2 text-muted-foreground z-10">
-          <div className="flex size-10 items-center justify-center rounded-full bg-muted border border-border">
-            <Icon className="size-4 animate-pulse" />
+    <BlurFade delay={0.1} direction="up">
+      <div className="relative overflow-hidden rounded-2xl bg-muted/30 border border-border/50">
+        <div className={`relative flex flex-col items-center justify-center gap-3 ${config.size}`}>
+          {/* Animated background pulse */}
+          <div className="absolute inset-0 bg-linear-to-br from-primary/5 via-transparent to-primary/5 animate-pulse" />
+
+          {/* Ripple behind icon for image/video */}
+          {type !== 'audio' && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Ripple mainCircleSize={80} mainCircleOpacity={0.08} numCircles={3} />
+            </div>
+          )}
+
+          {/* Icon with border beam */}
+          <div className="relative flex size-12 items-center justify-center rounded-xl bg-card/80 backdrop-blur-sm border border-border/60 shadow-sm z-10">
+            <config.Icon className="size-5 text-muted-foreground animate-pulse" />
+            <BorderBeam size={40} duration={2.5} colorFrom="hsl(var(--primary))" colorTo="hsl(var(--primary) / 0.1)" borderWidth={1.5} />
           </div>
-          <span className="text-[11px] font-medium">{label}…</span>
+
+          {/* Label */}
+          <AnimatedShinyText className="text-xs font-medium z-10">{config.label}…</AnimatedShinyText>
+
+          {/* Shimmer sweep */}
+          <div className="absolute inset-0 -translate-x-full animate-[shimmer_2s_infinite] bg-linear-to-r from-transparent via-foreground/[0.03] to-transparent" />
         </div>
+
+        {/* Prompt preview */}
+        {prompt && (
+          <div className="px-3 py-2 border-t border-border/30 bg-muted/20">
+            <p className="text-[10px] text-muted-foreground/70 truncate">{prompt}</p>
+          </div>
+        )}
       </div>
-      {prompt && (
-        <div className="px-3 py-2 border-t border-border/40">
-          <p className="text-[11px] text-muted-foreground truncate">{prompt}</p>
-        </div>
-      )}
-    </div>
+    </BlurFade>
   )
 }
 
@@ -372,25 +394,31 @@ function MediaResults({ toolCalls }: { toolCalls: ToolCallPart[] }) {
       const src = result.imageUrl || (result.imageBase64 ? `data:image/png;base64,${result.imageBase64}` : null)
       if (src) {
         media.push(
-          <div key={`img-${tc.toolName}`} className="inline-block rounded-xl border border-border overflow-hidden bg-card shadow-sm group/media">
-            <a href={src} target="_blank" rel="noopener noreferrer" className="block relative">
-              <img
-                src={src}
-                alt={result.revisedPrompt || 'Generated image'}
-                className="max-w-full max-h-112 object-contain"
-                loading="lazy"
-              />
-              <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover/media:opacity-100 transition-opacity">
+          <BlurFade key={`img-${tc.toolName}`} delay={0.15} direction="up">
+            <div className="group/media">
+              {result.revisedPrompt && (
+                <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <span className="font-semibold text-foreground">Image created</span>
+                  <span className="text-muted-foreground/60">·</span>
+                  <span className="truncate max-w-80">{result.revisedPrompt}</span>
+                </p>
+              )}
+              <div className="relative inline-block rounded-2xl overflow-hidden">
+                <a href={src} target="_blank" rel="noopener noreferrer" className="block">
+                  <img
+                    src={src}
+                    alt={result.revisedPrompt || 'Generated image'}
+                    className="max-w-xs sm:max-w-sm max-h-96 rounded-2xl object-contain"
+                    loading="lazy"
+                  />
+                </a>
+              </div>
+              <div className="flex items-center gap-1.5 mt-2 opacity-0 group-hover/media:opacity-100 transition-opacity">
                 <MediaAction icon={<Download className="size-3.5" />} label="Download" onClick={() => downloadMedia(src, 'image.png')} />
                 <MediaAction icon={<Share2 className="size-3.5" />} label="Share" onClick={() => shareMedia(src, result.revisedPrompt || 'Generated image')} />
               </div>
-            </a>
-            {result.revisedPrompt && (
-              <p className="px-3 py-2 text-[11px] text-muted-foreground border-t border-border/40 truncate">
-                <ImageIcon className="size-3 inline mr-1" />{result.revisedPrompt}
-              </p>
-            )}
-          </div>
+            </div>
+          </BlurFade>
         )
       }
     }

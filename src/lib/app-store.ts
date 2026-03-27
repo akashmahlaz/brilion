@@ -19,7 +19,7 @@ export interface AppState {
 
 export const appStore = new Store<AppState>({
   sidebarExpanded: false,
-  chatPanelExpanded: true,
+  chatPanelExpanded: false,
   notifications: [],
   connectionStatus: {},
   commandPaletteOpen: false,
