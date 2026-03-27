@@ -1,12 +1,28 @@
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import { resolveProviderKey } from "../auth-profiles";
-import { uploadToCloudinary, uploadVideoUrlToCloudinary } from "../cloudinary";
+import { cloudinary, uploadToCloudinary, uploadVideoUrlToCloudinary } from "../cloudinary";
 import OpenAI from "openai";
 import path from "node:path";
 import fs from "node:fs/promises";
 
 const UPLOAD_DIR = path.resolve("uploads");
+const VIDEO_SIZES = new Set(["1280x720", "720x1280", "1792x1024"]);
+
+function parseSize(size: string): { width: number; height: number } | null {
+  const m = /^([0-9]{3,4})x([0-9]{3,4})$/.exec(size);
+  if (!m) return null;
+  return { width: Number(m[1]), height: Number(m[2]) };
+}
+
+function pickVideoSizeByOrientation(width?: number, height?: number): string {
+  if (!width || !height) return "1280x720";
+  const ratio = width / height;
+  if (ratio < 0.95) return "720x1280";
+  if (ratio > 1.65) return "1792x1024";
+  return "1280x720";
+}
+
 
 function parseDataUrl(dataUrl: string): { mimeType: string; base64: string } | null {
   const m = /^data:([^;]+);base64,(.+)$/i.exec(dataUrl);
@@ -118,7 +134,7 @@ export function createVideoGenTool(userId: string) {
         const params: OpenAI.Videos.VideoCreateParams = {
           model: "sora-2",
           prompt,
-          size: (size as any) ?? "1280x720",
+          size: (size && VIDEO_SIZES.has(size) ? size : "1280x720") as any,
           seconds: (duration ?? 8) as 4 | 8 | 12,
         };
 
@@ -137,7 +153,29 @@ export function createVideoGenTool(userId: string) {
             resourceType: "image",
             tags: ["video-input", "sora-2"],
           });
-          normalizedInputImageUrl = uploadedInput.url;
+
+          const chosenSize = size && VIDEO_SIZES.has(size)
+            ? size
+            : pickVideoSizeByOrientation(uploadedInput.width, uploadedInput.height);
+          params.size = chosenSize as any;
+
+          const parsedSize = parseSize(chosenSize);
+          if (!parsedSize) {
+            throw new Error(`Invalid chosen video size: ${chosenSize}`);
+          }
+
+          normalizedInputImageUrl = cloudinary.url(uploadedInput.publicId, {
+            secure: true,
+            resource_type: "image",
+            transformation: [
+              {
+                width: parsedSize.width,
+                height: parsedSize.height,
+                crop: "fill",
+                gravity: "auto",
+              },
+            ],
+          });
 
           const ext = mimeType.includes("jpeg")
             ? "jpg"
@@ -209,6 +247,7 @@ export function createVideoGenTool(userId: string) {
                 duration: uploaded.duration,
               },
               videoUrl: uploaded.url,
+              size: params.size,
               jobId,
               prompt,
               sourceImageUrl,
@@ -228,6 +267,7 @@ export function createVideoGenTool(userId: string) {
                 public: true,
               },
               videoUrl: (status as any).url,
+              size: params.size,
               jobId,
               prompt,
               note: "CDN upload failed — this URL may expire. Download promptly.",
@@ -241,6 +281,7 @@ export function createVideoGenTool(userId: string) {
           outputType: "media",
           mediaType: "video",
           status: "timeout",
+          size: params.size,
           jobId,
           note: "Video generation is still in progress. Check back later.",
           sourceImageUrl,

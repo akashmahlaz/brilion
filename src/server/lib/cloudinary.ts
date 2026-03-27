@@ -24,7 +24,7 @@ export async function uploadToCloudinary(
   buffer: Buffer,
   mimeType: string,
   opts: UploadOptions = {}
-): Promise<{ url: string; publicId: string; bytes: number }> {
+): Promise<{ url: string; publicId: string; bytes: number; width?: number; height?: number; format?: string }> {
   const dataUri = `data:${mimeType};base64,${buffer.toString("base64")}`;
 
   const result = await cloudinary.uploader.upload(dataUri, {
@@ -40,6 +40,9 @@ export async function uploadToCloudinary(
     url: result.secure_url,
     publicId: result.public_id,
     bytes: result.bytes,
+    width: result.width,
+    height: result.height,
+    format: result.format,
   };
 }
 

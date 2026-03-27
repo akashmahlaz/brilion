@@ -289,10 +289,19 @@ function ThinkingBlock({ content, isStreaming }: { content: string; isStreaming?
 }
 
 // ─── Shimmer skeleton for media generation in-progress ──────────────────────
-function MediaSkeleton({ type, prompt }: { type: 'image' | 'audio' | 'video'; prompt?: string }) {
+function getVideoAspectClass(size?: string): string {
+  if (!size) return 'aspect-video w-80'
+  const [w, h] = size.split('x').map(Number)
+  if (!w || !h) return 'aspect-video w-80'
+  if (h > w) return 'aspect-[9/16] w-56'
+  if (w / h > 1.65) return 'aspect-[7/4] w-96'
+  return 'aspect-video w-80'
+}
+
+function MediaSkeleton({ type, prompt, requestedSize }: { type: 'image' | 'audio' | 'video'; prompt?: string; requestedSize?: string }) {
   const config = {
     image: { label: 'Creating image', Icon: ImageIcon, size: 'aspect-square w-72' },
-    video: { label: 'Generating video', Icon: Video, size: 'aspect-video w-80' },
+    video: { label: 'Generating video', Icon: Video, size: getVideoAspectClass(requestedSize) },
     audio: { label: 'Synthesizing audio', Icon: Volume2, size: 'h-16 w-72' },
   }[type]
 
@@ -403,7 +412,7 @@ function MediaResults({ toolCalls }: { toolCalls: ToolCallPart[] }) {
       } else if (tc.toolName === 'text_to_speech') {
         media.push(<MediaSkeleton key={`skel-audio-${tc.toolName}-${idx}`} type="audio" />)
       } else if (tc.toolName === 'generate_video') {
-        media.push(<MediaSkeleton key={`skel-video-${tc.toolName}-${idx}`} type="video" prompt={(tc.args as any)?.prompt} />)
+        media.push(<MediaSkeleton key={`skel-video-${tc.toolName}-${idx}`} type="video" prompt={(tc.args as any)?.prompt} requestedSize={(tc.args as any)?.size} />)
       }
       continue
     }
@@ -475,11 +484,12 @@ function MediaResults({ toolCalls }: { toolCalls: ToolCallPart[] }) {
     if (tc.toolName === 'generate_video' && !result.error) {
       const videoSrc = getMediaUrl(result, ['videoUrl', 'url'])
       if (result.status === 'completed' && videoSrc) {
+        const videoAspect = getVideoAspectClass(result.size || (tc.args as any)?.size)
         media.push(
           <div key={`video-${tc.toolName}-${idx}`} className="inline-block rounded-xl border border-border overflow-hidden bg-card shadow-sm group/media relative">
             <video
               controls
-              className="aspect-video max-w-full max-h-112"
+              className={`${videoAspect} max-w-full max-h-112 object-cover bg-black`}
               src={videoSrc}
             />
             <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover/media:opacity-100 transition-opacity">
@@ -1881,6 +1891,8 @@ function ChatPage() {
                       .map((tc) => TOOL_LABELS[tc.toolName]?.label || tc.toolName)
                       .join(' | ')
                   : undefined
+                const parsedUserMessage = isUser ? parseMessageContent(msg.content) : null
+                const userHasOnlyAttachments = !!(parsedUserMessage && !parsedUserMessage.text && parsedUserMessage.attachments.length > 0)
                 const timestamp = msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
                 return (
                   <div key={i} className={`group flex items-end gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -1903,12 +1915,14 @@ function ChatPage() {
                     <div className={`relative max-w-[75%] min-w-15 ${isUser ? 'items-end' : 'items-start'}`}>
                       <div className={`rounded-2xl px-3.5 py-2.5 shadow-sm ${
                         isUser
-                          ? 'bg-primary text-primary-foreground rounded-br-md'
+                          ? userHasOnlyAttachments
+                            ? 'bg-transparent p-0 shadow-none'
+                            : 'bg-primary text-primary-foreground rounded-br-md'
                           : 'bg-card border border-border rounded-bl-md'
                       }`}>
                         {isUser ? (
                           (() => {
-                            const { text, attachments } = parseMessageContent(msg.content)
+                            const { text, attachments } = parsedUserMessage || { text: '', attachments: [] }
                             return (
                               <div className="text-[14.5px] leading-relaxed">
                                 {text && <p className="whitespace-pre-wrap wrap-break-word">{text}</p>}
@@ -1916,11 +1930,11 @@ function ChatPage() {
                                   <div className={`flex flex-wrap gap-2 ${text ? 'mt-2' : ''}`}>
                                     {attachments.map((att, ai) =>
                                       att.type === 'image' ? (
-                                        <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="block">
+                                        <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="block rounded-xl overflow-hidden border border-border bg-card">
                                           <img
                                             src={att.url}
                                             alt={att.name}
-                                            className="max-w-56 max-h-44 rounded-lg object-cover"
+                                            className="max-w-56 max-h-56 object-cover"
                                           />
                                         </a>
                                       ) : (
