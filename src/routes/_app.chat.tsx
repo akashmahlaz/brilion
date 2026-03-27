@@ -1893,7 +1893,6 @@ function ChatPage() {
                   : undefined
                 const parsedUserMessage = isUser ? parseMessageContent(msg.content) : null
                 const userHasAttachments = !!(parsedUserMessage && parsedUserMessage.attachments.length > 0)
-                const userHasOnlyAttachments = !!(parsedUserMessage && !parsedUserMessage.text && parsedUserMessage.attachments.length > 0)
                 const timestamp = msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
                 return (
                   <div key={i} className={`group flex items-end gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -1918,7 +1917,7 @@ function ChatPage() {
                         isUser
                           ? userHasAttachments
                             ? 'bg-transparent p-0 shadow-none'
-                            : 'bg-primary text-primary-foreground rounded-br-md'
+                            : 'bg-primary/88 text-primary-foreground rounded-br-md'
                           : 'bg-card border border-border rounded-bl-md'
                       }`}>
                         {isUser ? (
@@ -1926,35 +1925,37 @@ function ChatPage() {
                             const { text, attachments } = parsedUserMessage || { text: '', attachments: [] }
                             return (
                               <div className="text-[14.5px] leading-relaxed">
-                                {text && (
-                                  <p className={`whitespace-pre-wrap wrap-break-word ${
-                                    userHasAttachments
-                                      ? 'rounded-2xl rounded-br-md bg-primary text-primary-foreground px-3.5 py-2.5 shadow-sm'
-                                      : ''
-                                  }`}>
-                                    {text}
-                                  </p>
-                                )}
                                 {attachments.length > 0 && (
-                                  <div className={`flex flex-wrap gap-2 ${text ? 'mt-2 justify-end' : ''}`}>
+                                  <div className={`flex flex-wrap gap-2 ${text ? 'mb-2 justify-end' : ''}`}>
                                     {attachments.map((att, ai) =>
                                       att.type === 'image' ? (
-                                        <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="block rounded-xl overflow-hidden border border-border bg-card">
-                                          <img
-                                            src={att.url}
-                                            alt={att.name}
-                                            className="max-w-56 max-h-56 object-cover"
-                                          />
-                                        </a>
+                                        <MagicCard key={ai} className="overflow-hidden rounded-xl border border-border bg-card p-0" gradientColor="hsl(var(--primary) / 0.18)">
+                                          <a href={att.url} target="_blank" rel="noopener noreferrer" className="block">
+                                            <img
+                                              src={att.url}
+                                              alt={att.name}
+                                              className="max-w-56 max-h-56 object-cover"
+                                            />
+                                          </a>
+                                        </MagicCard>
                                       ) : (
                                         <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer"
-                                          className="flex items-center gap-2 rounded-lg bg-primary-foreground/15 px-3 py-2 text-xs hover:bg-primary-foreground/25 transition-colors">
+                                          className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground/90 hover:bg-muted transition-colors">
                                           <FileIcon className="size-4" />
                                           <span className="truncate max-w-40">{att.name}</span>
                                         </a>
                                       )
                                     )}
                                   </div>
+                                )}
+                                {text && (
+                                  <p className={`whitespace-pre-wrap wrap-break-word ${
+                                    userHasAttachments
+                                      ? 'rounded-2xl rounded-br-md bg-primary/88 text-primary-foreground px-3.5 py-2.5 shadow-sm'
+                                      : ''
+                                  }`}>
+                                    {text}
+                                  </p>
                                 )}
                               </div>
                             )
