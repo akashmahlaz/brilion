@@ -8,7 +8,7 @@
 
 body {
   @apply m-0;
-  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -35,8 +35,8 @@ code, pre {
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0.014 265);
 
-  --primary: oklch(0.820 0.200 168)    ;
-  --primary-foreground: oklch(0.99 0 0);
+  --primary: oklch(0.145 0.014 265);
+  --primary-foreground: oklch(1 0 0);
 
   --secondary: oklch(0.967 0.002 83);
   --secondary-foreground: oklch(0.21 0.012 265);
@@ -76,9 +76,9 @@ code, pre {
 }
 
 @theme inline {
-  --font-sans: 'DM Sans', system-ui, sans-serif;
-  --font-heading: 'Bricolage Grotesque', system-ui, sans-serif;
-  --font-mono: 'Geist Mono', 'JetBrains Mono', monospace;
+  --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --font-heading: 'Space Grotesk', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);

@@ -1918,7 +1918,7 @@ function ChatPage() {
                 onKeyDown={handleKeyDown}
                 placeholder={isChannelConversation ? `Viewing ${CHANNEL_META[activeChannel]?.label} conversation` : 'Message Brilion...'}
                 rows={1}
-                className={`min-h-[56px] max-h-72 resize-none border-0 bg-transparent px-4 py-4 text-[15px] leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 ${attachedFiles.length > 0 ? 'pt-2' : ''}`}
+                className={`min-h-[56px] max-h-72 resize-none border-0 bg-transparent px-4 py-4 text-[16px] sm:text-[17px] tracking-tight leading-relaxed text-foreground placeholder:text-muted-foreground focus-visible:ring-0 focus-visible:ring-offset-0 ${attachedFiles.length > 0 ? 'pt-2' : ''}`}
                 disabled={isLoading || isChannelConversation}
               />
 
