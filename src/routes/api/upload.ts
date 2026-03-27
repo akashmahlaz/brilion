@@ -24,6 +24,18 @@ const ALLOWED_TYPES = new Set([
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ]);
 
+function getBaseUrl(request: Request): string {
+  const url = new URL(request.url);
+  const forwardedProto = request.headers.get("x-forwarded-proto");
+  const forwardedHost = request.headers.get("x-forwarded-host");
+
+  if (forwardedHost) {
+    return `${forwardedProto || url.protocol.replace(":", "") || "https"}://${forwardedHost}`;
+  }
+
+  return url.origin;
+}
+
 export const Route = createFileRoute("/api/upload")({
   server: {
     handlers: {
@@ -56,11 +68,9 @@ export const Route = createFileRoute("/api/upload")({
           );
         }
 
-        // Create user upload directory
         const userDir = path.join(UPLOAD_DIR, userId);
         await fs.mkdir(userDir, { recursive: true });
 
-        // Generate unique filename
         const ext = path.extname(file.name) || "";
         const safeBase = file.name
           .replace(ext, "")
@@ -70,24 +80,22 @@ export const Route = createFileRoute("/api/upload")({
         const filename = `${safeBase}-${id}${ext}`;
         const filePath = path.join(userDir, filename);
 
-        // Write file
         const buffer = Buffer.from(await file.arrayBuffer());
         await fs.writeFile(filePath, buffer);
 
-        const url = `/api/upload?file=${encodeURIComponent(userId + "/" + filename)}`;
+        const relativeUrl = `/api/upload?file=${encodeURIComponent(userId + "/" + filename)}`;
+        const publicUrl = `${getBaseUrl(request)}${relativeUrl}`;
 
         return Response.json({
-          url,
+          url: relativeUrl,
+          publicUrl,
           name: file.name,
           size: file.size,
           type: file.type,
         });
       },
 
-      // GET /api/upload?file=userId/filename — serve uploaded file
       GET: async ({ request }) => {
-        await requireAuth(request);
-
         const url = new URL(request.url);
         const filePath = url.searchParams.get("file");
 
@@ -95,7 +103,6 @@ export const Route = createFileRoute("/api/upload")({
           return Response.json({ error: "Missing file param" }, { status: 400 });
         }
 
-        // Prevent path traversal
         const resolved = path.resolve(UPLOAD_DIR, filePath);
         if (!resolved.startsWith(UPLOAD_DIR)) {
           return Response.json({ error: "Invalid path" }, { status: 403 });
@@ -117,11 +124,9 @@ export const Route = createFileRoute("/api/upload")({
             ".md": "text/markdown",
             ".json": "application/json",
             ".doc": "application/msword",
-            ".docx":
-              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             ".xls": "application/vnd.ms-excel",
-            ".xlsx":
-              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           };
           return new Response(data, {
             headers: {
