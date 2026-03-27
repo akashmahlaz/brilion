@@ -142,13 +142,20 @@ const ATTACHMENT_RE = /\[(Image|File):\s*([^\]]+)\]\(([^)]+)\)/g;
 async function transformMessages(messages: any[]): Promise<any[]> {
   const result = [];
   for (const msg of messages) {
+    // Only transform user messages — pass assistant/tool/system messages through unchanged
+    // to preserve tool_calls, tool results, and other structured content
+    if (msg.role !== "user") {
+      result.push(msg);
+      continue;
+    }
+
     // Normalize UIMessage (parts) to ModelMessage (content) for the AI adapter
     const textContent = extractTextContent(msg);
     const normalizedMsg = typeof msg.content === "string"
       ? msg
       : { ...msg, content: textContent };
 
-    if (normalizedMsg.role !== "user" || typeof normalizedMsg.content !== "string" || !ATTACHMENT_RE.test(normalizedMsg.content)) {
+    if (typeof normalizedMsg.content !== "string" || !ATTACHMENT_RE.test(normalizedMsg.content)) {
       result.push(normalizedMsg);
       continue;
     }

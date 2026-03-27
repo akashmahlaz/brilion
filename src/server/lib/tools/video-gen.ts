@@ -115,20 +115,21 @@ export function createVideoGenTool(userId: string) {
 
         let sourceImageUrl: string | undefined;
         let normalizedInputImageUrl: string | undefined;
-        let inputReferenceFile: File | undefined;
 
-        // Image-to-video: normalize any image input to a public CDN URL, then pass as input_reference
+        // Image-to-video: upload to CDN, resize to match video dimensions, then pass to Sora
         const inputImageRef = image_url || imageUrl;
         if (inputImageRef) {
           sourceImageUrl = inputImageRef;
           const { buffer: imgBuffer, mimeType } = await resolveImageBufferFromInput(inputImageRef);
 
+          // Upload original to Cloudinary first
           const uploadedInput = await uploadToCloudinary(imgBuffer, mimeType, {
             folder: `brilion/${userId}/video-inputs`,
             resourceType: "image",
             tags: ["video-input", "sora-2"],
           });
 
+          // Pick best video size based on image orientation (unless user specified)
           const chosenSize = size && VIDEO_SIZES.has(size)
             ? size
             : pickVideoSizeByOrientation(uploadedInput.width, uploadedInput.height);
@@ -139,6 +140,7 @@ export function createVideoGenTool(userId: string) {
             throw new Error(`Invalid chosen video size: ${chosenSize}`);
           }
 
+          // Build a Cloudinary transform URL that resizes to exact video dimensions
           normalizedInputImageUrl = cloudinary.url(uploadedInput.publicId, {
             secure: true,
             resource_type: "image",
@@ -149,36 +151,36 @@ export function createVideoGenTool(userId: string) {
                 crop: "fill",
                 gravity: "auto",
               },
+              { format: "png" },
             ],
           });
 
-          const ext = mimeType.includes("jpeg")
+          // Fetch the resized image from Cloudinary so the buffer matches video dimensions exactly
+          console.log("[video-gen] Fetching resized image from CDN:", normalizedInputImageUrl);
+          const resizedRes = await fetch(normalizedInputImageUrl);
+          if (!resizedRes.ok) {
+            throw new Error(`Failed to fetch resized image from CDN: ${resizedRes.status}`);
+          }
+          const resizedBuffer = Buffer.from(await resizedRes.arrayBuffer());
+          const resizedMime = resizedRes.headers.get("content-type") || "image/png";
+
+          const ext = resizedMime.includes("jpeg")
             ? "jpg"
-            : mimeType.includes("webp")
+            : resizedMime.includes("webp")
               ? "webp"
-              : mimeType.includes("gif")
+              : resizedMime.includes("gif")
                 ? "gif"
                 : "png";
 
-          inputReferenceFile = new File([imgBuffer], `input.${ext}`, {
-            type: mimeType || `image/${ext}`,
+          // Always use File input with the correctly resized buffer
+          const resizedFile = new File([resizedBuffer], `input-${parsedSize.width}x${parsedSize.height}.${ext}`, {
+            type: resizedMime,
           });
-          (params as any).input_reference = normalizedInputImageUrl;
+          (params as any).input_reference = resizedFile;
         }
 
-        // Create the job - first try CDN public URL input, fallback to file input if needed.
-        let job;
-        try {
-          job = await client.videos.create(params);
-        } catch (primaryErr) {
-          if (normalizedInputImageUrl && inputReferenceFile) {
-            console.warn("[video-gen] URL input_reference failed, retrying with file input:", primaryErr);
-            (params as any).input_reference = inputReferenceFile;
-            job = await client.videos.create(params);
-          } else {
-            throw primaryErr;
-          }
-        }
+        // Create the video generation job
+        const job = await client.videos.create(params);
         const jobId = job.id;
 
         // Poll until complete (max 10 minutes)

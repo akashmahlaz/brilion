@@ -1871,7 +1871,7 @@ function ChatPage() {
             )}
 
             {/* ─── Message list ─────────────────────────────────────────── */}
-            <div className="space-y-4 pb-4">
+            <div className="flex flex-col gap-1 pb-4">
               {messages.map((msg, i) => {
                 if (msg.role === 'system') {
                   return (
@@ -1892,53 +1892,53 @@ function ChatPage() {
                       .join(' | ')
                   : undefined
                 const parsedUserMessage = isUser ? parseMessageContent(msg.content) : null
-                const userHasAttachments = !!(parsedUserMessage && parsedUserMessage.attachments.length > 0)
                 const timestamp = msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
                 return (
-                  <div key={i} className={`group flex items-end gap-2 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-                    {/* Avatar */}
-                    {isUser ? (
-                      <Avatar className="size-8 shrink-0 ring-1 ring-border shadow-sm">
-                        {user?.image && <AvatarImage src={user.image} alt={user.name || ''} />}
-                        <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
-                          {user?.name?.charAt(0)?.toUpperCase() || <User className="size-3.5" />}
-                        </AvatarFallback>
-                      </Avatar>
-                    ) : (
-                      <div className="relative flex size-8 shrink-0 select-none items-center justify-center rounded-full bg-primary/10 text-primary overflow-hidden ring-1 ring-primary/20 shadow-sm">
-                        <Sparkles className="size-4" />
-                        <BorderBeam size={25} duration={3} colorFrom="hsl(var(--primary))" colorTo="hsl(var(--primary) / 0.2)" borderWidth={1} />
+                  <div key={i} className={`group w-full ${isUser ? 'py-3' : 'py-4'}`}>
+                    <div className={`max-w-3xl px-4 ${isUser ? 'ml-auto' : 'mr-auto'}`}>
+                      {/* Role label */}
+                      <div className={`flex items-center gap-2 mb-1.5 ${isUser ? 'flex-row-reverse' : ''}`}>
+                        {isUser ? (
+                          <Avatar className="size-6 shrink-0">
+                            {user?.image && <AvatarImage src={user.image} alt={user.name || ''} />}
+                            <AvatarFallback className="bg-muted text-muted-foreground text-[10px] font-semibold">
+                              {user?.name?.charAt(0)?.toUpperCase() || <User className="size-3" />}
+                            </AvatarFallback>
+                          </Avatar>
+                        ) : (
+                          <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                            <Sparkles className="size-3.5" />
+                          </div>
+                        )}
+                        <span className="text-xs font-medium text-foreground">
+                          {isUser ? (user?.name || 'You') : 'Brilion'}
+                        </span>
+                        {timestamp && (
+                          <span className="text-[10px] text-muted-foreground">{timestamp}</span>
+                        )}
                       </div>
-                    )}
 
-                    {/* Bubble */}
-                    <div className={`relative max-w-[75%] min-w-15 ${isUser ? 'items-end' : 'items-start'}`}>
-                      <div className={`rounded-2xl px-3.5 py-2.5 shadow-sm ${
-                        isUser
-                          ? userHasAttachments
-                            ? 'bg-transparent p-0 shadow-none'
-                            : 'bg-primary/70 text-primary-foreground rounded-br-md'
-                          : 'bg-card border border-border rounded-bl-md'
-                      }`}>
+                      {/* Message content */}
+                      <div className={isUser ? 'pr-8 text-right' : 'pl-8'}>
                         {isUser ? (
                           (() => {
                             const { text, attachments } = parsedUserMessage || { text: '', attachments: [] }
                             return (
-                              <div className="text-[14.5px] leading-relaxed">
+                              <div>
                                 {attachments.length > 0 && (
-                                  <div className={`flex flex-wrap gap-2 ${text ? 'mb-2 justify-end' : ''}`}>
+                                  <div className={`flex flex-wrap gap-2 justify-end ${text ? 'mb-2' : ''}`}>
                                     {attachments.map((att, ai) =>
                                       att.type === 'image' ? (
-                                        <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="block overflow-hidden rounded-xl">
+                                        <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer" className="block overflow-hidden rounded-lg">
                                           <img
                                             src={att.url}
                                             alt={att.name}
-                                            className="max-w-56 max-h-56 object-cover rounded-xl"
+                                            className="max-w-60 max-h-60 object-cover rounded-lg"
                                           />
                                         </a>
                                       ) : (
                                         <a key={ai} href={att.url} target="_blank" rel="noopener noreferrer"
-                                          className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground/90 hover:bg-muted transition-colors">
+                                          className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted/50 px-3 py-2 text-xs text-foreground/80 hover:bg-muted transition-colors">
                                           <FileIcon className="size-4" />
                                           <span className="truncate max-w-40">{att.name}</span>
                                         </a>
@@ -1947,11 +1947,7 @@ function ChatPage() {
                                   </div>
                                 )}
                                 {text && (
-                                  <p className={`whitespace-pre-wrap wrap-break-word ${
-                                    userHasAttachments
-                                      ? 'rounded-2xl rounded-br-md bg-primary/70 text-primary-foreground px-3.5 py-2.5 shadow-sm'
-                                      : ''
-                                  }`}>
+                                  <p className="text-[14.5px] leading-relaxed text-foreground whitespace-pre-wrap wrap-break-word">
                                     {text}
                                   </p>
                                 )}
@@ -2007,19 +2003,10 @@ function ChatPage() {
                             {hasToolCalls && <MediaResults toolCalls={msg.toolCalls} />}
                           </div>
                         )}
-                      </div>
 
-                      {/* Timestamp + actions row */}
-                      <div className={`flex items-center gap-1.5 mt-1 px-1 ${isUser ? 'justify-end' : 'justify-start'}`}>
-                        {timestamp && (
-                          <span className="text-[10px] text-muted-foreground">{timestamp}</span>
-                        )}
-                        {isUser && timestamp && (
-                          <Check className="size-3 text-muted-foreground/60" />
-                        )}
                         {/* Action buttons for AI messages */}
                         {msg.content && !isUser && (
-                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
                             <Tooltip>
                               <TooltipTrigger asChild>
                                 <button
@@ -2047,19 +2034,23 @@ function ChatPage() {
               {/* Typing indicator */}
               {isLoading && messages[messages.length - 1]?.role === 'user' && (
                 <BlurFade delay={0.05} direction="up">
-                <div className="flex items-end gap-2">
-                  <div className="relative flex size-8 shrink-0 select-none items-center justify-center rounded-full bg-primary/10 text-primary overflow-hidden ring-1 ring-primary/20 shadow-sm">
-                    <Sparkles className="size-4" />
-                    <BorderBeam size={25} duration={2} colorFrom="hsl(var(--primary))" colorTo="hsl(var(--primary) / 0.2)" borderWidth={1} />
-                  </div>
-                  <div className="rounded-2xl rounded-bl-md bg-card border border-border px-3.5 py-2.5 shadow-sm">
-                    <div className="flex items-center gap-2">
-                      <div className="flex gap-1">
-                        <span className="size-2 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
-                        <span className="size-2 rounded-full bg-primary/60 animate-bounce [animation-delay:150ms]" />
-                        <span className="size-2 rounded-full bg-primary/60 animate-bounce [animation-delay:300ms]" />
+                <div className="w-full py-4">
+                  <div className="max-w-3xl mx-auto px-4">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <Sparkles className="size-3.5" />
                       </div>
-                      <AnimatedShinyText className="text-xs">Thinking…</AnimatedShinyText>
+                      <span className="text-xs font-medium text-foreground">Brilion</span>
+                    </div>
+                    <div className="pl-8">
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-1">
+                          <span className="size-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:0ms]" />
+                          <span className="size-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:150ms]" />
+                          <span className="size-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:300ms]" />
+                        </div>
+                        <AnimatedShinyText className="text-xs">Thinking…</AnimatedShinyText>
+                      </div>
                     </div>
                   </div>
                 </div>
