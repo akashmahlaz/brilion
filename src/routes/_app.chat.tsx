@@ -1616,7 +1616,7 @@ function ChatPage() {
                   <Sparkles className="size-7 text-primary" />
                 </div>
                 <h1 className="font-heading text-[28px] sm:text-[36px] font-extrabold tracking-[-0.035em] text-foreground leading-[1.1]">
-                      Lets automate All
+                      Start automating
                 </h1>
                 <p className="mt-2.5 text-[15px] text-muted-foreground max-w-sm text-center leading-relaxed">
                   Chat, automate, or manage — everything from one place.
