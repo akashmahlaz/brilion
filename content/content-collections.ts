@@ -3,7 +3,7 @@ import { z } from 'zod'
 
 const speakers = defineCollection({
   name: 'speakers',
-  directory: 'content/speakers',
+  directory: 'speakers',
   include: '**/*.md',
   schema: z.object({
     name: z.string(),
@@ -29,7 +29,7 @@ const speakers = defineCollection({
 
 const talks = defineCollection({
   name: 'talks',
-  directory: 'content/talks',
+  directory: 'talks',
   include: '**/*.md',
   schema: z.object({
     title: z.string(),

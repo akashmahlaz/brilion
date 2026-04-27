@@ -39,7 +39,7 @@ const config = defineConfig({
         ],
       },
     }),
-    contentCollections(),
+    contentCollections({ configPath: 'content/content-collections.ts' }),
     tsconfigPaths({ projects: ['./tsconfig.json'] }),
     tailwindcss(),
     tanstackStart(),

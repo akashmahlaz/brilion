@@ -71,14 +71,15 @@ function getStaticModels(providerId: string): DiscoveredModel[] {
 
 export async function discoverModels(
   providerId: string,
-  force = false
+  force = false,
+  testConfig?: { apiKey: string; baseUrl?: string }
 ): Promise<DiscoveredModel[]> {
   if (!force) {
     const cached = modelCache.get(providerId);
-    if (cached && Date.now() - cached.ts < CACHE_TTL_MS) return cached.models;
+    if (cached && Date.now() - cached.ts < CACHE_TTL_MS && !testConfig) return cached.models;
   }
 
-  const apiKey = await resolveProviderKey(providerId);
+  const apiKey = testConfig?.apiKey ?? await resolveProviderKey(providerId);
   const entry = PROVIDER_CATALOG.find((p) => p.id === providerId);
 
   let models: DiscoveredModel[];
@@ -89,12 +90,11 @@ export async function discoverModels(
     models = await fetchGoogleModels(apiKey);
   } else if (providerId === "anthropic") {
     models = getStaticModels("anthropic");
+  } else if (testConfig?.baseUrl) {
+    // Test mode: use provided baseUrl + apiKey directly
+    models = await fetchOpenAICompatible(testConfig.baseUrl + "/models", apiKey, providerId);
   } else if (entry?.modelsEndpoint) {
-    models = await fetchOpenAICompatible(
-      entry.modelsEndpoint,
-      apiKey,
-      providerId
-    );
+    models = await fetchOpenAICompatible(entry.modelsEndpoint, apiKey, providerId);
   } else if (entry?.freeModels) {
     models = entry.freeModels.map((id) => ({
       id,
@@ -105,7 +105,10 @@ export async function discoverModels(
     models = [];
   }
 
-  modelCache.set(providerId, { models, ts: Date.now() });
+  // Only cache when using stored key (not test mode)
+  if (!testConfig) {
+    modelCache.set(providerId, { models, ts: Date.now() });
+  }
   return models;
 }
 
