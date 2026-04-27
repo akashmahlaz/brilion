@@ -26,6 +26,28 @@ const ADAPTER_FACTORIES: Record<string, AdapterFactory> = {
     createOpenaiChat(model as any, key, { baseURL: base || "https://api.mistral.ai/v1" }),
   openrouter: (model, key, base) =>
     createOpenaiChat(model as any, key, { baseURL: base || "https://openrouter.ai/api/v1" }),
+  groq: (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://api.groq.com/openai/v1" }),
+  deepseek: (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://api.deepseek.com/v1" }),
+  cohere: (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://api.cohere.ai/v2" }),
+  cloudflare: (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://api.cloudflare.com/client/v4" }),
+  fireworks: (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://api.fireworks.ai/v1" }),
+  perplexity: (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://api.perplexity.ai" }),
+  together: (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://api.together.xyz/v1" }),
+  nebius: (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://api.nebius.ai/v1" }),
+  akash: (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://cloud.mymlabs.com/v1" }),
+  replicate: (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://api.replicate.com/v1" }),
+  minimax: (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://api.minimax.chat/v1" }),
 };
 
 export interface ProviderEntry {
@@ -108,6 +130,140 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     envKey: "XAI_API_KEY",
     website: "https://x.ai",
     modelsEndpoint: "https://api.x.ai/v1/models",
+  },
+  {
+    id: "mistral",
+    name: "Mistral AI",
+    description: "Mistral models — Pixtral, Large, Small",
+    envKey: "MISTRAL_API_KEY",
+    website: "https://mistral.ai",
+    modelsEndpoint: "https://api.mistral.ai/v1/models",
+    defaultBaseUrl: "https://api.mistral.ai/v1",
+  },
+  {
+    id: "groq",
+    name: "Groq",
+    description: "Ultra-fast inference, free tier available",
+    envKey: "GROQ_API_KEY",
+    website: "https://console.groq.com",
+    modelsEndpoint: "https://api.groq.com/openai/v1/models",
+    defaultBaseUrl: "https://api.groq.com/openai/v1",
+    freeModels: ["llama-3.1-8b-instant", "llama-3.2-3b-preview", "mixtral-8x7b-32768"],
+  },
+  {
+    id: "deepseek",
+    name: "DeepSeek",
+    description: "DeepSeek V3 and Coder models — highly capable, low cost",
+    envKey: "DEEPSEEK_API_KEY",
+    website: "https://platform.deepseek.com",
+    modelsEndpoint: "https://api.deepseek.com/v1/models",
+    defaultBaseUrl: "https://api.deepseek.com/v1",
+  },
+  {
+    id: "cohere",
+    name: "Cohere",
+    description: "Command R+ and Command models for RAG and agents",
+    envKey: "COHERE_API_KEY",
+    website: "https://cohere.com",
+    modelsEndpoint: "https://api.cohere.ai/v2/models",
+    defaultBaseUrl: "https://api.cohere.ai/v2",
+  },
+  {
+    id: "cloudflare",
+    name: "Cloudflare Workers AI",
+    description: "Edge AI — Workers AI with free tier",
+    envKey: "CLOUDFLARE_API_KEY",
+    website: "https://developers.cloudflare.com/workers-ai",
+    defaultBaseUrl: "https://api.cloudflare.com/client/v4",
+  },
+  {
+    id: "fireworks",
+    name: "Fireworks AI",
+    description: "Fast inference for Llama, Mixtral, and custom models",
+    envKey: "FIREWORKS_API_KEY",
+    website: "https://fireworks.ai",
+    modelsEndpoint: "https://api.fireworks.ai/v1/models",
+    defaultBaseUrl: "https://api.fireworks.ai/v1",
+  },
+  {
+    id: "perplexity",
+    name: "Perplexity",
+    description: "Real-time web search with Sonar models",
+    envKey: "PERPLEXITY_API_KEY",
+    website: "https://perplexity.ai",
+    modelsEndpoint: "https://api.perplexity.ai/v1/models",
+    defaultBaseUrl: "https://api.perplexity.ai",
+  },
+  {
+    id: "together",
+    name: "Together AI",
+    description: "Managed inference for open-source models",
+    envKey: "TOGETHER_API_KEY",
+    website: "https://together.ai",
+    modelsEndpoint: "https://api.together.xyz/v1/models",
+    defaultBaseUrl: "https://api.together.xyz/v1",
+  },
+  {
+    id: "nebius",
+    name: "Nebius",
+    description: "High-performance inference for SDXL, Llama models",
+    envKey: "NEBIUS_API_KEY",
+    website: "https://nebius.ai",
+    modelsEndpoint: "https://api.nebius.ai/v1/models",
+    defaultBaseUrl: "https://api.nebius.ai/v1",
+  },
+  {
+    id: "akash",
+    name: "Akash Network",
+    description: "Decentralized cloud for self-hosted AI models",
+    envKey: "AKASH_API_KEY",
+    website: "https://akash.network",
+    defaultBaseUrl: "https://cloud.mymlabs.com/v1",
+  },
+  {
+    id: "replicate",
+    name: "Replicate",
+    description: "Run open-source models — Llama, Stable Diffusion, Flux",
+    envKey: "REPLICATE_API_KEY",
+    website: "https://replicate.com",
+    defaultBaseUrl: "https://api.replicate.com/v1",
+  },
+  {
+    id: "minimax",
+    name: "MiniMax",
+    description: "Mochi, HbY, and Flash models from MiniMax",
+    envKey: "MINIMAX_API_KEY",
+    website: "https://www.minimax.io",
+    modelsEndpoint: "https://api.minimax.chat/v1/models",
+    defaultBaseUrl: "https://api.minimax.chat/v1",
+  },
+  {
+    id: "tavily",
+    name: "Tavily",
+    description: "AI-powered web search for RAG and research",
+    envKey: "TAVILY_API_KEY",
+    website: "https://tavily.com",
+  },
+  {
+    id: "vercel",
+    name: "Vercel",
+    description: "Vercel deployment and Edge Functions",
+    envKey: "VERCEL_TOKEN",
+    website: "https://vercel.com",
+  },
+  {
+    id: "netlify",
+    name: "Netlify",
+    description: "Netlify deployment and serverless functions",
+    envKey: "NETLIFY_TOKEN",
+    website: "https://netlify.com",
+  },
+  {
+    id: "maton",
+    name: "Maton Gateway",
+    description: "Unified gateway for various AI providers",
+    envKey: "MATON_API_KEY",
+    website: "https://maton.io",
   },
 ];
 

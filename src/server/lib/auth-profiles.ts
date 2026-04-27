@@ -14,6 +14,17 @@ const ENV_MAP: Record<string, string> = {
   vercel: "VERCEL_TOKEN",
   netlify: "NETLIFY_TOKEN",
   maton: "MATON_API_KEY",
+  groq: "GROQ_API_KEY",
+  deepseek: "DEEPSEEK_API_KEY",
+  cohere: "COHERE_API_KEY",
+  cloudflare: "CLOUDFLARE_API_KEY",
+  fireworks: "FIREWORKS_API_KEY",
+  perplexity: "PERPLEXITY_API_KEY",
+  together: "TOGETHER_API_KEY",
+  nebius: "NEBIUS_API_KEY",
+  akash: "AKASH_API_KEY",
+  replicate: "REPLICATE_API_KEY",
+  minimax: "MINIMAX_API_KEY",
 };
 
 export async function upsertAuthProfile(

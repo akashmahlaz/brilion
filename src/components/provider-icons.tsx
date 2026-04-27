@@ -123,6 +123,109 @@ function MatonIcon({ className, ...props }: IconProps) {
   )
 }
 
+// ─── Groq ────────────────────────────────────────────────
+function GroqIcon({ className, ...props }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={cn('size-4', className)} fill="currentColor" {...props}>
+      <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2Zm0 4a6 6 0 1 0 0 12 6 6 0 0 0 0-12Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z" />
+    </svg>
+  )
+}
+
+// ─── DeepSeek ───────────────────────────────────────────
+function DeepSeekIcon({ className, ...props }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={cn('size-4', className)} fill="currentColor" {...props}>
+      <path d="M12 2L2 7l10 5 10-5-10-5ZM2 17l10 5 10-5M2 12l10 5 10-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="3" fill="currentColor" />
+    </svg>
+  )
+}
+
+// ─── Cohere ─────────────────────────────────────────────
+function CohereIcon({ className, ...props }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={cn('size-4', className)} fill="currentColor" {...props}>
+      <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2Zm0 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm-1 2v4h2v-4h-2Zm0 6v2h2v-2h-2Z" />
+    </svg>
+  )
+}
+
+// ─── Cloudflare ─────────────────────────────────────────
+function CloudflareIcon({ className, ...props }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={cn('size-4', className)} fill="currentColor" {...props}>
+      <path d="M12 2L2 8l10 6 10-6-10-6ZM2 14l10 6 10-6M2 11l10 6 10-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+// ─── Fireworks ───────────────────────────────────────────
+function FireworksIcon({ className, ...props }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={cn('size-4', className)} fill="currentColor" {...props}>
+      <path d="M12 2l2.5 6.5L21 11l-6.5 2.5L12 20l-2.5-6.5L3 11l6.5-2.5L12 2zm0 5l-1 2.5L9 11l2.5 1L12 14.5 13 12l2.5-1.5L17 9.5l-1-2.5L14.5 9l-2.5-2z" />
+    </svg>
+  )
+}
+
+// ─── Perplexity ─────────────────────────────────────────
+function PerplexityIcon({ className, ...props }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={cn('size-4', className)} fill="currentColor" {...props}>
+      <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M12 6v6l4 2" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+// ─── Together AI ─────────────────────────────────────────
+function TogetherIcon({ className, ...props }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={cn('size-4', className)} fill="currentColor" {...props}>
+      <path d="M12 2L5 7v10l7 5 7-5V7l-7-5zm0 3l4 2.5v5L12 15l-4-2.5v-5L12 5z" />
+    </svg>
+  )
+}
+
+// ─── Nebius ─────────────────────────────────────────────
+function NebiusIcon({ className, ...props }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={cn('size-4', className)} fill="currentColor" {...props}>
+      <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  )
+}
+
+// ─── Akash Network ───────────────────────────────────────
+function AkashIcon({ className, ...props }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={cn('size-4', className)} fill="currentColor" {...props}>
+      <path d="M12 2L3 7l9 5 9-5-9-5zM3 17l9 5 9-5M3 12l9 5 9-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+// ─── Replicate ───────────────────────────────────────────
+function ReplicateIcon({ className, ...props }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={cn('size-4', className)} fill="currentColor" {...props}>
+      <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 4a6 6 0 1 1 0 12 6 6 0 0 1 0-12zm0 2a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />
+    </svg>
+  )
+}
+
+// ─── MiniMax ─────────────────────────────────────────────
+function MiniMaxIcon({ className, ...props }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={cn('size-4', className)} fill="currentColor" {...props}>
+      <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 4a6 6 0 1 0 0 12 6 6 0 0 0 0-12zm-1 2v6h2v-6h-2zm1-2a1 1 0 1 1 0 2 1 1 0 0 1 0-2z" />
+    </svg>
+  )
+}
+
 // ─── Provider Icon Map ──────────────────────────────────
 const PROVIDER_ICON_MAP: Record<string, React.ComponentType<IconProps>> = {
   github: GitHubIcon,
@@ -137,6 +240,17 @@ const PROVIDER_ICON_MAP: Record<string, React.ComponentType<IconProps>> = {
   vercel: VercelIcon,
   netlify: NetlifyIcon,
   maton: MatonIcon,
+  groq: GroqIcon,
+  deepseek: DeepSeekIcon,
+  cohere: CohereIcon,
+  cloudflare: CloudflareIcon,
+  fireworks: FireworksIcon,
+  perplexity: PerplexityIcon,
+  together: TogetherIcon,
+  nebius: NebiusIcon,
+  akash: AkashIcon,
+  replicate: ReplicateIcon,
+  minimax: MiniMaxIcon,
 }
 
 /**
