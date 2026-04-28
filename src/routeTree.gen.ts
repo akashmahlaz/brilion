@@ -63,11 +63,15 @@ import { Route as AppCodingRouteImport } from './routes/_app.coding'
 import { Route as AppChatRouteImport } from './routes/_app.chat'
 import { Route as AppChannelsRouteImport } from './routes/_app.channels'
 import { Route as AppAgentsRouteImport } from './routes/_app.agents'
+import { Route as AppSettingsIndexRouteImport } from './routes/_app.settings.index'
 import { Route as ApiTrpcSplatRouteImport } from './routes/api.trpc.$'
 import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
 import { Route as ApiGenerateVideoRouteImport } from './routes/api/generate/video'
 import { Route as ApiAuthRegisterRouteImport } from './routes/api/auth/register'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as AppSettingsWorkspaceRouteImport } from './routes/_app.settings.workspace'
+import { Route as AppSettingsProvidersRouteImport } from './routes/_app.settings.providers'
+import { Route as AppSettingsPersonaRouteImport } from './routes/_app.settings.persona'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -337,6 +341,11 @@ const AppAgentsRoute = AppAgentsRouteImport.update({
   path: '/agents',
   getParentRoute: () => AppRoute,
 } as any)
+const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const ApiTrpcSplatRoute = ApiTrpcSplatRouteImport.update({
   id: '/api/trpc/$',
   path: '/api/trpc/$',
@@ -361,6 +370,21 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AppSettingsWorkspaceRoute = AppSettingsWorkspaceRouteImport.update({
+  id: '/workspace',
+  path: '/workspace',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsProvidersRoute = AppSettingsProvidersRouteImport.update({
+  id: '/providers',
+  path: '/providers',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
+const AppSettingsPersonaRoute = AppSettingsPersonaRouteImport.update({
+  id: '/persona',
+  path: '/persona',
+  getParentRoute: () => AppSettingsRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -389,7 +413,7 @@ export interface FileRoutesByFullPath {
   '/nodes': typeof AppNodesRoute
   '/overview': typeof AppOverviewRoute
   '/sessions': typeof AppSessionsRoute
-  '/settings': typeof AppSettingsRoute
+  '/settings': typeof AppSettingsRouteWithChildren
   '/skills': typeof AppSkillsRoute
   '/social': typeof AppSocialRoute
   '/trading': typeof AppTradingRoute
@@ -416,11 +440,15 @@ export interface FileRoutesByFullPath {
   '/api/usage': typeof ApiUsageRoute
   '/api/whatsapp': typeof ApiWhatsappRoute
   '/api/workspace': typeof ApiWorkspaceRoute
+  '/settings/persona': typeof AppSettingsPersonaRoute
+  '/settings/providers': typeof AppSettingsProvidersRoute
+  '/settings/workspace': typeof AppSettingsWorkspaceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/generate/video': typeof ApiGenerateVideoRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
+  '/settings/': typeof AppSettingsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -448,7 +476,6 @@ export interface FileRoutesByTo {
   '/nodes': typeof AppNodesRoute
   '/overview': typeof AppOverviewRoute
   '/sessions': typeof AppSessionsRoute
-  '/settings': typeof AppSettingsRoute
   '/skills': typeof AppSkillsRoute
   '/social': typeof AppSocialRoute
   '/trading': typeof AppTradingRoute
@@ -475,11 +502,15 @@ export interface FileRoutesByTo {
   '/api/usage': typeof ApiUsageRoute
   '/api/whatsapp': typeof ApiWhatsappRoute
   '/api/workspace': typeof ApiWorkspaceRoute
+  '/settings/persona': typeof AppSettingsPersonaRoute
+  '/settings/providers': typeof AppSettingsProvidersRoute
+  '/settings/workspace': typeof AppSettingsWorkspaceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/generate/video': typeof ApiGenerateVideoRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
+  '/settings': typeof AppSettingsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -510,7 +541,7 @@ export interface FileRoutesById {
   '/_app/nodes': typeof AppNodesRoute
   '/_app/overview': typeof AppOverviewRoute
   '/_app/sessions': typeof AppSessionsRoute
-  '/_app/settings': typeof AppSettingsRoute
+  '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/skills': typeof AppSkillsRoute
   '/_app/social': typeof AppSocialRoute
   '/_app/trading': typeof AppTradingRoute
@@ -537,11 +568,15 @@ export interface FileRoutesById {
   '/api/usage': typeof ApiUsageRoute
   '/api/whatsapp': typeof ApiWhatsappRoute
   '/api/workspace': typeof ApiWorkspaceRoute
+  '/_app/settings/persona': typeof AppSettingsPersonaRoute
+  '/_app/settings/providers': typeof AppSettingsProvidersRoute
+  '/_app/settings/workspace': typeof AppSettingsWorkspaceRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/auth/register': typeof ApiAuthRegisterRoute
   '/api/generate/video': typeof ApiGenerateVideoRoute
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
+  '/_app/settings/': typeof AppSettingsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -598,11 +633,15 @@ export interface FileRouteTypes {
     | '/api/usage'
     | '/api/whatsapp'
     | '/api/workspace'
+    | '/settings/persona'
+    | '/settings/providers'
+    | '/settings/workspace'
     | '/api/auth/$'
     | '/api/auth/register'
     | '/api/generate/video'
     | '/api/rpc/$'
     | '/api/trpc/$'
+    | '/settings/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -630,7 +669,6 @@ export interface FileRouteTypes {
     | '/nodes'
     | '/overview'
     | '/sessions'
-    | '/settings'
     | '/skills'
     | '/social'
     | '/trading'
@@ -657,11 +695,15 @@ export interface FileRouteTypes {
     | '/api/usage'
     | '/api/whatsapp'
     | '/api/workspace'
+    | '/settings/persona'
+    | '/settings/providers'
+    | '/settings/workspace'
     | '/api/auth/$'
     | '/api/auth/register'
     | '/api/generate/video'
     | '/api/rpc/$'
     | '/api/trpc/$'
+    | '/settings'
   id:
     | '__root__'
     | '/'
@@ -718,11 +760,15 @@ export interface FileRouteTypes {
     | '/api/usage'
     | '/api/whatsapp'
     | '/api/workspace'
+    | '/_app/settings/persona'
+    | '/_app/settings/providers'
+    | '/_app/settings/workspace'
     | '/api/auth/$'
     | '/api/auth/register'
     | '/api/generate/video'
     | '/api/rpc/$'
     | '/api/trpc/$'
+    | '/_app/settings/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1148,6 +1194,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAgentsRouteImport
       parentRoute: typeof AppRoute
     }
+    '/_app/settings/': {
+      id: '/_app/settings/'
+      path: '/'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AppSettingsIndexRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/api/trpc/$': {
       id: '/api/trpc/$'
       path: '/api/trpc/$'
@@ -1183,8 +1236,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_app/settings/workspace': {
+      id: '/_app/settings/workspace'
+      path: '/workspace'
+      fullPath: '/settings/workspace'
+      preLoaderRoute: typeof AppSettingsWorkspaceRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/providers': {
+      id: '/_app/settings/providers'
+      path: '/providers'
+      fullPath: '/settings/providers'
+      preLoaderRoute: typeof AppSettingsProvidersRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
+    '/_app/settings/persona': {
+      id: '/_app/settings/persona'
+      path: '/persona'
+      fullPath: '/settings/persona'
+      preLoaderRoute: typeof AppSettingsPersonaRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
   }
 }
+
+interface AppSettingsRouteChildren {
+  AppSettingsPersonaRoute: typeof AppSettingsPersonaRoute
+  AppSettingsProvidersRoute: typeof AppSettingsProvidersRoute
+  AppSettingsWorkspaceRoute: typeof AppSettingsWorkspaceRoute
+  AppSettingsIndexRoute: typeof AppSettingsIndexRoute
+}
+
+const AppSettingsRouteChildren: AppSettingsRouteChildren = {
+  AppSettingsPersonaRoute: AppSettingsPersonaRoute,
+  AppSettingsProvidersRoute: AppSettingsProvidersRoute,
+  AppSettingsWorkspaceRoute: AppSettingsWorkspaceRoute,
+  AppSettingsIndexRoute: AppSettingsIndexRoute,
+}
+
+const AppSettingsRouteWithChildren = AppSettingsRoute._addFileChildren(
+  AppSettingsRouteChildren,
+)
 
 interface AppRouteChildren {
   AppAgentsRoute: typeof AppAgentsRoute
@@ -1199,7 +1291,7 @@ interface AppRouteChildren {
   AppNodesRoute: typeof AppNodesRoute
   AppOverviewRoute: typeof AppOverviewRoute
   AppSessionsRoute: typeof AppSessionsRoute
-  AppSettingsRoute: typeof AppSettingsRoute
+  AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppSkillsRoute: typeof AppSkillsRoute
   AppSocialRoute: typeof AppSocialRoute
   AppTradingRoute: typeof AppTradingRoute
@@ -1219,7 +1311,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppNodesRoute: AppNodesRoute,
   AppOverviewRoute: AppOverviewRoute,
   AppSessionsRoute: AppSessionsRoute,
-  AppSettingsRoute: AppSettingsRoute,
+  AppSettingsRoute: AppSettingsRouteWithChildren,
   AppSkillsRoute: AppSkillsRoute,
   AppSocialRoute: AppSocialRoute,
   AppTradingRoute: AppTradingRoute,

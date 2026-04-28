@@ -7,7 +7,7 @@ import openaiSvg from '@lobehub/icons-static-svg/icons/openai.svg?raw'
 import anthropicSvg from '@lobehub/icons-static-svg/icons/anthropic.svg?raw'
 import googleSvg from '@lobehub/icons-static-svg/icons/gemini-color.svg?raw'
 import githubSvg from '@lobehub/icons-static-svg/icons/github.svg?raw'
-import copilotSvg from '@lobehub/icons-static-svg/icons/copilot-color.svg?raw'
+import copilotSvg from '@lobehub/icons-static-svg/icons/githubcopilot.svg?raw'
 import xaiSvg from '@lobehub/icons-static-svg/icons/xai.svg?raw'
 import mistralSvg from '@lobehub/icons-static-svg/icons/mistral-color.svg?raw'
 import groqSvg from '@lobehub/icons-static-svg/icons/groq.svg?raw'
@@ -22,6 +22,7 @@ import akashSvg from '@lobehub/icons-static-svg/icons/akashchat.svg?raw'
 import replicateSvg from '@lobehub/icons-static-svg/icons/replicate.svg?raw'
 import minimaxSvg from '@lobehub/icons-static-svg/icons/minimax-color.svg?raw'
 import openrouterSvg from '@lobehub/icons-static-svg/icons/openrouter.svg?raw'
+import qwenSvg from '@lobehub/icons-static-svg/icons/qwen-color.svg?raw'
 import tavilySvg from '@lobehub/icons-static-svg/icons/tavily-color.svg?raw'
 import vercelSvg from '@lobehub/icons-static-svg/icons/vercel.svg?raw'
 
@@ -50,6 +51,8 @@ const PROVIDER_SVG_MAP: Record<string, string> = {
   akash: akashSvg,
   replicate: replicateSvg,
   minimax: minimaxSvg,
+  qwen: qwenSvg,
+  dashscope: qwenSvg,
   openrouter: openrouterSvg,
   tavily: tavilySvg,
   vercel: vercelSvg,

@@ -28,6 +28,10 @@ async function fetchOpenAICompatible(
   }));
 }
 
+function appendPath(baseUrl: string, path: string) {
+  return `${baseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
+}
+
 async function fetchGoogleModels(apiKey: string): Promise<DiscoveredModel[]> {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`
@@ -72,14 +76,15 @@ function getStaticModels(providerId: string): DiscoveredModel[] {
 export async function discoverModels(
   providerId: string,
   force = false,
-  testConfig?: { apiKey: string; baseUrl?: string }
+  testConfig?: { apiKey: string; baseUrl?: string },
+  userId?: string
 ): Promise<DiscoveredModel[]> {
   if (!force) {
     const cached = modelCache.get(providerId);
     if (cached && Date.now() - cached.ts < CACHE_TTL_MS && !testConfig) return cached.models;
   }
 
-  const apiKey = testConfig?.apiKey ?? await resolveProviderKey(providerId);
+  const apiKey = testConfig?.apiKey ?? await resolveProviderKey(providerId, userId);
   const entry = PROVIDER_CATALOG.find((p) => p.id === providerId);
 
   let models: DiscoveredModel[];
@@ -92,7 +97,7 @@ export async function discoverModels(
     models = getStaticModels("anthropic");
   } else if (testConfig?.baseUrl) {
     // Test mode: use provided baseUrl + apiKey directly
-    models = await fetchOpenAICompatible(testConfig.baseUrl + "/models", apiKey, providerId);
+    models = await fetchOpenAICompatible(appendPath(testConfig.baseUrl, "models"), apiKey, providerId);
   } else if (entry?.modelsEndpoint) {
     models = await fetchOpenAICompatible(entry.modelsEndpoint, apiKey, providerId);
   } else if (entry?.freeModels) {
@@ -103,6 +108,10 @@ export async function discoverModels(
     }));
   } else {
     models = [];
+  }
+
+  if (models.length === 0) {
+    models = getStaticModels(providerId);
   }
 
   // Only cache when using stored key (not test mode)
@@ -152,7 +161,7 @@ export async function validateModelSpec(
   // Discover available models for the provider
   let models: DiscoveredModel[];
   try {
-    models = await discoverModels(providerId);
+    models = await discoverModels(providerId, false, undefined, userId);
   } catch {
     // If discovery fails, allow it through (network issue shouldn't block)
     return { valid: true, providerId, modelId };

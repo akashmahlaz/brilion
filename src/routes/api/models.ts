@@ -22,7 +22,7 @@ export const Route = createFileRoute("/api/models")({
           return Response.json(providers);
         }
 
-        const models = await discoverModels(providerId);
+        const models = await discoverModels(providerId, false, undefined, userId);
         return Response.json(models);
       },
 
@@ -30,15 +30,16 @@ export const Route = createFileRoute("/api/models")({
       // { providerId } — refresh models using stored key
       // { provider, apiKey, baseUrl? } — test a key before saving
       POST: async ({ request }) => {
-        await requireAuth(request);
+        const session = await requireAuth(request);
         await connectDB();
+        const userId = (session.user as any).id;
 
         const body = await request.json();
         const { providerId, provider, apiKey, baseUrl } = body;
 
         // Test connection mode: accept temp key + baseUrl to validate
         if (provider && apiKey) {
-          const models = await discoverModels(provider, false, { apiKey, baseUrl });
+          const models = await discoverModels(provider, false, { apiKey, baseUrl }, userId);
           return Response.json(models);
         }
 
@@ -46,7 +47,7 @@ export const Route = createFileRoute("/api/models")({
           return Response.json({ error: "providerId required" }, { status: 400 });
         }
 
-        const models = await discoverModels(providerId, true);
+        const models = await discoverModels(providerId, true, undefined, userId);
         return Response.json(models);
       },
     },

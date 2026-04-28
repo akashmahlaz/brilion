@@ -25,6 +25,8 @@ const ENV_MAP: Record<string, string> = {
   akash: "AKASH_API_KEY",
   replicate: "REPLICATE_API_KEY",
   minimax: "MINIMAX_API_KEY",
+  qwen: "DASHSCOPE_API_KEY",
+  dashscope: "DASHSCOPE_API_KEY",
 };
 
 export async function upsertAuthProfile(
@@ -60,6 +62,7 @@ export async function listAuthProfiles(userId?: string) {
     tokenRef: p.token ? `${p.token.slice(0, 6)}...${p.token.slice(-4)}` : "",
     baseUrl: p.baseUrl,
     createdAt: p.createdAt,
+    updatedAt: p.updatedAt,
   }));
 }
 

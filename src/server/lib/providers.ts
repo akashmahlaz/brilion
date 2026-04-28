@@ -9,6 +9,30 @@ import { createLogger } from "../models/log-entry";
 // ── Runtime Adapter Switching (typed factory map) ──
 type AdapterFactory = (modelId: string, apiKey: string, baseUrl?: string) => AnyTextAdapter;
 
+const PROVIDER_DEFAULT_MODELS: Record<string, string> = {
+  github: "gpt-4.1",
+  "github-copilot": "gpt-4.1",
+  openai: "gpt-4.1",
+  anthropic: "claude-sonnet-4-20250514",
+  google: "gemini-2.5-flash",
+  xai: "grok-3-mini",
+  mistral: "mistral-large-latest",
+  openrouter: "openai/gpt-4.1-mini",
+  groq: "llama-3.1-8b-instant",
+  deepseek: "deepseek-chat",
+  cohere: "command-r-plus",
+  cloudflare: "@cf/meta/llama-3.1-8b-instruct",
+  fireworks: "accounts/fireworks/models/llama-v3p1-8b-instruct",
+  perplexity: "sonar-pro",
+  together: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+  nebius: "meta-llama/Meta-Llama-3.1-8B-Instruct",
+  akash: "Meta-Llama-3.1-8B-Instruct",
+  replicate: "meta/meta-llama-3-8b-instruct",
+  minimax: "MiniMax-Text-01",
+  qwen: "qwen-plus",
+  dashscope: "qwen-plus",
+};
+
 const ADAPTER_FACTORIES: Record<string, AdapterFactory> = {
   github: (model, key, base) =>
     createOpenaiChat(model as any, key, { baseURL: base || "https://models.inference.ai.azure.com" }),
@@ -48,6 +72,10 @@ const ADAPTER_FACTORIES: Record<string, AdapterFactory> = {
     createOpenaiChat(model as any, key, { baseURL: base || "https://api.replicate.com/v1" }),
   minimax: (model, key, base) =>
     createOpenaiChat(model as any, key, { baseURL: base || "https://api.minimax.chat/v1" }),
+  qwen: (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://dashscope-intl.aliyuncs.com/compatible-mode/v1" }),
+  dashscope: (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://dashscope-intl.aliyuncs.com/compatible-mode/v1" }),
 };
 
 export interface ProviderEntry {
@@ -97,6 +125,7 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     envKey: "OPENAI_API_KEY",
     website: "https://openai.com",
     modelsEndpoint: "https://api.openai.com/v1/models",
+    freeModels: ["gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano", "gpt-4o", "gpt-4o-mini", "o4-mini", "o3-mini"],
   },
   {
     id: "anthropic",
@@ -104,6 +133,7 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     description: "Claude Opus, Sonnet, Haiku models",
     envKey: "ANTHROPIC_API_KEY",
     website: "https://anthropic.com",
+    freeModels: ["claude-opus-4-20250514", "claude-sonnet-4-20250514", "claude-3.5-haiku-20241022"],
   },
   {
     id: "google",
@@ -113,6 +143,7 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     website: "https://ai.google.dev",
     modelsEndpoint:
       "https://generativelanguage.googleapis.com/v1beta/models",
+    freeModels: ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash"],
   },
   {
     id: "openrouter",
@@ -122,6 +153,7 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     website: "https://openrouter.ai",
     modelsEndpoint: "https://openrouter.ai/api/v1/models",
     defaultBaseUrl: "https://openrouter.ai/api/v1",
+    freeModels: ["openai/gpt-4.1-mini", "anthropic/claude-sonnet-4", "qwen/qwen-2.5-coder-32b-instruct", "deepseek/deepseek-chat"],
   },
   {
     id: "xai",
@@ -130,6 +162,7 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     envKey: "XAI_API_KEY",
     website: "https://x.ai",
     modelsEndpoint: "https://api.x.ai/v1/models",
+    freeModels: ["grok-3", "grok-3-mini", "grok-2-vision-1212"],
   },
   {
     id: "mistral",
@@ -139,6 +172,7 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     website: "https://mistral.ai",
     modelsEndpoint: "https://api.mistral.ai/v1/models",
     defaultBaseUrl: "https://api.mistral.ai/v1",
+    freeModels: ["mistral-large-latest", "mistral-small-latest", "codestral-latest"],
   },
   {
     id: "groq",
@@ -158,6 +192,7 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     website: "https://platform.deepseek.com",
     modelsEndpoint: "https://api.deepseek.com/v1/models",
     defaultBaseUrl: "https://api.deepseek.com/v1",
+    freeModels: ["deepseek-chat", "deepseek-reasoner"],
   },
   {
     id: "cohere",
@@ -167,6 +202,7 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     website: "https://cohere.com",
     modelsEndpoint: "https://api.cohere.ai/v2/models",
     defaultBaseUrl: "https://api.cohere.ai/v2",
+    freeModels: ["command-r-plus", "command-r", "command-a-03-2025"],
   },
   {
     id: "cloudflare",
@@ -175,6 +211,7 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     envKey: "CLOUDFLARE_API_KEY",
     website: "https://developers.cloudflare.com/workers-ai",
     defaultBaseUrl: "https://api.cloudflare.com/client/v4",
+    freeModels: ["@cf/meta/llama-3.1-8b-instruct", "@cf/meta/llama-3.2-3b-instruct", "@cf/mistral/mistral-7b-instruct-v0.2"],
   },
   {
     id: "fireworks",
@@ -184,6 +221,7 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     website: "https://fireworks.ai",
     modelsEndpoint: "https://api.fireworks.ai/v1/models",
     defaultBaseUrl: "https://api.fireworks.ai/v1",
+    freeModels: ["accounts/fireworks/models/llama-v3p1-8b-instruct", "accounts/fireworks/models/mixtral-8x7b-instruct"],
   },
   {
     id: "perplexity",
@@ -193,6 +231,7 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     website: "https://perplexity.ai",
     modelsEndpoint: "https://api.perplexity.ai/v1/models",
     defaultBaseUrl: "https://api.perplexity.ai",
+    freeModels: ["sonar-pro", "sonar", "sonar-reasoning-pro"],
   },
   {
     id: "together",
@@ -202,6 +241,7 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     website: "https://together.ai",
     modelsEndpoint: "https://api.together.xyz/v1/models",
     defaultBaseUrl: "https://api.together.xyz/v1",
+    freeModels: ["meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo", "Qwen/Qwen2.5-Coder-32B-Instruct", "deepseek-ai/DeepSeek-V3"],
   },
   {
     id: "nebius",
@@ -211,6 +251,7 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     website: "https://nebius.ai",
     modelsEndpoint: "https://api.nebius.ai/v1/models",
     defaultBaseUrl: "https://api.nebius.ai/v1",
+    freeModels: ["meta-llama/Meta-Llama-3.1-8B-Instruct", "Qwen/Qwen2.5-Coder-32B-Instruct"],
   },
   {
     id: "akash",
@@ -219,6 +260,7 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     envKey: "AKASH_API_KEY",
     website: "https://akash.network",
     defaultBaseUrl: "https://cloud.mymlabs.com/v1",
+    freeModels: ["Meta-Llama-3.1-8B-Instruct", "Meta-Llama-3.1-70B-Instruct"],
   },
   {
     id: "replicate",
@@ -227,6 +269,7 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     envKey: "REPLICATE_API_KEY",
     website: "https://replicate.com",
     defaultBaseUrl: "https://api.replicate.com/v1",
+    freeModels: ["meta/meta-llama-3-8b-instruct", "meta/meta-llama-3-70b-instruct"],
   },
   {
     id: "minimax",
@@ -236,6 +279,23 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
     website: "https://www.minimax.io",
     modelsEndpoint: "https://api.minimax.chat/v1/models",
     defaultBaseUrl: "https://api.minimax.chat/v1",
+    freeModels: ["MiniMax-Text-01", "MiniMax-M1", "MiniMax-VL-01"],
+  },
+  {
+    id: "qwen",
+    name: "Qwen (DashScope)",
+    description: "Qwen models from Alibaba Cloud DashScope",
+    envKey: "DASHSCOPE_API_KEY",
+    website: "https://dashscope.aliyun.com",
+    modelsEndpoint: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/models",
+    defaultBaseUrl: "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    freeModels: [
+      "qwen-max",
+      "qwen-plus",
+      "qwen-turbo",
+      "qwen2.5-coder-32b-instruct",
+      "qwen2.5-72b-instruct",
+    ],
   },
   {
     id: "tavily",
@@ -284,8 +344,12 @@ function buildAdapter(
  */
 export async function resolveModel(modelSpec?: string, userId?: string): Promise<AnyTextAdapter> {
   const config = await loadConfig(userId);
-  const spec = modelSpec || config.agents?.defaults?.model?.primary || "gpt-4o";
+  const spec = modelSpec || config.agents?.defaults?.model?.primary || await getConfiguredDefaultSpec(userId);
   const fallbacks: string[] = config.agents?.defaults?.model?.fallbacks || [];
+
+  if (!spec) {
+    throw new Error("No AI provider configured. Connect a provider and choose a default model first.");
+  }
 
 
   // Deep diagnostic: log the full model resolution chain
@@ -345,14 +409,7 @@ async function resolveModelSingle(spec: string, userId?: string): Promise<AnyTex
     [providerId, modelId] = spec.split("/", 2);
   } else {
     modelId = spec;
-    // Try to find a configured provider
-    for (const p of PROVIDER_CATALOG) {
-      const key = await resolveProviderKey(p.id, userId);
-      if (key) {
-        providerId = p.id;
-        break;
-      }
-    }
+    providerId = await inferProviderForBareModel(modelId, userId);
   }
 
 
@@ -369,6 +426,40 @@ async function resolveModelSingle(spec: string, userId?: string): Promise<AnyTex
 
 export async function resolveModelBySpec(spec: string, userId?: string): Promise<AnyTextAdapter> {
   return resolveModel(spec, userId);
+}
+
+async function getConfiguredDefaultSpec(userId?: string): Promise<string | null> {
+  for (const provider of PROVIDER_CATALOG) {
+    const key = await resolveProviderKey(provider.id, userId);
+    if (!key) continue;
+    return `${provider.id}/${getDefaultModelForProvider(provider.id)}`;
+  }
+  return null;
+}
+
+function getDefaultModelForProvider(providerId: string): string {
+  return PROVIDER_DEFAULT_MODELS[providerId] ?? PROVIDER_CATALOG.find((provider) => provider.id === providerId)?.freeModels?.[0] ?? "gpt-4.1";
+}
+
+async function inferProviderForBareModel(modelId: string, userId?: string): Promise<string> {
+  const configuredMatches: string[] = [];
+  for (const provider of PROVIDER_CATALOG) {
+    const key = await resolveProviderKey(provider.id, userId);
+    if (!key) continue;
+    if (provider.freeModels?.includes(modelId) || getDefaultModelForProvider(provider.id) === modelId) {
+      configuredMatches.push(provider.id);
+    }
+  }
+
+  if (configuredMatches.length > 0) return configuredMatches[0];
+  if (modelId.startsWith("claude-")) return "anthropic";
+  if (modelId.startsWith("gemini-")) return "google";
+  if (modelId.startsWith("grok-")) return "xai";
+  if (modelId.startsWith("qwen")) return "qwen";
+  if (modelId.startsWith("deepseek-")) return "deepseek";
+  if (modelId.startsWith("mistral-") || modelId.startsWith("codestral-")) return "mistral";
+  if (modelId.startsWith("sonar")) return "perplexity";
+  return "openai";
 }
 
 export async function getAvailableProviders(userId?: string) {
