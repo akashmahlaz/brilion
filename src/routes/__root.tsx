@@ -45,6 +45,26 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
       </div>
     )
   },
+  errorComponent: ({ error }) => {
+    const message = error instanceof Error ? error.message : 'Something went wrong while loading this page.'
+
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background px-4">
+        <div className="flex w-full max-w-md flex-col gap-4 rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
+          <div className="flex flex-col gap-1">
+            <h1 className="font-heading text-xl font-semibold tracking-tight">Page failed to load</h1>
+            <p className="text-sm text-muted-foreground">Try refreshing the page. The details below may help while debugging.</p>
+          </div>
+          <pre className="max-h-48 overflow-auto rounded-md bg-muted p-3 font-mono text-xs text-muted-foreground whitespace-pre-wrap">
+            {message}
+          </pre>
+          <Link to="/chat" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+            Back to chat
+          </Link>
+        </div>
+      </div>
+    )
+  },
 
   head: () => ({
     meta: [

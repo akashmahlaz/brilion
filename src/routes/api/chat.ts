@@ -103,17 +103,21 @@ async function* withPostProcessing(
 
   try {
     for await (const chunk of stream) {
-      if (chunk.type === "TEXT_MESSAGE_CONTENT" && chunk.delta) {
-        fullText += chunk.delta;
-        upsertTextPart("text", chunk.delta);
+      if (chunk.type === "TEXT_MESSAGE_CONTENT") {
+        const textDelta = chunk.delta || chunk.content || "";
+        if (textDelta) {
+          fullText += textDelta;
+          upsertTextPart("text", textDelta);
+        }
       }
 
-      if (
-        (typeof chunk.type === "string" &&
-          (chunk.type.includes("THINKING") || chunk.type.includes("REASONING"))) &&
-        (chunk.delta || chunk.content)
+      if (chunk.type === "STEP_FINISHED") {
+        upsertTextPart("thinking", chunk.delta || chunk.content || "");
+      } else if (
+        typeof chunk.type === "string" &&
+        (chunk.type.includes("THINKING") || chunk.type.includes("REASONING"))
       ) {
-        upsertTextPart("thinking", chunk.delta || chunk.content);
+        upsertTextPart("thinking", chunk.delta || chunk.content || chunk.reasoning || "");
       }
 
       // Log tool invocations for observability

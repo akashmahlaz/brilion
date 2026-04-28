@@ -59,7 +59,6 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '#/comp
 import { toast } from 'sonner'
 import { apiFetch } from '#/lib/api'
 import { ProviderIcon } from '#/components/provider-icons'
-import { PROVIDER_CATALOG } from '#/server/lib/providers'
 import {
   Sheet,
   SheetContent,
@@ -315,7 +314,7 @@ function ProvidersTab() {
     setCopilotPolling(false)
 
     // Pre-fill base URL if provider has a default
-    const p = PROVIDER_CATALOG.find(p => p.id === providerId)
+    const p = providers.find(p => p.id === providerId)
     if (p?.defaultBaseUrl) setBaseUrlInput(p.defaultBaseUrl)
 
     // Load models if already configured
@@ -725,7 +724,7 @@ function ProviderDrawer({
                   <button
                     type="button"
                     onClick={() => setShowKey(!showKey)}
-                    className="absolute end-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    className="absolute inset-e-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                   >
                     {showKey ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                   </button>

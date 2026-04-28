@@ -199,8 +199,6 @@ function getToolIcon(iconType: string) {
 function ToolCallLog({ toolCalls }: { toolCalls: ToolCallPart[] }) {
   if (!toolCalls.length) return null
 
-  const hasActive = toolCalls.some(tc => tc.state === 'calling')
-
   return (
     <div className="flex flex-col gap-1">
       {toolCalls.map((tc, idx) => {
@@ -564,7 +562,7 @@ function ChatPage() {
     return {
       role: m.role as Message['role'],
       content: textParts.map((p: any) => p.content).join('') ?? '',
-      thinking: thinkingParts.map((p: any) => p.content || p.text || p.reasoning || '').join('') || undefined,
+      thinking: thinkingParts.map((p: any) => p.content || p.text || p.reasoning || p.delta || '').join('') || undefined,
       toolCalls: toolCallParts.map((p: any) => {
         const hasOutput = p.output !== undefined
         const matchingResult = toolResultParts.find((r: any) => r.toolCallId === p.id) as any
