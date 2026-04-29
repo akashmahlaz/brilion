@@ -44,6 +44,48 @@ const configSchema = new mongoose.Schema(
         groupAllowFrom: { type: [String], default: ["*"] },
         groupPolicy: { type: String, default: "disabled" },
         botToken: String,
+        botUsername: String,
+        // "polling" (default) or "webhook" — controls how Chat SDK delivers updates.
+        mode: { type: String, default: "polling" },
+        // Required by Telegram when mode === "webhook" to validate inbound payloads.
+        webhookSecret: String,
+      },
+      // ── Chat-SDK driven channels (Phase 2+) ─────────────────────────────
+      slack: {
+        enabled: { type: Boolean, default: false },
+        botToken: String,
+        signingSecret: String,
+        appToken: String,
+        teamId: String,
+      },
+      discord: {
+        enabled: { type: Boolean, default: false },
+        botToken: String,
+        applicationId: String,
+        publicKey: String,
+      },
+      teams: {
+        enabled: { type: Boolean, default: false },
+        appId: String,
+        appPassword: String,
+        tenantId: String,
+      },
+      gchat: {
+        enabled: { type: Boolean, default: false },
+        serviceAccountJson: String,
+        webhookToken: String,
+      },
+      github: {
+        enabled: { type: Boolean, default: false },
+        appId: String,
+        privateKey: String,
+        webhookSecret: String,
+        installationId: String,
+      },
+      linear: {
+        enabled: { type: Boolean, default: false },
+        apiKey: String,
+        webhookSecret: String,
       },
     },
     skills: {

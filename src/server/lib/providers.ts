@@ -333,9 +333,27 @@ function buildAdapter(
   apiKey: string,
   baseUrl?: string
 ): AnyTextAdapter {
-
   const factory = ADAPTER_FACTORIES[providerId] || ADAPTER_FACTORIES.openai;
-  return factory(modelId, apiKey, baseUrl);
+  const normalizedBaseUrl = normalizeOpenAICompatibleBaseUrl(baseUrl);
+  const adapter = factory(modelId, apiKey, normalizedBaseUrl);
+  return Object.assign(adapter, {
+    provider: providerId,
+    model: modelId,
+    baseUrl: normalizedBaseUrl,
+  });
+}
+
+function normalizeOpenAICompatibleBaseUrl(baseUrl?: string): string | undefined {
+  if (!baseUrl) return undefined;
+  let normalized = baseUrl.trim().replace(/\/+$/, "");
+  if (!normalized) return undefined;
+
+  // Users often paste a full endpoint from provider docs. The OpenAI adapter
+  // expects only the base URL and appends `/chat/completions` or `/models`.
+  normalized = normalized.replace(/\/chat\/completions$/i, "");
+  normalized = normalized.replace(/\/models$/i, "");
+  normalized = normalized.replace(/\/+$/, "");
+  return normalized || undefined;
 }
 
 /**

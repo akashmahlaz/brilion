@@ -140,6 +140,29 @@ async function* withPostProcessing(
   }
 }
 
+function explainProviderError(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  const status = (err as any)?.status;
+
+  if (status === 404 || message.includes("404 page not found")) {
+    return "AI provider endpoint returned 404. Check the selected provider model and custom base URL. For OpenAI-compatible providers, save only the base URL (for example https://api.minimax.chat/v1), not /chat/completions or /models.";
+  }
+
+  if (status === 401 || /unauthori[sz]ed|login fail|api secret key/i.test(message)) {
+    return "AI provider authentication failed. Check that the API key for the selected provider is saved correctly.";
+  }
+
+  return message;
+}
+
+async function* withFriendlyProviderErrors(stream: AsyncIterable<any>): AsyncGenerator<any> {
+  try {
+    yield* stream;
+  } catch (err) {
+    throw new Error(explainProviderError(err));
+  }
+}
+
 const ATTACHMENT_RE = /\[(Image|File):\s*([^\]]+)\]\(([^)]+)\)/g;
 
 /** Transform messages to multimodal format — converts [Image: name](url) to image parts with CDN URLs */
@@ -256,17 +279,19 @@ export const Route = createFileRoute("/api/chat")({
         // Transform messages — convert [Image: name](url) to actual multimodal image parts
         const aiMessages = await transformMessages(messages);
 
-        const modelName = (agentConfig.adapter as any)?.model || modelSpec || "unknown";
-        const providerName = (agentConfig.adapter as any)?.provider || "unknown";
+        const usedAdapter = adapterOverride ?? agentConfig.adapter;
+        const modelName = (usedAdapter as any)?.model || modelSpec || "unknown";
+        const providerName = (usedAdapter as any)?.provider || "unknown";
+        const providerBaseUrl = (usedAdapter as any)?.baseUrl || undefined;
         const logger = createLogger(userId, "api");
         const startTime = Date.now();
 
         // Log user input
         console.log(`[chat] ← USER (${userId.slice(-6)}): ${userMessageText.slice(0, 300)}${userMessageText.length > 300 ? "…" : ""}`);
-        console.log(`[chat]   model=${modelName} provider=${providerName} msgs=${messages.length} convId=${conversationId || "new"}`);
+        console.log(`[chat]   model=${modelName} provider=${providerName} baseUrl=${providerBaseUrl || "default"} msgs=${messages.length} convId=${conversationId || "new"}`);
 
         const rawStream = chat({
-          adapter: adapterOverride ?? agentConfig.adapter,
+          adapter: usedAdapter,
           messages: aiMessages,
           systemPrompts: agentConfig.systemPrompts,
           tools: agentConfig.tools,
@@ -288,7 +313,7 @@ export const Route = createFileRoute("/api/chat")({
 
         // Wrap stream for post-processing (usage tracking + conversation saving)
         const trackedStream = withPostProcessing(
-          rawStream,
+          withFriendlyProviderErrors(rawStream),
           // onComplete — save conversation and index
           async (fullText: string, toolCalls: string[], assistantParts: any[]) => {
             const durationMs = Date.now() - startTime;
@@ -376,7 +401,8 @@ export const Route = createFileRoute("/api/chat")({
           // onError
           (err) => {
             const durationMs = Date.now() - startTime;
-            logger.error("Web chat failed", { error: String(err), durationMs });
+            const errorMessage = explainProviderError(err);
+            logger.error("Web chat failed", { error: errorMessage, durationMs });
             trackUsage({
               userId,
               channel: "web",
@@ -384,7 +410,7 @@ export const Route = createFileRoute("/api/chat")({
               model: modelName,
               durationMs,
               success: false,
-              error: err instanceof Error ? err.message : String(err),
+              error: errorMessage,
             });
           }
         );

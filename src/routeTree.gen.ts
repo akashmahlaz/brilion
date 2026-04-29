@@ -72,6 +72,7 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as AppSettingsWorkspaceRouteImport } from './routes/_app.settings.workspace'
 import { Route as AppSettingsProvidersRouteImport } from './routes/_app.settings.providers'
 import { Route as AppSettingsPersonaRouteImport } from './routes/_app.settings.persona'
+import { Route as ApiWebhooksUserIdPlatformRouteImport } from './routes/api/webhooks.$userId.$platform'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -386,6 +387,12 @@ const AppSettingsPersonaRoute = AppSettingsPersonaRouteImport.update({
   path: '/persona',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const ApiWebhooksUserIdPlatformRoute =
+  ApiWebhooksUserIdPlatformRouteImport.update({
+    id: '/api/webhooks/$userId/$platform',
+    path: '/api/webhooks/$userId/$platform',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -449,6 +456,7 @@ export interface FileRoutesByFullPath {
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
   '/settings/': typeof AppSettingsIndexRoute
+  '/api/webhooks/$userId/$platform': typeof ApiWebhooksUserIdPlatformRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -511,6 +519,7 @@ export interface FileRoutesByTo {
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
   '/settings': typeof AppSettingsIndexRoute
+  '/api/webhooks/$userId/$platform': typeof ApiWebhooksUserIdPlatformRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -577,6 +586,7 @@ export interface FileRoutesById {
   '/api/rpc/$': typeof ApiRpcSplatRoute
   '/api/trpc/$': typeof ApiTrpcSplatRoute
   '/_app/settings/': typeof AppSettingsIndexRoute
+  '/api/webhooks/$userId/$platform': typeof ApiWebhooksUserIdPlatformRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -642,6 +652,7 @@ export interface FileRouteTypes {
     | '/api/rpc/$'
     | '/api/trpc/$'
     | '/settings/'
+    | '/api/webhooks/$userId/$platform'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -704,6 +715,7 @@ export interface FileRouteTypes {
     | '/api/rpc/$'
     | '/api/trpc/$'
     | '/settings'
+    | '/api/webhooks/$userId/$platform'
   id:
     | '__root__'
     | '/'
@@ -769,6 +781,7 @@ export interface FileRouteTypes {
     | '/api/rpc/$'
     | '/api/trpc/$'
     | '/_app/settings/'
+    | '/api/webhooks/$userId/$platform'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -812,6 +825,7 @@ export interface RootRouteChildren {
   ApiGenerateVideoRoute: typeof ApiGenerateVideoRoute
   ApiRpcSplatRoute: typeof ApiRpcSplatRoute
   ApiTrpcSplatRoute: typeof ApiTrpcSplatRoute
+  ApiWebhooksUserIdPlatformRoute: typeof ApiWebhooksUserIdPlatformRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1257,6 +1271,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsPersonaRouteImport
       parentRoute: typeof AppSettingsRoute
     }
+    '/api/webhooks/$userId/$platform': {
+      id: '/api/webhooks/$userId/$platform'
+      path: '/api/webhooks/$userId/$platform'
+      fullPath: '/api/webhooks/$userId/$platform'
+      preLoaderRoute: typeof ApiWebhooksUserIdPlatformRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -1373,6 +1394,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGenerateVideoRoute: ApiGenerateVideoRoute,
   ApiRpcSplatRoute: ApiRpcSplatRoute,
   ApiTrpcSplatRoute: ApiTrpcSplatRoute,
+  ApiWebhooksUserIdPlatformRoute: ApiWebhooksUserIdPlatformRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

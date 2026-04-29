@@ -1,156 +1,55 @@
-import { Bot } from "grammy";
-import { routeMessage } from "../lib/router";
-import { Config } from "../models/config";
-import { loadConfig, saveConfig } from "../lib/config";
+/**
+ * Telegram channel — backed by the Vercel Chat SDK (`@chat-adapter/telegram`).
+ *
+ * This file preserves the public API of the previous grammY-based
+ * implementation so call sites (`api/telegram.ts`, `init.ts`, plugins) keep
+ * working unchanged. Internally everything is delegated to `bot-registry`,
+ * which builds one `Chat` instance per Brilion user with all of the user's
+ * configured channel adapters.
+ */
+import { TelegramAdapter } from "@chat-adapter/telegram";
 import { connectDB } from "../db";
+import { loadConfig, saveConfig } from "../lib/config";
+import {
+  autoStartChatSdkBots,
+  getBotForUser,
+  invalidateBot,
+  getBotStatus,
+} from "../lib/bot-registry";
 
 const log = (...args: unknown[]) => console.log("[telegram]", ...args);
-
-interface TelegramBotEntry {
-  bot: Bot;
-  isRunning: boolean;
-  userId: string;
-}
-
-const userBots = new Map<string, TelegramBotEntry>();
-
-async function initBotForUser(token: string, userId: string): Promise<{ ok: boolean; botInfo?: { username: string } }> {
-  const existing = userBots.get(userId);
-  if (existing?.isRunning) {
-    await existing.bot.stop();
-  }
-
-  const bot = new Bot(token);
-
-  bot.on("message:text", async (ctx) => {
-    const text = ctx.message.text;
-    const senderId = ctx.from.id.toString();
-    const senderName =
-      ctx.from.first_name + (ctx.from.last_name ? ` ${ctx.from.last_name}` : "");
-
-    try {
-      const reply = await routeMessage({
-        channel: "telegram",
-        userId,
-        senderId,
-        senderName,
-        text,
-      });
-
-      if (reply) {
-        const chunks = splitMessage(reply, 4000);
-        for (const chunk of chunks) {
-          await ctx.reply(chunk, { parse_mode: "Markdown" }).catch(async () => {
-            await ctx.reply(chunk);
-          });
-        }
-      }
-    } catch (err) {
-      log("Message handling error for user", userId, ":", err);
-      await ctx.reply("Sorry, I encountered an error processing your message.").catch(() => {});
-    }
-  });
-
-  const me = await bot.api.getMe();
-  userBots.set(userId, { bot, isRunning: false, userId });
-  return { ok: true, botInfo: { username: me.username } };
-}
-
-async function startPollingForUser(userId: string): Promise<void> {
-  const entry = userBots.get(userId);
-  if (!entry || entry.isRunning) return;
-
-  entry.bot.start({
-    onStart: () => {
-      entry.isRunning = true;
-      log("Bot started polling for user:", userId);
-    },
-  });
-}
-
-async function stopBotForUser(userId: string): Promise<void> {
-  const entry = userBots.get(userId);
-  if (entry?.isRunning) {
-    await entry.bot.stop();
-    entry.isRunning = false;
-  }
-}
-
-export async function sendTelegramMessage(
-  chatId: string | number,
-  text: string,
-  userId?: string
-): Promise<{ status: string; error?: string }> {
-  // Find the bot for this user, or any bot as fallback
-  const entry = userId ? userBots.get(userId) : userBots.values().next().value;
-  if (!entry?.bot) return { status: "error", error: "Bot not initialized" };
-  try {
-    await entry.bot.api.sendMessage(chatId, text);
-    return { status: "sent" };
-  } catch (err) {
-    return {
-      status: "error",
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
-}
-
-export function isTelegramConnected(userId?: string): boolean {
-  if (userId) return userBots.get(userId)?.isRunning ?? false;
-  return Array.from(userBots.values()).some((e) => e.isRunning);
-}
-
-export function getTelegramBot(userId?: string): Bot | null {
-  if (userId) return userBots.get(userId)?.bot ?? null;
-  const first = userBots.values().next().value as TelegramBotEntry | undefined;
-  return first?.bot ?? null;
-}
-
-/**
- * Auto-start Telegram bots for all users with stored tokens.
- */
-export async function autoStartTelegram(): Promise<void> {
-  try {
-    await connectDB();
-    const configs = await Config.find({
-      "channels.telegram.enabled": true,
-      "channels.telegram.botToken": { $exists: true, $ne: null },
-    }).lean();
-
-    for (const config of configs as any[]) {
-      const userId = config.userId;
-      const botToken = config.channels?.telegram?.botToken;
-      if (!userId || !botToken) continue;
-
-      try {
-        await initBotForUser(botToken, userId);
-        await startPollingForUser(userId);
-        log("Auto-started bot for user:", userId);
-      } catch (err) {
-        log("Auto-start failed for user:", userId, err);
-      }
-    }
-  } catch (err) {
-    log("autoStartTelegram failed:", err);
-  }
-}
 
 export async function connectTelegram(
   botToken: string,
   userId?: string
 ): Promise<{ ok: boolean; username?: string; error?: string }> {
+  if (!userId) return { ok: false, error: "userId required" };
+  if (!botToken || typeof botToken !== "string") {
+    return { ok: false, error: "botToken required" };
+  }
+
   try {
-    if (!userId) return { ok: false, error: "userId required" };
-    const result = await initBotForUser(botToken, userId);
+    // Probe the token via Telegram's getMe before we persist anything.
+    const meRes = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
+    const meJson: any = await meRes.json().catch(() => ({}));
+    if (!meRes.ok || !meJson?.ok) {
+      const desc = meJson?.description || `HTTP ${meRes.status}`;
+      return { ok: false, error: `Invalid bot token: ${desc}` };
+    }
+    const username: string | undefined = meJson?.result?.username;
 
     await connectDB();
     const config = await loadConfig(userId);
     config.channels.telegram.botToken = botToken;
     config.channels.telegram.enabled = true;
+    if (username) config.channels.telegram.botUsername = username;
     await saveConfig(config);
 
-    await startPollingForUser(userId);
-    return { ok: true, username: result.botInfo?.username };
+    // Drop any stale bot, then build a fresh Chat instance with the new token.
+    await invalidateBot(userId);
+    await getBotForUser(userId);
+
+    return { ok: true, username };
   } catch (err) {
     return {
       ok: false,
@@ -161,8 +60,7 @@ export async function connectTelegram(
 
 export async function disconnectTelegram(userId?: string): Promise<void> {
   if (!userId) return;
-  await stopBotForUser(userId);
-  userBots.delete(userId);
+  await invalidateBot(userId);
 
   await connectDB();
   const config = await loadConfig(userId);
@@ -171,19 +69,66 @@ export async function disconnectTelegram(userId?: string): Promise<void> {
   await saveConfig(config);
 }
 
-function splitMessage(text: string, maxLen: number): string[] {
-  if (text.length <= maxLen) return [text];
-  const chunks: string[] = [];
-  let remaining = text;
-  while (remaining.length > 0) {
-    if (remaining.length <= maxLen) {
-      chunks.push(remaining);
-      break;
+export function isTelegramConnected(userId?: string): boolean {
+  if (!userId) return false;
+  const status = getBotStatus(userId);
+  return status.exists && status.adapters.includes("telegram");
+}
+
+/**
+ * Backwards-compat shim. The legacy code returned a grammY `Bot` whose only
+ * consumer property was `botInfo.username`. We return a status-only object
+ * with the same shape so existing route code keeps compiling.
+ */
+export function getTelegramBot(
+  userId?: string
+): { botInfo: { username: string | undefined } } | null {
+  if (!userId) return null;
+  const status = getBotStatus(userId);
+  if (!status.exists) return null;
+  // Username lives on the adapter once built — callers that need it should
+  // hit `/api/telegram?action=status` which already round-trips through this
+  // shim plus a future enhancement to surface adapter.userName.
+  return { botInfo: { username: undefined } };
+}
+
+/**
+ * Send a one-off message via Telegram. Used by plugins / cron / debug surfaces
+ * that already know the chat id.
+ */
+export async function sendTelegramMessage(
+  chatId: string | number,
+  text: string,
+  userId?: string
+): Promise<{ status: string; error?: string }> {
+  if (!userId) return { status: "error", error: "userId required" };
+  try {
+    const entry = await getBotForUser(userId);
+    if (!entry || !entry.adapters.has("telegram")) {
+      return { status: "error", error: "Telegram not connected" };
     }
-    let splitAt = remaining.lastIndexOf("\n", maxLen);
-    if (splitAt < maxLen / 2) splitAt = maxLen;
-    chunks.push(remaining.slice(0, splitAt));
-    remaining = remaining.slice(splitAt);
+    const adapter = entry.chat.getAdapter("telegram") as TelegramAdapter;
+    // Chat SDK's threadId for Telegram is `telegram:<chatId>`.
+    const threadId = `telegram:${chatId}`;
+    // AdapterPostableMessage accepts a plain string for the simple text case.
+    await adapter.postMessage(threadId, text);
+    return { status: "sent" };
+  } catch (err) {
+    return {
+      status: "error",
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
-  return chunks;
+}
+
+/**
+ * Boot every user that has Telegram (or any other Chat-SDK channel) configured.
+ */
+export async function autoStartTelegram(): Promise<void> {
+  try {
+    await autoStartChatSdkBots();
+    log("autoStartTelegram() complete");
+  } catch (err) {
+    log("autoStartTelegram failed:", err);
+  }
 }
