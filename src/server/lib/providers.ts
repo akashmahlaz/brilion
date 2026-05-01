@@ -28,7 +28,8 @@ const PROVIDER_DEFAULT_MODELS: Record<string, string> = {
   nebius: "meta-llama/Meta-Llama-3.1-8B-Instruct",
   akash: "Meta-Llama-3.1-8B-Instruct",
   replicate: "meta/meta-llama-3-8b-instruct",
-  minimax: "MiniMax-Text-01",
+  minimax: "MiniMax-M2.7",
+  "minimax-anthropic": "MiniMax-M2.7",
   qwen: "qwen-plus",
   dashscope: "qwen-plus",
 };
@@ -71,7 +72,9 @@ const ADAPTER_FACTORIES: Record<string, AdapterFactory> = {
   replicate: (model, key, base) =>
     createOpenaiChat(model as any, key, { baseURL: base || "https://api.replicate.com/v1" }),
   minimax: (model, key, base) =>
-    createOpenaiChat(model as any, key, { baseURL: base || "https://api.minimax.chat/v1" }),
+    createOpenaiChat(model as any, key, { baseURL: base || "https://api.minimaxi.com/v1" }),
+  "minimax-anthropic": (model, key, base) =>
+    createOpenaiChat(model as any, key, { baseURL: base || "https://api.minimax.io/anthropic" }),
   qwen: (model, key, base) =>
     createOpenaiChat(model as any, key, { baseURL: base || "https://dashscope-intl.aliyuncs.com/compatible-mode/v1" }),
   dashscope: (model, key, base) =>
@@ -274,12 +277,22 @@ export const PROVIDER_CATALOG: ProviderEntry[] = [
   {
     id: "minimax",
     name: "MiniMax",
-    description: "Mochi, HbY, and Flash models from MiniMax",
+    description: "MiniMax M2.7, M2.5, and other models — OpenAI-compatible API",
     envKey: "MINIMAX_API_KEY",
     website: "https://www.minimax.io",
-    modelsEndpoint: "https://api.minimax.chat/v1/models",
-    defaultBaseUrl: "https://api.minimax.chat/v1",
-    freeModels: ["MiniMax-Text-01", "MiniMax-M1", "MiniMax-VL-01"],
+    modelsEndpoint: "https://api.minimaxi.com/v1/models",
+    defaultBaseUrl: "https://api.minimaxi.com/v1",
+    freeModels: ["MiniMax-M2.7", "MiniMax-M2.7-highspeed", "MiniMax-M2.5", "MiniMax-M2.5-highspeed", "MiniMax-M2.1", "MiniMax-M2.1-highspeed", "MiniMax-M2"],
+  },
+  {
+    id: "minimax-anthropic",
+    name: "MiniMax (Anthropic)",
+    description: "MiniMax models via Anthropic SDK compatibility — supports thinking/reasoning",
+    envKey: "MINIMAX_API_KEY",
+    website: "https://www.minimax.io",
+    modelsEndpoint: "https://api.minimax.io/anthropic/v1/models",
+    defaultBaseUrl: "https://api.minimax.io/anthropic",
+    freeModels: ["MiniMax-M2.7", "MiniMax-M2.7-highspeed", "MiniMax-M2.5", "MiniMax-M2.5-highspeed", "MiniMax-M2.1", "MiniMax-M2.1-highspeed", "MiniMax-M2"],
   },
   {
     id: "qwen",

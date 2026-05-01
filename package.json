@@ -16,9 +16,9 @@
     "start": "bun .output/server/index.mjs",
     "preview": "vite preview",
     "test": "vitest run",
-    "lint": "eslint",
+    "lint": "eslint src server scripts vite.config.ts",
     "format": "prettier --check .",
-    "check": "prettier --write . && eslint --fix",
+    "check": "prettier --write . && eslint --fix src server scripts vite.config.ts",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },

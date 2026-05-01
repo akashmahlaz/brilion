@@ -25,6 +25,7 @@ const ENV_MAP: Record<string, string> = {
   akash: "AKASH_API_KEY",
   replicate: "REPLICATE_API_KEY",
   minimax: "MINIMAX_API_KEY",
+  "minimax-anthropic": "MINIMAX_API_KEY",
   qwen: "DASHSCOPE_API_KEY",
   dashscope: "DASHSCOPE_API_KEY",
 };

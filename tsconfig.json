@@ -1,6 +1,24 @@
 {
-  "include": ["**/*.ts", "**/*.tsx", "eslint.config.js", "prettier.config.js", "vite.config.js"],
-  
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "server/**/*.ts",
+    "scripts/**/*.ts",
+    "eslint.config.js",
+    "prettier.config.js",
+    "vite.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "openclaw",
+    ".output",
+    ".nitro",
+    "dist",
+    "content",
+    "uploads",
+    "public"
+  ],
+
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",

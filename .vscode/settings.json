@@ -1,9 +1,25 @@
 {
   "files.watcherExclude": {
-    "**/routeTree.gen.ts": true
+    "**/routeTree.gen.ts": true,
+    "**/openclaw/**": true,
+    "**/.output/**": true,
+    "**/.nitro/**": true,
+    "**/.tanstack/**": true,
+    "**/.vinxi/**": true,
+    "**/dist/**": true,
+    "**/uploads/**": true,
+    "**/node_modules/**": true
   },
   "search.exclude": {
-    "**/routeTree.gen.ts": true
+    "**/routeTree.gen.ts": true,
+    "**/openclaw/**": true,
+    "**/.output/**": true,
+    "**/.nitro/**": true,
+    "**/.tanstack/**": true,
+    "**/.vinxi/**": true,
+    "**/dist/**": true,
+    "**/uploads/**": true,
+    "**/node_modules/**": true
   },
   "files.readonlyInclude": {
     "**/routeTree.gen.ts": true

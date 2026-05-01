@@ -51,6 +51,7 @@ const PROVIDER_SVG_MAP: Record<string, string> = {
   akash: akashSvg,
   replicate: replicateSvg,
   minimax: minimaxSvg,
+  "minimax-anthropic": minimaxSvg,
   qwen: qwenSvg,
   dashscope: qwenSvg,
   openrouter: openrouterSvg,
